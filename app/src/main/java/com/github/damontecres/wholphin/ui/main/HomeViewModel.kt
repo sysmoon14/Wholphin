@@ -12,6 +12,7 @@ import com.github.damontecres.wholphin.preferences.UserPreferences
 import com.github.damontecres.wholphin.services.BackdropService
 import com.github.damontecres.wholphin.services.DatePlayedService
 import com.github.damontecres.wholphin.services.FavoriteWatchManager
+import com.github.damontecres.wholphin.services.HomeScreenSectionsService
 import com.github.damontecres.wholphin.services.LatestNextUpService
 import com.github.damontecres.wholphin.services.NavigationManager
 import com.github.damontecres.wholphin.services.UserPreferencesService
@@ -48,6 +49,7 @@ class HomeViewModel
         private val datePlayedService: DatePlayedService,
         private val latestNextUpService: LatestNextUpService,
         private val backdropService: BackdropService,
+        private val homeScreenSectionsService: HomeScreenSectionsService,
         private val userPreferencesService: UserPreferencesService,
     ) : ViewModel() {
         val loadingState = MutableLiveData<LoadingState>(LoadingState.Pending)
@@ -84,6 +86,41 @@ class HomeViewModel
                 }
                 try {
                     serverRepository.currentUserDto.value?.let { userDto ->
+                        // Try to fetch custom sections from the plugin first
+                        Timber.d("HomeViewModel: Attempting to fetch custom sections for user %s", userDto.id)
+                        val customSections = homeScreenSectionsService.getCustomSections(userDto.id)
+
+                        if (customSections != null) {
+                            // Plugin sections are available, use them
+                            // The plugin provides all sections in order, including continue watching and next up
+                            Timber.i(
+                                "HomeViewModel: Using custom home screen sections from plugin (%s sections)",
+                                customSections.size,
+                            )
+                            withContext(Dispatchers.Main) {
+                                // Plugin sections replace the entire home screen
+                                // We'll put them all in latestRows and keep watchingRows empty
+                                // since the plugin manages the order and includes watching sections
+                                this@HomeViewModel.watchingRows.value = emptyList()
+                                if (reload) {
+                                    this@HomeViewModel.latestRows.value =
+                                        customSections.map {
+                                            if (it is HomeRowLoadingState.Success) {
+                                                HomeRowLoadingState.Loading(it.title)
+                                            } else {
+                                                it
+                                            }
+                                        }
+                                }
+                                loadingState.value = LoadingState.Success
+                            }
+                            refreshState.setValueOnMain(LoadingState.Success)
+                            // Sections are already loaded, just set them
+                            this@HomeViewModel.latestRows.setValueOnMain(customSections)
+                        } else {
+                            // Plugin not available, use default behavior
+                            Timber.d("HomeViewModel: Plugin not available, using default home screen sections")
+                        }
                         val includedIds =
                             navDrawerItemRepository
                                 .getFilteredNavDrawerItems(navDrawerItemRepository.getNavDrawerItems())

@@ -102,15 +102,15 @@ fun PlaybackPage(
     preferences: UserPreferences,
     destination: Destination,
     modifier: Modifier = Modifier,
-    viewModel: PlaybackViewModel = hiltViewModel(),
+    viewModel: PlaybackViewModel =
+        hiltViewModel<PlaybackViewModel, PlaybackViewModel.Factory>(
+            creationCallback = { it.create(destination) },
+        ),
 ) {
     LifecycleStartEffect(destination) {
         onStopOrDispose {
             viewModel.release()
         }
-    }
-    LaunchedEffect(destination) {
-        viewModel.init(destination, preferences)
     }
 
     val loading by viewModel.loading.observeAsState(LoadingState.Loading)
@@ -126,9 +126,10 @@ fun PlaybackPage(
         }
 
         LoadingState.Success -> {
+            val playerState by viewModel.currentPlayer.collectAsState()
             PlaybackPageContent(
-                player = viewModel.player,
-                playerBackend = preferences.appPreferences.playbackPreferences.playerBackend,
+                player = playerState!!.player,
+                playerBackend = playerState!!.backend,
                 preferences = preferences,
                 destination = destination,
                 viewModel = viewModel,
@@ -175,7 +176,7 @@ fun PlaybackPageContent(
     val subtitleSearchLanguage by viewModel.subtitleSearchLanguage.observeAsState(Locale.current.language)
 
     var playbackDialog by remember { mutableStateOf<PlaybackDialogType?>(null) }
-    LaunchedEffect(playerBackend, configuration, density) {
+    LaunchedEffect(player) {
         if (playerBackend == PlayerBackend.MPV) {
             scope.launch(Dispatchers.IO + ExceptionHandler()) {
                 preferences.appPreferences.interfacePreferences.subtitlesPreferences.applyToMpv(

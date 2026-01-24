@@ -102,15 +102,15 @@ fun PlaybackPage(
     preferences: UserPreferences,
     destination: Destination,
     modifier: Modifier = Modifier,
-    viewModel: PlaybackViewModel =
-        hiltViewModel<PlaybackViewModel, PlaybackViewModel.Factory>(
-            creationCallback = { it.create(destination) },
-        ),
+    viewModel: PlaybackViewModel = hiltViewModel(),
 ) {
     LifecycleStartEffect(destination) {
         onStopOrDispose {
             viewModel.release()
         }
+    }
+    LaunchedEffect(destination) {
+        viewModel.init(destination, preferences)
     }
 
     val loading by viewModel.loading.observeAsState(LoadingState.Loading)
@@ -126,10 +126,9 @@ fun PlaybackPage(
         }
 
         LoadingState.Success -> {
-            val playerState by viewModel.currentPlayer.collectAsState()
             PlaybackPageContent(
-                player = playerState!!.player,
-                playerBackend = playerState!!.backend,
+                player = viewModel.player,
+                playerBackend = preferences.appPreferences.playbackPreferences.playerBackend,
                 preferences = preferences,
                 destination = destination,
                 viewModel = viewModel,

@@ -5,6 +5,9 @@ import androidx.annotation.Dimension
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -173,7 +176,7 @@ fun PlaybackPageContent(
     val subtitleSearchLanguage by viewModel.subtitleSearchLanguage.observeAsState(Locale.current.language)
 
     var playbackDialog by remember { mutableStateOf<PlaybackDialogType?>(null) }
-    LaunchedEffect(player) {
+    LaunchedEffect(playerBackend, configuration, density) {
         if (playerBackend == PlayerBackend.MPV) {
             scope.launch(Dispatchers.IO + ExceptionHandler()) {
                 preferences.appPreferences.interfacePreferences.subtitlesPreferences.applyToMpv(

@@ -55,6 +55,7 @@ import com.github.damontecres.wholphin.ui.components.ErrorMessage
 import com.github.damontecres.wholphin.ui.components.LoadingPage
 import com.github.damontecres.wholphin.ui.components.SeriesName
 import com.github.damontecres.wholphin.ui.components.TabRow
+import com.github.damontecres.wholphin.ui.formatDateTime
 import com.github.damontecres.wholphin.ui.ifElse
 import com.github.damontecres.wholphin.ui.logTab
 import com.github.damontecres.wholphin.ui.playback.isPlayKeyUp
@@ -214,6 +215,9 @@ fun SeriesOverviewContent(
                                 if (interactionSource.collectIsFocusedAsState().value) {
                                     onFocusEpisode.invoke(episodeIndex)
                                 }
+                                val cornerText =
+                                    episode?.data?.indexNumber?.let { "E$it" }
+                                        ?: episode?.data?.premiereDate?.let(::formatDateTime)
                                 BannerCard(
                                     name = episode?.name,
                                     item = episode,
@@ -222,7 +226,7 @@ fun SeriesOverviewContent(
                                             ?.aspectRatio
                                             ?.coerceAtLeast(AspectRatios.FOUR_THREE)
                                             ?: (AspectRatios.WIDE),
-                                    cornerText = episode?.ui?.episodeCornerText,
+                                    cornerText = cornerText,
                                     played = episode?.data?.userData?.played ?: false,
                                     playPercent =
                                         episode?.data?.userData?.playedPercentage

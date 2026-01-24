@@ -770,27 +770,14 @@ sealed interface AppPreference<Pref, T> {
         val PlayerBackendPref =
             AppChoicePreference<AppPreferences, PlayerBackend>(
                 title = R.string.player_backend,
-                defaultValue = PlayerBackend.PREFER_MPV,
+                defaultValue = PlayerBackend.EXO_PLAYER,
                 getter = { it.playbackPreferences.playerBackend },
                 setter = { prefs, value ->
                     prefs.updatePlaybackPreferences { playerBackend = value }
                 },
                 displayValues = R.array.player_backend_options,
-                subtitles = R.array.player_backend_options_subtitles,
                 indexToValue = { PlayerBackend.forNumber(it) },
                 valueToIndex = { it.number },
-            )
-
-        val ExoPlayerSettings =
-            AppDestinationPreference<AppPreferences>(
-                title = R.string.exoplayer_options,
-                destination = Destination.Settings(PreferenceScreenOption.EXO_PLAYER),
-            )
-
-        val MpvSettings =
-            AppDestinationPreference<AppPreferences>(
-                title = R.string.mpv_options,
-                destination = Destination.Settings(PreferenceScreenOption.MPV),
             )
 
         val MpvHardwareDecoding =
@@ -1003,40 +990,6 @@ val basicPreferences =
 
 val uiPreferences = listOf<PreferenceGroup>()
 
-private val ExoPlayerSettings =
-    listOf(
-        AppPreference.FfmpegPreference,
-        AppPreference.DownMixStereo,
-        AppPreference.Ac3Supported,
-        AppPreference.DirectPlayAss,
-        AppPreference.DirectPlayPgs,
-        AppPreference.DirectPlayDoviProfile7,
-        AppPreference.DecodeAv1,
-    )
-
-val ExoPlayerPreferences =
-    listOf(
-        PreferenceGroup(
-            title = R.string.exoplayer_options,
-            preferences = ExoPlayerSettings,
-        ),
-    )
-
-private val MpvSettings =
-    listOf(
-        AppPreference.MpvHardwareDecoding,
-        AppPreference.MpvGpuNext,
-        AppPreference.MpvConfFile,
-    )
-
-val MpvPreferences =
-    listOf(
-        PreferenceGroup(
-            title = R.string.mpv_options,
-            preferences = MpvSettings,
-        ),
-    )
-
 val advancedPreferences =
     buildList {
         add(
@@ -1105,17 +1058,22 @@ val advancedPreferences =
                     listOf(
                         ConditionalPreferences(
                             { it.playbackPreferences.playerBackend == PlayerBackend.EXO_PLAYER },
-                            ExoPlayerSettings,
+                            listOf(
+                                AppPreference.FfmpegPreference,
+                                AppPreference.DownMixStereo,
+                                AppPreference.Ac3Supported,
+                                AppPreference.DirectPlayAss,
+                                AppPreference.DirectPlayPgs,
+                                AppPreference.DirectPlayDoviProfile7,
+                                AppPreference.DecodeAv1,
+                            ),
                         ),
                         ConditionalPreferences(
                             { it.playbackPreferences.playerBackend == PlayerBackend.MPV },
-                            MpvSettings,
-                        ),
-                        ConditionalPreferences(
-                            { it.playbackPreferences.playerBackend == PlayerBackend.PREFER_MPV },
                             listOf(
-                                AppPreference.ExoPlayerSettings,
-                                AppPreference.MpvSettings,
+                                AppPreference.MpvHardwareDecoding,
+                                AppPreference.MpvGpuNext,
+                                AppPreference.MpvConfFile,
                             ),
                         ),
                     ),
@@ -1200,7 +1158,6 @@ data class AppChoicePreference<Pref, T>(
     override val getter: (prefs: Pref) -> T,
     override val setter: (prefs: Pref, value: T) -> Pref,
     @param:StringRes val summary: Int? = null,
-    @param:ArrayRes val subtitles: Int? = null,
 ) : AppPreference<Pref, T>
 
 data class AppMultiChoicePreference<Pref, T>(

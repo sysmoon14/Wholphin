@@ -8,10 +8,8 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.github.damontecres.wholphin.ui.TimeFormatter
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 
 val LocalClock = compositionLocalOf<Clock> { Clock() }
@@ -34,14 +32,12 @@ data class Clock(
 fun ProvideLocalClock(content: @Composable () -> Unit) {
     val clock = remember { Clock() }
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            while (isActive) {
-                val now = LocalDateTime.now()
-                val time = TimeFormatter.format(now)
-                clock.now.value = now
-                clock.timeString.value = time
-                delay(2_000)
-            }
+        while (isActive) {
+            val now = LocalDateTime.now()
+            val time = TimeFormatter.format(now)
+            clock.now.value = now
+            clock.timeString.value = time
+            delay(2_000)
         }
     }
     CompositionLocalProvider(LocalClock provides clock, content)

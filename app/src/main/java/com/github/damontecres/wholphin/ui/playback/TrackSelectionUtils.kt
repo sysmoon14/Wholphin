@@ -164,9 +164,7 @@ object TrackSelectionUtils {
             }
 
             // TODO MPV could use literal indexes because they are stored in the track format ID
-            PlayerBackend.PREFER_MPV,
-            PlayerBackend.MPV,
-            -> {
+            PlayerBackend.MPV -> {
                 when (type) {
                     MediaStreamType.VIDEO -> {
                         serverIndex - externalSubtitleCount + 1

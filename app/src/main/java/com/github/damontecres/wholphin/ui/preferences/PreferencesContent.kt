@@ -46,8 +46,6 @@ import com.github.damontecres.wholphin.R
 import com.github.damontecres.wholphin.data.model.SeerrAuthMethod
 import com.github.damontecres.wholphin.preferences.AppPreference
 import com.github.damontecres.wholphin.preferences.AppPreferences
-import com.github.damontecres.wholphin.preferences.ExoPlayerPreferences
-import com.github.damontecres.wholphin.preferences.MpvPreferences
 import com.github.damontecres.wholphin.preferences.PlayerBackend
 import com.github.damontecres.wholphin.preferences.advancedPreferences
 import com.github.damontecres.wholphin.preferences.basicPreferences
@@ -127,8 +125,6 @@ fun PreferencesContent(
             PreferenceScreenOption.ADVANCED -> advancedPreferences
             PreferenceScreenOption.USER_INTERFACE -> uiPreferences
             PreferenceScreenOption.SUBTITLES -> SubtitleSettings.preferences
-            PreferenceScreenOption.EXO_PLAYER -> ExoPlayerPreferences
-            PreferenceScreenOption.MPV -> MpvPreferences
         }
     val screenTitle =
         when (preferenceScreenOption) {
@@ -136,8 +132,6 @@ fun PreferencesContent(
             PreferenceScreenOption.ADVANCED -> R.string.advanced_settings
             PreferenceScreenOption.USER_INTERFACE -> R.string.ui_interface
             PreferenceScreenOption.SUBTITLES -> R.string.subtitle_style
-            PreferenceScreenOption.EXO_PLAYER -> R.string.exoplayer_options
-            PreferenceScreenOption.MPV -> R.string.mpv_options
         }
 
     var visible by remember { mutableStateOf(false) }
@@ -533,8 +527,6 @@ fun PreferencesPage(
             PreferenceScreenOption.BASIC,
             PreferenceScreenOption.ADVANCED,
             PreferenceScreenOption.USER_INTERFACE,
-            PreferenceScreenOption.EXO_PLAYER,
-            PreferenceScreenOption.MPV,
             -> {
                 PreferencesContent(
                     initialPreferences,

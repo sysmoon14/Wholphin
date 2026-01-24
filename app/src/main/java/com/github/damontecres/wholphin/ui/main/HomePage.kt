@@ -339,7 +339,7 @@ fun HomePageContent(
                                             item = item,
                                             aspectRatio = AspectRatios.TALL,
                                             forceTextOnly = item?.type == BaseItemKind.BOX_SET && item.name == "View All",
-                                            cornerText = item?.ui?.episdodeUnplayedCornerText ?: cornerText,
+                                            cornerText = item?.ui?.episdodeUnplayedCornerText,
                                             played = item?.data?.userData?.played ?: false,
                                             favorite = item?.favorite ?: false,
                                             playPercent =

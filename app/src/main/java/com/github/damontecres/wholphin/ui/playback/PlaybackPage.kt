@@ -306,6 +306,10 @@ fun PlaybackPageContent(
     BackHandler(showSegment) {
         segmentCancelled = true
     }
+    // If the overlay is visible, Back should dismiss it (not stop playback)
+    BackHandler(controllerViewState.controlsVisible) {
+        controllerViewState.hideControls()
+    }
 
     Box(
         modifier
@@ -368,8 +372,9 @@ fun PlaybackPageContent(
             AnimatedVisibility(
                 controllerViewState.controlsVisible,
                 Modifier,
-                slideInVertically { it },
-                slideOutVertically { it },
+                // Keep the overlay itself stationary; let top/bottom pieces animate inside `PlaybackOverlay`.
+                enter = fadeIn(),
+                exit = fadeOut(),
             ) {
                 PlaybackOverlay(
                     modifier =

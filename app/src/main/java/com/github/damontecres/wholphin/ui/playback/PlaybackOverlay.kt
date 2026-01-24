@@ -151,11 +151,18 @@ fun PlaybackOverlay(
 
     // Manual slide animation: AnimatedVisibility often doesn't run on TV (e.g. animator scale 0).
     // progressValue: 0 = fully shown, 1 = fully hidden.
-    val progressValue by animateFloatAsState(
-        targetValue = if (controllerViewState.controlsVisible) 0f else 1f,
-        animationSpec = tween(durationMillis = 300),
-        label = "overlay_slide_progress"
-    )
+    //
+    // Important: when this composable first enters composition while controlsVisible == true,
+    // we still want to animate from hidden -> shown (slide in). animateFloatAsState won't animate
+    // in that case because it initializes at the target value. Use Animatable instead.
+    val progress = remember { Animatable(1f) }
+    val progressValue = progress.value
+    LaunchedEffect(controllerViewState.controlsVisible) {
+        progress.animateTo(
+            targetValue = if (controllerViewState.controlsVisible) 0f else 1f,
+            animationSpec = tween(durationMillis = 300),
+        )
+    }
 
     // If the overlay is dismissed (e.g. Back) while a sub-panel is open (Chapters/Queue),
     // don't transition through the controller UI (which causes a brief flash).

@@ -24,6 +24,12 @@ val av1ModuleExists = project.file("libs/lib-decoder-av1-release.aar").exists()
 
 fun envOrNull(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
 
+fun isReleaseBuildRequested(): Boolean {
+    // This runs during configuration; Gradle start parameters are the safest signal here.
+    val requested = gradle.startParameter.taskNames.joinToString(" ").lowercase()
+    return requested.contains("release")
+}
+
 data class ParsedSemver(val major: Int, val minor: Int, val patch: Int) {
     fun toVersionCode(): Int = (major * 10000) + (minor * 100) + patch
 
@@ -79,7 +85,8 @@ android {
                 storePassword = storePasswordValue
                 keyAlias = keyAliasValue
                 keyPassword = keyPasswordValue
-            } else if (isCI) {
+            } else if (isCI && isReleaseBuildRequested()) {
+                // Only fail CI builds when a Release task is actually requested.
                 throw GradleException(
                     "Missing signing env vars for CI release build. " +
                         "Expected ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD",

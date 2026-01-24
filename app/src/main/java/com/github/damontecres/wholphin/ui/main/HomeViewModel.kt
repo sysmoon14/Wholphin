@@ -86,9 +86,12 @@ class HomeViewModel
                 }
                 try {
                     serverRepository.currentUserDto.value?.let { userDto ->
-                        // Try to fetch custom sections from the plugin first (if enabled)
                         val enableCustomHomeRows = preferences.appPreferences.interfacePreferences.enableCustomHomeRows
                         Timber.d("HomeViewModel: Custom home rows enabled=$enableCustomHomeRows")
+                        val useNativeContinueNext =
+                            preferences.appPreferences.interfacePreferences.customHomeRowsUseNativeContinueNext
+                        Timber.d("HomeViewModel: Custom home rows native Continue/Next enabled=$useNativeContinueNext")
+
                         val customSections =
                             if (enableCustomHomeRows) {
                                 homeScreenSectionsService.getCustomSections(userDto.id)
@@ -97,20 +100,52 @@ class HomeViewModel
                             }
 
                         if (customSections != null) {
-                            // Plugin sections are available, use them
-                            // The plugin provides all sections in order, including continue watching and next up
                             Timber.i(
                                 "HomeViewModel: Using custom home screen sections from plugin (%s sections)",
                                 customSections.size,
                             )
+
+                            val finalRows =
+                                if (useNativeContinueNext) {
+                                    val continueNextIndex =
+                                        customSections.indexOfFirst { it.sectionId == "ContinueWatchingNextUp" }
+                                    if (continueNextIndex >= 0) {
+                                        Timber.d(
+                                            "HomeViewModel: Replacing ContinueWatchingNextUp with native combined logic",
+                                        )
+                                        val resume = latestNextUpService.getResume(userDto.id, limit, true)
+                                        val nextUp =
+                                            latestNextUpService.getNextUp(
+                                                userDto.id,
+                                                limit,
+                                                prefs.enableRewatchingNextUp,
+                                                false,
+                                            )
+                                        val combined = latestNextUpService.buildCombined(resume, nextUp).take(limit)
+                                        customSections.mapIndexed { idx, sectionRow ->
+                                            if (idx == continueNextIndex && sectionRow.row is HomeRowLoadingState.Success) {
+                                                sectionRow.row.let { existing ->
+                                                    HomeRowLoadingState.Success(
+                                                        title = existing.title,
+                                                        items = combined,
+                                                    )
+                                                }
+                                            } else {
+                                                sectionRow.row
+                                            }
+                                        }
+                                    } else {
+                                        customSections.map { it.row }
+                                    }
+                                } else {
+                                    customSections.map { it.row }
+                                }
+
                             withContext(Dispatchers.Main) {
-                                // Plugin sections replace the entire home screen
-                                // We'll put them all in latestRows and keep watchingRows empty
-                                // since the plugin manages the order and includes watching sections
                                 this@HomeViewModel.watchingRows.value = emptyList()
                                 if (reload) {
                                     this@HomeViewModel.latestRows.value =
-                                        customSections.map {
+                                        finalRows.map {
                                             if (it is HomeRowLoadingState.Success) {
                                                 HomeRowLoadingState.Loading(it.title)
                                             } else {
@@ -120,14 +155,14 @@ class HomeViewModel
                                 }
                                 loadingState.value = LoadingState.Success
                             }
+
                             refreshState.setValueOnMain(LoadingState.Success)
-                            // Sections are already loaded, just set them
-                            this@HomeViewModel.latestRows.setValueOnMain(customSections)
+                            this@HomeViewModel.latestRows.setValueOnMain(finalRows)
                             return@let
                         } else {
-                            // Plugin not available (or disabled), use default behavior
                             Timber.d("HomeViewModel: Plugin not available, using default home screen sections")
                         }
+                        
                         val includedIds =
                             navDrawerItemRepository
                                 .getFilteredNavDrawerItems(navDrawerItemRepository.getNavDrawerItems())

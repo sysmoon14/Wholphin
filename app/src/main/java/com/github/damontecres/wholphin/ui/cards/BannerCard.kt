@@ -53,6 +53,7 @@ fun BannerCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    forceTextOnly: Boolean = false,
     cornerText: String? = null,
     played: Boolean = false,
     favorite: Boolean = false,
@@ -103,7 +104,7 @@ fun BannerCard(
                     .fillMaxSize(),
 //                    .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
-            if (!imageError && imageUrl != null) {
+            if (!forceTextOnly && !imageError && imageUrl.isNotNullOrBlank()) {
                 AsyncImage(
                     model = imageUrl,
                     contentDescription = null,

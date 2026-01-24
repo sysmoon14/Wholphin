@@ -925,11 +925,6 @@ val basicPreferences =
                 listOf(
                     AppPreference.SignInAuto,
                     AppPreference.HomePageItems,
-                    AppPreference.RewatchNextUp,
-                    AppPreference.PlayThemeMusic,
-                    AppPreference.RememberSelectedTab,
-                    AppPreference.SubtitleStyle,
-                    AppPreference.ThemeColors,
                 ),
             conditionalPreferences =
                 listOf(
@@ -938,6 +933,18 @@ val basicPreferences =
                     ConditionalPreferences(
                         condition = { !it.interfacePreferences.enableCustomHomeRows },
                         preferences = listOf(AppPreference.CombineContinueNext),
+                    ),
+                    // Remaining interface preferences should always appear after the home-row options
+                    ConditionalPreferences(
+                        condition = { true },
+                        preferences =
+                            listOf(
+                                AppPreference.RewatchNextUp,
+                                AppPreference.PlayThemeMusic,
+                                AppPreference.RememberSelectedTab,
+                                AppPreference.SubtitleStyle,
+                                AppPreference.ThemeColors,
+                            ),
                     ),
                 ),
         ),

@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=512m'"
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Native build
+        uses: ./.github/actions/native-build
+        with:
+          cache: true
+
+      - name: Decode Android keystore
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [[ -z "${ANDROID_KEYSTORE_B64:-}" ]]; then
+            echo "Missing secret ANDROID_KEYSTORE_B64" >&2
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+
+      - name: Build signed release APKs
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew clean :app:assembleRelease --no-daemon
+          ls -lah app/build/outputs/apk/release || true
+
+      - name: Collect APKs
+        id: apks
+        run: |
+          shopt -s globstar nullglob
+          apks=(app/build/outputs/apk/**/**/*.apk)
+          if (( ${#apks[@]} == 0 )); then
+            echo "No APKs found under app/build/outputs/apk" >&2
+            exit 1
+          fi
+          printf '%s\n' "${apks[@]}" > apks.txt
+          echo "count=${#apks[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release and upload APKs
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            app/build/outputs/apk/**/**/*.apk
+

@@ -22,6 +22,21 @@ val isCI = if (System.getenv("CI") != null) System.getenv("CI").toBoolean() else
 val ffmpegModuleExists = project.file("libs/lib-decoder-ffmpeg-release.aar").exists()
 val av1ModuleExists = project.file("libs/lib-decoder-av1-release.aar").exists()
 
+fun envOrNull(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
+
+data class ParsedSemver(val major: Int, val minor: Int, val patch: Int) {
+    fun toVersionCode(): Int = (major * 10000) + (minor * 100) + patch
+
+    fun toVersionName(): String = "$major.$minor.$patch"
+}
+
+fun parseSemverTagOrNull(tag: String): ParsedSemver? {
+    val cleaned = tag.trim().removePrefix("refs/tags/").removePrefix("v")
+    val m = Regex("""^(\d+)\.(\d+)\.(\d+)$""").matchEntire(cleaned) ?: return null
+    val (major, minor, patch) = m.destructured
+    return ParsedSemver(major.toInt(), minor.toInt(), patch.toInt())
+}
+
 // Hardcoded versioning
 val gitTags = "v1"
 val gitDescribe = "v1.0.0-debug"
@@ -31,12 +46,46 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.github.damontecres.wholphin"
+        applicationId = "com.github.sysmoon.wholphin"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        val tag =
+            envOrNull("VERSION_TAG")
+                ?: envOrNull("GITHUB_REF_NAME")
+                ?: envOrNull("GITHUB_REF")
+        val semver = tag?.let { parseSemverTagOrNull(it) }
+        // Fallback values for local/dev builds.
+        versionCode = semver?.toVersionCode() ?: 1
+        versionName = semver?.toVersionName() ?: "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        // For local builds, leave unsigned unless you provide env vars.
+        // In CI (GitHub Actions), provide these as Secrets and export them as env vars.
+        create("release") {
+            val storeFilePath = envOrNull("ANDROID_KEYSTORE_PATH")
+            val storePasswordValue = envOrNull("ANDROID_KEYSTORE_PASSWORD")
+            val keyAliasValue = envOrNull("ANDROID_KEY_ALIAS")
+            val keyPasswordValue = envOrNull("ANDROID_KEY_PASSWORD")
+
+            if (
+                storeFilePath != null &&
+                storePasswordValue != null &&
+                keyAliasValue != null &&
+                keyPasswordValue != null
+            ) {
+                storeFile = file(storeFilePath)
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            } else if (isCI) {
+                throw GradleException(
+                    "Missing signing env vars for CI release build. " +
+                        "Expected ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD",
+                )
+            }
+        }
     }
 
     buildTypes {
@@ -47,6 +96,7 @@ android {
                 "proguard-rules.pro",
             )
             isDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false

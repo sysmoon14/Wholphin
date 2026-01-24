@@ -19,3 +19,13 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# --- Fix: release crash due to Protobuf reflection + R8 obfuscation ---
+# Shield crash showed:
+#   java.lang.NoSuchFieldException: No field ac3Supported_ in class ... (protobuf message)
+# Some dependencies use reflection on GeneratedMessageLite private fields (ending with "_").
+# Prevent R8 from renaming/removing those members.
+-keep class com.google.protobuf.** { *; }
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite { *; }
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite$Builder { *; }
+-keepclassmembernames class * extends com.google.protobuf.GeneratedMessageLite { *; }

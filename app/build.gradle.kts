@@ -48,7 +48,7 @@ val gitTags = "v1"
 val gitDescribe = "v1.0.0-debug"
 
 android {
-    namespace = "com.github.damontecres.wholphin"
+    namespace = "com.github.sysmoon.wholphin"
     compileSdk = 36
 
     defaultConfig {
@@ -192,11 +192,11 @@ openApiGenerate {
     inputSpec.set("$projectDir/src/main/seerr/seerr-api.yml")
     templateDir.set("$projectDir/src/main/seerr/templates")
     outputDir.set("$buildDir/generated/seerr_api")
-    apiPackage.set("com.github.damontecres.wholphin.api.seerr")
-    modelPackage.set("com.github.damontecres.wholphin.api.seerr.model")
-    groupId.set("com.github.damontecres.wholphin.api.seerr")
+    apiPackage.set("com.github.sysmoon.wholphin.api.seerr")
+    modelPackage.set("com.github.sysmoon.wholphin.api.seerr.model")
+    groupId.set("com.github.sysmoon.wholphin.api.seerr")
     id.set("seerr-api")
-    packageName.set("com.github.damontecres.wholphin.api.seerr")
+    packageName.set("com.github.sysmoon.wholphin.api.seerr")
     additionalProperties.apply {
         put("serializationLibrary", "kotlinx_serialization")
         put("sortModelPropertiesByRequiredFlag", true)

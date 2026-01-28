@@ -1,11 +1,11 @@
-package com.github.damontecres.wholphin.test
+package com.github.sysmoon.wholphin.test
 
 import androidx.room.testing.MigrationTestHelper
 import androidx.room.util.useCursor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.github.damontecres.wholphin.data.AppDatabase
-import com.github.damontecres.wholphin.data.Migrations
+import com.github.sysmoon.wholphin.data.AppDatabase
+import com.github.sysmoon.wholphin.data.Migrations
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test

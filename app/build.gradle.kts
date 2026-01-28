@@ -52,7 +52,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.github.damontecres.wholphin"
+        applicationId = "com.github.sysmoon.wholphin"
         minSdk = 23
         targetSdk = 36
         val tag =
@@ -137,7 +137,7 @@ android {
             .forEach { output ->
                 val abi = output.getFilter("ABI").let { if (it != null) "-$it" else "" }
                 val outputFileName =
-                    "Wholphin-${variant.baseName}-${variant.versionName}-${variant.versionCode}$abi.apk"
+                    "Wholphin-${variant.baseName}$abi.apk"
                 output.outputFileName = outputFileName
             }
     }

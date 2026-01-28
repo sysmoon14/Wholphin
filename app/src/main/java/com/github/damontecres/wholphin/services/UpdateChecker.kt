@@ -198,17 +198,25 @@ class UpdateChecker
             release: Release,
             callback: DownloadCallback,
         ) {
+            val downloadUrl = release.downloadUrl
+            if (downloadUrl == null) {
+                Timber.e("Cannot install release: downloadUrl is null")
+                withContext(Dispatchers.Main) {
+                    showToast(context, "Unable to download update: no download URL available", Toast.LENGTH_LONG)
+                }
+                return
+            }
             withContext(Dispatchers.IO) {
                 cleanup()
                 val request =
                     Request
                         .Builder()
-                        .url(release.downloadUrl!!)
+                        .url(downloadUrl)
                         .get()
                         .build()
                 okHttpClient.newCall(request).execute().use {
                     if (it.isSuccessful && it.body != null) {
-                        Timber.v("Request successful for ${release.downloadUrl}")
+                        Timber.v("Request successful for $downloadUrl")
                         withContext(Dispatchers.Main) {
                             callback.contentLength(it.body.contentLength())
                         }
@@ -273,7 +281,7 @@ class UpdateChecker
                             }
                         }
                     } else {
-                        Timber.v("Request failed for ${release.downloadUrl}: ${it.code}")
+                        Timber.v("Request failed for $downloadUrl: ${it.code}")
                         showToast(context, "Error downloading the apk: ${it.code}")
                     }
                 }

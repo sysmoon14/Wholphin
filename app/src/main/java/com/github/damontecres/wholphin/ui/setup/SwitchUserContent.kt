@@ -104,19 +104,15 @@ fun SwitchUserContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.select_user),
+                        text = stringResource(R.string.whos_watching),
                         style = MaterialTheme.typography.displaySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = server.name ?: server.url,
-                        style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
                 UserList(
                     users = users,
                     currentUser = currentUser,
+                    serverName = server.name ?: server.url,
                     onSwitchUser = { user ->
                         if (user.hasPin) {
                             switchUserWithPin = user

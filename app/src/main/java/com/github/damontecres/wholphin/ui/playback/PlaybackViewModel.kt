@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -41,6 +42,7 @@ import com.github.damontecres.wholphin.preferences.SkipSegmentBehavior
 import com.github.damontecres.wholphin.preferences.UserPreferences
 import com.github.damontecres.wholphin.services.DatePlayedService
 import com.github.damontecres.wholphin.services.DeviceProfileService
+import com.github.damontecres.wholphin.services.ImageUrlService
 import com.github.damontecres.wholphin.services.NavigationManager
 import com.github.damontecres.wholphin.services.PlayerFactory
 import com.github.damontecres.wholphin.services.PlaylistCreationResult
@@ -95,6 +97,7 @@ import org.jellyfin.sdk.api.client.extensions.videosApi
 import org.jellyfin.sdk.api.sockets.subscribe
 import org.jellyfin.sdk.model.DeviceInfo
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.MediaSegmentDto
 import org.jellyfin.sdk.model.api.MediaSegmentType
 import org.jellyfin.sdk.model.api.MediaStreamType
@@ -137,6 +140,7 @@ class PlaybackViewModel
         private val refreshRateService: RefreshRateService,
         val streamChoiceService: StreamChoiceService,
         private val userPreferencesService: UserPreferencesService,
+        private val imageUrlService: ImageUrlService,
         @Assisted private val destination: Destination,
     ) : ViewModel(),
         Player.Listener,
@@ -239,7 +243,7 @@ class PlaybackViewModel
             (player as? ExoPlayer)?.addAnalyticsListener(this)
             jobs.add(subscribe())
             jobs.add(listenForTranscodeReason())
-            val sessionPlayer =
+            val playerInstance =
                 MediaSessionPlayer(
                     player,
                     controllerViewState,
@@ -247,7 +251,7 @@ class PlaybackViewModel
                 )
             mediaSession =
                 MediaSession
-                    .Builder(context, sessionPlayer)
+                    .Builder(context, playerInstance)
                     .build()
         }
 
@@ -659,12 +663,16 @@ class PlaybackViewModel
 
                 Timber.v("subtitleIndex=$subtitleIndex, externalSubtitleCount=$externalSubtitleCount, externalSubtitle=$externalSubtitle")
 
+                // Build metadata for MediaSession
+                val metadata = buildMediaMetadata(item)
+
                 val mediaItem =
                     MediaItem
                         .Builder()
                         .setMediaId(itemId.toString())
                         .setUri(mediaUrl.toUri())
                         .setSubtitleConfigurations(listOfNotNull(externalSubtitle))
+                        .setMediaMetadata(metadata)
                         .apply {
                             when (source.container) {
                                 Codec.Container.HLS -> setMimeType(MimeTypes.APPLICATION_M3U8)
@@ -1068,6 +1076,30 @@ class PlaybackViewModel
                     }
                 }
             }
+
+        private fun buildMediaMetadata(item: BaseItem): MediaMetadata {
+            val title = item.title ?: item.name ?: ""
+            val subtitle = item.subtitle
+
+            // Get artwork URL - use primary image, fallback to backdrop
+            val artworkUri = imageUrlService.getItemImageUrl(
+                item = item,
+                imageType = ImageType.PRIMARY,
+                fillWidth = 512,
+                fillHeight = 512,
+            )?.toUri() ?: imageUrlService.getItemImageUrl(
+                item = item,
+                imageType = ImageType.BACKDROP,
+                fillWidth = 512,
+                fillHeight = 512,
+            )?.toUri()
+
+            return MediaMetadata.Builder()
+                .setTitle(title)
+                .setArtist(subtitle)
+                .setArtworkUri(artworkUri)
+                .build()
+        }
 
         private var lastInteractionDate: Date = Date()
 

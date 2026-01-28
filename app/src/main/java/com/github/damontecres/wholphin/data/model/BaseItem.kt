@@ -100,9 +100,11 @@ data class BaseItem(
                             } else {
                                 data.productionYear?.let { add(it.toString()) }
                             }
+                            // Show runtime if available and > 0 (for SERIES this may be average episode length)
                             data.runTimeTicks
                                 ?.ticks
                                 ?.roundMinutes
+                                ?.takeIf { it.inWholeMinutes > 0 }
                                 ?.let { add(it.toString()) }
                             data.timeRemaining
                                 ?.roundMinutes

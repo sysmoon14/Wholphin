@@ -1,28 +1,11 @@
 # Wholphin - an OSS Android TV client for Jellyfin
 
-> "Never half-phin two jellies. Always wholphin one jelly."
+**Note: This is a divergent fork of [damontecres/Wholphin](https://github.com/damontecres/Wholphin)** with additional features and modifications. See the [New Features](#new-features-since-fork) section below for what's been added.
 
 Wholphin is an open-source Android TV client for Jellyfin. It aims to provide a different app UI that's inspired by Plex for users interested in migrating to Jellyfin.
 
 This is not a fork of the [official client](https://github.com/jellyfin/jellyfin-androidtv). Wholphin's user interface and controls have been written completely from scratch. Wholphin `v0.3.0+` supports playing media using either ExoPlayer/Media3 or MPV (experimental).
 
-<p align="center">
-<a href="https://github.com/damontecres/Wholphin/releases">
-<img alt="Current Release" src="https://img.shields.io/github/release/damontecres/wholphin.svg"/>
-</a>
-<a href="https://translate.codeberg.org/engage/wholphin/">
-<img src="https://translate.codeberg.org/widget/wholphin/wholphin/svg-badge.svg" alt="Translation status" />
-</a>
-<br/>
-<a href="https://play.google.com/store/apps/details?id=com.github.damontecres.wholphin">
-<img width="180" alt="Get Wholphin on Google Play" src="https://github.com/user-attachments/assets/2550a4cb-ce46-47a1-ae24-f33a169234b7"/>
-</a>
-<a href="https://www.amazon.com/gp/product/B0G8RQQR9T/ref=mas_pm_wholphin">
-<img width="180" alt="Get Wholphin on Amazon AppStore" src="https://github.com/user-attachments/assets/1f3a3b26-4b4f-44b1-9741-f4c895c8a53b"/>
-</a>
-
-
-</p>
 
 <img width="1280" height="720" alt="0_3_5_home" src="https://github.com/user-attachments/assets/a485c015-ec21-442d-a757-1f18381bf799" />
 
@@ -32,6 +15,7 @@ This is not a fork of the [official client](https://github.com/jellyfin/jellyfin
 
 - A navigation drawer for quick access to libraries, favorites, search, and settings from almost anywhere in the app
 - Integration with [Seerr](https://github.com/seerr-team/seerr) to discover new movies and TV shows
+- Integration with Jellyfin Home Screen Sections plugin for custom home screen rows
 - Option to combine Continue Watching & Next Up rows
 - Show Movie/TV Show titles when browsing libraries
 - Play theme music, if available
@@ -40,6 +24,7 @@ This is not a fork of the [official client](https://github.com/jellyfin/jellyfin
 - Customize layout grids for libraries
 - Multiple app color themes
 - Protect user profile switches with PIN code
+- Redesigned user selection screen with horizontal scrollable user icons (streaming service style)
 
 ### Playback
 
@@ -56,16 +41,30 @@ This is not a fork of the [official client](https://github.com/jellyfin/jellyfin
 - Trickplay support
 - Subtly show playback position along the bottom of the screen while seeking w/ D-Pad
 
+### New Features Since Fork
 
-### Roadmap
+This fork includes the following enhancements over the original [damontecres/Wholphin](https://github.com/damontecres/Wholphin) repository:
 
-See [here for the roadmap](https://github.com/damontecres/Wholphin/wiki#roadmap)
+- **Rich Media Notifications**: Enhanced MediaSession notifications that display detailed information about what's playing, including:
+  - Title (movie/show name or series name for episodes)
+  - Subtitle/Artist (episode information like "S01E01 - Episode Name" or production year for movies)
+  - Artwork (primary image or backdrop)
+  
+  These notifications appear on the device where playback is happening and provide richer information than the default "Wholphin is playing" notification. Works with both ExoPlayer and MPV backends.
+
+- **Enhanced Search Relevance**: Improved search functionality with intelligent relevance scoring that prioritizes results based on:
+  - Exact matches
+  - Prefix matches
+  - Word boundary matches
+  - Fuzzy matching using Levenshtein distance
+  - Type-based bonuses (prioritizing series and movies over episodes)
+  - Support for regex patterns in search queries
+
+- **Seerr Integration Enhancements**: Extended Seerr integration with additional features and improvements for discovering and managing media requests.
+
+- **Custom Home Screen Rows**: Integration with the Jellyfin Home Screen Sections plugin, allowing server-side customization of the home screen layout and content organization.
 
 ## Installation
-
-Using [Google Play](https://play.google.com/store/apps/details?id=com.github.damontecres.wholphin) or [Amazon appstore](https://www.amazon.com/gp/product/B0G8RQQR9T/ref=mas_pm_wholphin) are the fastest way to install. But you can follow these instructions to install without needing an app store
-
-Downloader Code: `8668671`
 
 1. Enable side-loading "unknown" apps
     - https://androidtvnews.com/unknown-sources-chromecast-google-tv/
@@ -73,11 +72,10 @@ Downloader Code: `8668671`
     - https://developer.android.com/distribute/marketing-tools/alternative-distribution#unknown-sources
     - https://www.aftvnews.com/how-to-enable-apps-from-unknown-sources-on-an-amazon-fire-tv-or-fire-tv-stick/
 2. Install the APK on your Android TV device with one of these options:
-    - Install a browser program such as [Downloader](https://www.aftvnews.com/downloader/), use it to get the latest apk with short code `8668671` or URL: http://aftv.news/8668671
-    - Download the latest APK release from the [releases page](https://github.com/damontecres/Wholphin/releases/latest) or http://aftv.news/8668671
-        - Put the APK on an SD Card/USB stick/network share and use a file manager app from the Google Play Store / Amazon AppStore (e.g. `FX File Explorer`). Android's preinstalled file manager probably will not work!
-        - Use `Send files to TV` from the Google Play Store on your phone & TV
-        - (Expert) Use [ADB](https://developer.android.com/studio/command-line/adb) to install the APK from your computer ([guide](https://fossbytes.com/side-load-apps-android-tv/#h-how-to-sideload-apps-on-your-android-tv-using-adb))
+    - Download the latest APK release from the releases page
+    - Put the APK on an SD Card/USB stick/network share and use a file manager app (e.g. `FX File Explorer`). Android's preinstalled file manager probably will not work!
+    - Use `Send files to TV` from the Google Play Store on your phone & TV
+    - (Expert) Use [ADB](https://developer.android.com/studio/command-line/adb) to install the APK from your computer ([guide](https://fossbytes.com/side-load-apps-android-tv/#h-how-to-sideload-apps-on-your-android-tv-using-adb))
 
 ### Upgrading the app
 
@@ -85,24 +83,15 @@ After the initial install above, the app will automatically check for updates. T
 
 The first time you attempt an update, the OS should guide you through enabling the required additional permissions for the app to install updates.
 
-Note: if installed via an app store, the app store will handle updates.
-
 ## Compatibility
 
 Requires Android 6+ (or Fire TV OS 6+) and Jellyfin server `10.10.x` or `10.11.x` (tested on primarily `10.11`).
 
 The app is tested on a variety of Android TV/Fire TV OS devices, but if you encounter issues, please file an issue!
 
-## Contributions
-
-Issues and pull requests are always welcome! Please check before submitting that your issue or pull request is not a duplicate.
-
-If you plan to contribute, please read the [contributing guide](CONTRIBUTING.md)!
-
-You can [help translate Wholphin](https://translate.codeberg.org/engage/wholphin/)!
-
 ## Acknowledgements
 
+- Thanks to [damontecres](https://github.com/damontecres) for creating and maintaining the original [Wholphin](https://github.com/damontecres/Wholphin) project
 - Thanks to the Jellyfin team for creating and maintaining such a great open-source media server
 - Thanks to the official Jellyfin Android TV client developers, some code for creating the device direct play profile is adapted from there
 - Thanks to the Jellyfin Kotlin SDK developers for making it easier to interact with the Jellyfin server API

@@ -104,6 +104,10 @@
     <string name="save">Save</string>
     <string name="search_and_download"><![CDATA[Search & Download]]></string>
     <string name="search">Search</string>
+    <string name="combined_search_results">Combined search results</string>
+    <string name="combined_search_results_on">Show all results in a single list</string>
+    <string name="combined_search_results_off">Show results by category</string>
+    <string name="results">Results</string>
     <string name="searching">Searching…</string>
     <string name="voice_search">Voice search</string>
     <string name="voice_starting">Starting</string>
@@ -125,6 +129,7 @@
     <string name="retry">Retry</string>
     <string name="select_server">Select Server</string>
     <string name="select_user">Select User</string>
+    <string name="whos_watching">Who\'s Watching?</string>
     <string name="show_debug_info">Show debug info</string>
     <string name="show_next_up_when">Show next up</string>
     <string name="show">Show</string>

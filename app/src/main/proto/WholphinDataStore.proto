@@ -154,6 +154,7 @@ message InterfacePreferences {
   BackdropStyle backdrop_style = 9;
   bool enable_custom_home_rows = 10;
   bool custom_home_rows_use_native_continue_next = 11;
+  bool combined_search_results = 12;
 }
 
 message AdvancedPreferences {

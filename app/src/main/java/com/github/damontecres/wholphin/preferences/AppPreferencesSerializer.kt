@@ -97,6 +97,9 @@ class AppPreferencesSerializer
                                     AppPreference.CustomHomeRowsUseNativeContinueNext.defaultValue
                                 backdropStyle = AppPreference.BackdropStylePref.defaultValue
 
+                                combinedSearchResults =
+                                    AppPreference.CombinedSearchResults.defaultValue
+
                                 subtitlesPreferences =
                                     SubtitlePreferences
                                         .newBuilder()

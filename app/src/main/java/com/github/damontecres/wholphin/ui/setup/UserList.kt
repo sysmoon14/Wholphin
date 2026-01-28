@@ -69,6 +69,7 @@ import java.util.UUID
 fun UserList(
     users: List<JellyfinUserAndImage>,
     currentUser: JellyfinUser?,
+    serverName: String,
     onSwitchUser: (JellyfinUser) -> Unit,
     onAddUser: () -> Unit,
     onRemoveUser: (JellyfinUser) -> Unit,
@@ -129,7 +130,7 @@ fun UserList(
         ) {
             Button(
                 onClick = { onSwitchServer.invoke() },
-                modifier = Modifier.width(200.dp), // Fixed width for consistency
+                modifier = Modifier.width(200.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -142,7 +143,7 @@ fun UserList(
                         modifier = Modifier.padding(end = 8.dp),
                     )
                     Text(
-                        text = stringResource(R.string.switch_servers),
+                        text = serverName,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -363,12 +364,12 @@ private fun AddUserCard(
     val addUserColor = MaterialTheme.colorScheme.surfaceVariant
 
     // Card dimensions - circular card (same as user cards)
-    val cardSize = Cards.height2x3 * 0.75f // ~120dp
+    val cardSize = Cards.serverUserCircle
 
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp), // Increased to accommodate 20% scale
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         // Circular card with colored background
         Surface(
@@ -403,7 +404,7 @@ private fun AddUserCard(
                     imageVector = Icons.Default.Add,
                     contentDescription = stringResource(R.string.add_user),
                     tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(cardSize * 0.4f), // Size of the + icon
+                    modifier = Modifier.size(cardSize * 0.4f),
                 )
             }
         }
@@ -413,7 +414,7 @@ private fun AddUserCard(
             text = stringResource(R.string.add_user),
             style =
                 MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    fontWeight = FontWeight.Bold,
                 ),
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,

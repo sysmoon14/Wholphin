@@ -731,6 +731,18 @@ sealed interface AppPreference<Pref, T> {
                 summaryOff = R.string.disabled,
             )
 
+        val CombinedSearchResults =
+            AppSwitchPreference<AppPreferences>(
+                title = R.string.combined_search_results,
+                defaultValue = false,
+                getter = { it.interfacePreferences.combinedSearchResults },
+                setter = { prefs, value ->
+                    prefs.updateInterfacePreferences { combinedSearchResults = value }
+                },
+                summaryOn = R.string.combined_search_results_on,
+                summaryOff = R.string.combined_search_results_off,
+            )
+
         val SubtitleStyle =
             AppDestinationPreference<AppPreferences>(
                 title = R.string.subtitle_style,
@@ -1101,6 +1113,15 @@ val advancedPreferences =
                         AppPreference.SkipCommercials,
                         AppPreference.SkipPreviews,
                         AppPreference.SkipRecaps,
+                    ),
+            ),
+        )
+        add(
+            PreferenceGroup(
+                title = R.string.search,
+                preferences =
+                    listOf(
+                        AppPreference.CombinedSearchResults,
                     ),
             ),
         )

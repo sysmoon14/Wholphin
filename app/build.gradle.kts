@@ -52,7 +52,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.github.sysmoon.wholphin"
+        applicationId = "com.github.damontecres.wholphin"
         minSdk = 23
         targetSdk = 36
         val tag =

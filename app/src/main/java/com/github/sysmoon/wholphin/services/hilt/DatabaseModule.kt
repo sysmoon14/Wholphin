@@ -36,7 +36,10 @@ object DatabaseModule {
                 context,
                 AppDatabase::class.java,
                 "wholphin",
-            ).addMigrations(Migrations.Migrate2to3)
+            ).addMigrations(
+                Migrations.Migrate2to3,
+                Migrations.Migrate20to21,
+            )
             .build()
 
     @Provides

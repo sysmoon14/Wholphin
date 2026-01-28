@@ -50,7 +50,6 @@ import java.util.UUID
         AutoMigration(10, 11),
         AutoMigration(11, 12),
         AutoMigration(12, 20),
-        AutoMigration(20, 21),
     ],
 )
 @TypeConverters(Converters::class)
@@ -141,6 +140,92 @@ object Migrations {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_users_serverId ON users (serverId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_users_id ON users (id)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_users_id_serverId ON users (id, serverId)")
+            }
+        }
+
+    val Migrate20to21 =
+        object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Ensure seerr_servers table exists with correct structure
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `seerr_servers` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `url` TEXT NOT NULL,
+                        `name` TEXT,
+                        `version` TEXT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS `index_seerr_servers_url` ON `seerr_servers` (`url`)
+                    """.trimIndent(),
+                )
+
+                // Try to preserve data from seerr_users if it exists with compatible structure
+                try {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `seerr_users_backup` (
+                            `jellyfinUserRowId` INTEGER NOT NULL,
+                            `serverId` INTEGER NOT NULL,
+                            `authMethod` TEXT NOT NULL,
+                            `username` TEXT,
+                            `password` TEXT,
+                            `credential` TEXT
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        """
+                        INSERT INTO `seerr_users_backup` 
+                        SELECT `jellyfinUserRowId`, `serverId`, `authMethod`, `username`, `password`, `credential`
+                        FROM `seerr_users`
+                        """.trimIndent(),
+                    )
+                } catch (e: Exception) {
+                    // Table doesn't exist or structure is incompatible - that's okay, we'll start fresh
+                    Timber.d(e, "Could not backup seerr_users data (table may not exist or structure incompatible)")
+                }
+
+                // Drop and recreate seerr_users table with correct structure
+                db.execSQL("DROP TABLE IF EXISTS `seerr_users`")
+                db.execSQL(
+                    """
+                    CREATE TABLE `seerr_users` (
+                        `jellyfinUserRowId` INTEGER NOT NULL,
+                        `serverId` INTEGER NOT NULL,
+                        `authMethod` TEXT NOT NULL,
+                        `username` TEXT,
+                        `password` TEXT,
+                        `credential` TEXT,
+                        PRIMARY KEY(`jellyfinUserRowId`, `serverId`),
+                        FOREIGN KEY(`serverId`) REFERENCES `seerr_servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`jellyfinUserRowId`) REFERENCES `users`(`rowId`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+
+                // Restore data if we backed it up
+                try {
+                    db.execSQL(
+                        """
+                        INSERT INTO `seerr_users` 
+                        SELECT `jellyfinUserRowId`, `serverId`, `authMethod`, `username`, `password`, `credential`
+                        FROM `seerr_users_backup`
+                        """.trimIndent(),
+                    )
+                } catch (e: Exception) {
+                    Timber.d(e, "Could not restore seerr_users data (backup may be empty or incompatible)")
+                }
+
+                db.execSQL("DROP TABLE IF EXISTS `seerr_users_backup`")
+                db.execSQL(
+                    """
+                    CREATE INDEX IF NOT EXISTS `index_seerr_users_serverId` ON `seerr_users` (`serverId`)
+                    """.trimIndent(),
+                )
             }
         }
 }

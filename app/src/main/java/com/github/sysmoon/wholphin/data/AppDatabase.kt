@@ -37,7 +37,7 @@ import java.util.UUID
         SeerrServer::class,
         SeerrUser::class,
     ],
-    version = 20,
+    version = 21,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(3, 4),
@@ -50,6 +50,7 @@ import java.util.UUID
         AutoMigration(10, 11),
         AutoMigration(11, 12),
         AutoMigration(12, 20),
+        AutoMigration(20, 21),
     ],
 )
 @TypeConverters(Converters::class)

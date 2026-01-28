@@ -87,16 +87,6 @@ class HomeViewModel
                     val enableCustomHomeRows = preferences.appPreferences.interfacePreferences.enableCustomHomeRows
                     Timber.d("HomeViewModel: Custom home rows enabled=$enableCustomHomeRows")
                     
-                    // On refresh with custom home rows enabled, skip refetching to avoid UI jumps
-                    // Only refetch when actually reloading the page
-                    if (enableCustomHomeRows && !reload && !latestRows.value.isNullOrEmpty()) {
-                        Timber.d("HomeViewModel: Skipping custom sections refetch on refresh - reusing existing rows")
-                        withContext(Dispatchers.Main) {
-                            refreshState.value = LoadingState.Success
-                        }
-                        return@let
-                    }
-                    
                     val useNativeContinueNext =
                         preferences.appPreferences.interfacePreferences.customHomeRowsUseNativeContinueNext
                     Timber.d("HomeViewModel: Custom home rows native Continue/Next enabled=$useNativeContinueNext")

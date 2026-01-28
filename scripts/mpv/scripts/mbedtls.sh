@@ -5,13 +5,18 @@
 if [ "$1" == "build" ]; then
 	true
 elif [ "$1" == "clean" ]; then
-	make clean
+	if [ -f Makefile ]; then
+		make clean || true
+	fi
 	exit 0
 else
 	exit 255
 fi
 
-$0 clean # separate building not supported, always clean
+# Try to clean if Makefile exists, but don't fail if it doesn't
+if [ -f Makefile ]; then
+	$0 clean || true
+fi
 if [[ "$ndk_triple" == "i686"* ]]; then
 	./scripts/config.py unset MBEDTLS_AESNI_C
 else

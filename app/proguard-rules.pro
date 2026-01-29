@@ -23,7 +23,27 @@
 # --- MPV JNI: keep MPVLib and all static methods called from libplayer.so ---
 # Shield TV (and other release builds) crash with NoSuchMethodError for
 # eventProperty(String)V etc. because R8 removes/obfuscates them (only called from native).
+# Keep the class and all members (broad keep).
 -keep class com.github.sysmoon.wholphin.util.mpv.MPVLib { *; }
+
+# Explicitly keep every static method that libplayer.so looks up via GetStaticMethodID
+# in jni_utils.cpp (init_methods_cache). R8 can strip "unused" methods; listing them
+# here forces them to be kept with correct names/signatures.
+-keepclassmembers class com.github.sysmoon.wholphin.util.mpv.MPVLib {
+    native <methods>;
+    public static void eventProperty(java.lang.String);
+    public static void eventProperty(java.lang.String, boolean);
+    public static void eventProperty(java.lang.String, long);
+    public static void eventProperty(java.lang.String, double);
+    public static void eventProperty(java.lang.String, java.lang.String);
+    public static void event(int);
+    public static void eventEndFile(int, int);
+    public static void logMessage(java.lang.String, int, java.lang.String);
+    public static void addObserver(com.github.sysmoon.wholphin.util.mpv.MPVLib$EventObserver);
+    public static void removeObserver(com.github.sysmoon.wholphin.util.mpv.MPVLib$EventObserver);
+    public static void addLogObserver(com.github.sysmoon.wholphin.util.mpv.MPVLib$LogObserver);
+    public static void removeLogObserver(com.github.sysmoon.wholphin.util.mpv.MPVLib$LogObserver);
+}
 
 # --- Fix: release crash due to Protobuf reflection + R8 obfuscation ---
 # Shield crash showed:

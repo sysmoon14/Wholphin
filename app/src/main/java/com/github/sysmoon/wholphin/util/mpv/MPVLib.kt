@@ -24,11 +24,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.Surface
+import androidx.annotation.Keep
 import java.util.concurrent.CopyOnWriteArrayList
 
-// Wrapper for native library
-
+// Wrapper for native library. @Keep ensures R8 does not strip/rename static methods
+// that libplayer.so looks up via JNI (GetStaticMethodID) in init_methods_cache().
 @Suppress("unused")
+@Keep
 object MPVLib {
     private var availabilityChecked: Boolean = false
     private var isAvailable: Boolean = false

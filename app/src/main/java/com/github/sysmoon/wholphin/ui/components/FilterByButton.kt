@@ -146,12 +146,13 @@ fun FilterByButton(
             },
         ) {
             nestedDropDown?.let { filterOption ->
-                filterOption as ItemFilterBy<Any>
-                val currentValue = remember(current) { filterOption.get(current) }
+                @Suppress("UNCHECKED_CAST")
+                val filterOptionTyped = filterOption as ItemFilterBy<Any>
+                val currentValue = remember(current) { filterOptionTyped.get(current) }
 
                 var possibleValues by remember { mutableStateOf<List<FilterValueOption>?>(null) }
                 LaunchedEffect(Unit) {
-                    possibleValues = getPossibleValues.invoke(filterOption)
+                    possibleValues = getPossibleValues.invoke(filterOptionTyped)
                 }
 
                 if (currentValue != null) {
@@ -173,7 +174,7 @@ fun FilterByButton(
                             )
                         },
                         onClick = {
-                            onFilterChange.invoke(filterOption.set(null, current))
+                            onFilterChange.invoke(filterOptionTyped.set(null, current))
                             nestedDropDown = null
                         },
                         interactionSource = interactionSource,
@@ -197,7 +198,7 @@ fun FilterByButton(
 
                         val isSelected =
                             remember(currentValue) {
-                                when (filterOption) {
+                                when (filterOptionTyped) {
                                     GenreFilter -> {
                                         (currentValue as? List<UUID>)
                                             .orEmpty()
@@ -249,7 +250,7 @@ fun FilterByButton(
                                 }
                             },
                             text = {
-                                if (filterOption == CommunityRatingFilter) {
+                                if (filterOptionTyped == CommunityRatingFilter) {
                                     SimpleStarRating(
                                         "${value.name}+",
                                         starColor = if (focused) EmptyStarColor else FilledStarColor,
@@ -262,7 +263,7 @@ fun FilterByButton(
                             },
                             onClick = {
                                 val newFilter =
-                                    when (filterOption) {
+                                    when (filterOptionTyped) {
                                         GenreFilter -> {
                                             val list = (currentValue as? List<UUID>).orEmpty()
                                             val newValue =
@@ -275,14 +276,14 @@ fun FilterByButton(
                                                             add(value.value!! as UUID)
                                                         }
                                                     }.takeIf { it.isNotEmpty() }
-                                            filterOption.set(newValue, current)
+                                            filterOptionTyped.set(newValue, current)
                                         }
 
                                         FavoriteFilter,
                                         PlayedFilter,
                                         -> {
                                             val played = value.name.toBoolean()
-                                            filterOption.set(played, current)
+                                            filterOptionTyped.set(played, current)
                                         }
 
                                         OfficialRatingFilter -> {
@@ -297,7 +298,7 @@ fun FilterByButton(
                                                             add(value.name)
                                                         }
                                                     }.takeIf { it.isNotEmpty() }
-                                            filterOption.set(newValue, current)
+                                            filterOptionTyped.set(newValue, current)
                                         }
 
                                         VideoTypeFilter -> {
@@ -313,7 +314,7 @@ fun FilterByButton(
                                                             add(value.value as FilterVideoType)
                                                         }
                                                     }.takeIf { it.isNotEmpty() }
-                                            filterOption.set(newValue, current)
+                                            filterOptionTyped.set(newValue, current)
                                         }
 
                                         YearFilter,
@@ -331,11 +332,11 @@ fun FilterByButton(
                                                             add(value.value as Int)
                                                         }
                                                     }.takeIf { it.isNotEmpty() }
-                                            filterOption.set(newValue, current)
+                                            filterOptionTyped.set(newValue, current)
                                         }
 
                                         CommunityRatingFilter -> {
-                                            filterOption.set(
+                                            filterOptionTyped.set(
                                                 value.value as? Int,
                                                 current,
                                             )
@@ -343,7 +344,7 @@ fun FilterByButton(
                                     }
 
                                 onFilterChange.invoke(newFilter)
-                                if (!filterOption.supportMultiple) {
+                                if (!filterOptionTyped.supportMultiple) {
                                     nestedDropDown = null
                                 }
                             },

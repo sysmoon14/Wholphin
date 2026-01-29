@@ -91,7 +91,7 @@ sealed interface VoiceInputState {
 class VoiceInputManager
     @Inject
     constructor(
-        @ApplicationContext private val context: Context,
+        @param:ApplicationContext private val context: Context,
     ) : Closeable {
         private val handler = Handler(Looper.getMainLooper())
         private val mainDispatcher = provideMainDispatcher()

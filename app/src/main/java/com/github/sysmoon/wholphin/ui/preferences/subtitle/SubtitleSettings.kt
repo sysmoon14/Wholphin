@@ -302,6 +302,7 @@ object SubtitleSettings {
         configuration: Configuration,
         density: Density,
     ) {
+        if (!MPVLib.isAvailable()) return
         val fo = (fontOpacity / 100.0 * 255).toInt().shl(24)
         val fc = Color(combine(fontColor, fontOpacity))
         val bg = Color(combine(backgroundColor, backgroundOpacity))

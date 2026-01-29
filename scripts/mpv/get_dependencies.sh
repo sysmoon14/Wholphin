@@ -34,7 +34,9 @@ clone "https://github.com/haasn/libplacebo" "v7.351.0" libplacebo --recurse-subm
 
 clone "https://github.com/mpv-player/mpv" "v0.41.0" mpv
 
-if [[ ! -d mbedtls ]]; then
+# Re-download if missing or incomplete (e.g. from a failed wget on first run)
+if [[ ! -d mbedtls ]] || [[ ! -f mbedtls/framework/exported.make ]]; then
+	rm -rf mbedtls
 	mkdir mbedtls
 	wget https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.4/mbedtls-3.6.4.tar.bz2 -O - | \
 		tar -xj -C mbedtls --strip-components=1

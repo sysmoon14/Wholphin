@@ -153,8 +153,8 @@ class EpisodeViewModel
                         type = type,
                     )
                 val chosen =
-                    result?.let {
-                        itemPlaybackRepository.getChosenItemFromPlayback(item, result, plc, prefs)
+                    result.let {
+                        itemPlaybackRepository.getChosenItemFromPlayback(item, it, plc, prefs)
                     }
                 withContext(Dispatchers.Main) {
                     chosenStreams.value = chosen

@@ -131,7 +131,7 @@ class UpdateChecker
                         .build()
                 okHttpClient.newCall(request).execute().use {
                     if (it.isSuccessful && it.body != null) {
-                        val result = Json.parseToJsonElement(it.body!!.string())
+                        val result = Json.parseToJsonElement(it.body.string())
                         val name = result.jsonObject["name"]?.jsonPrimitive?.contentOrNull
                         val version = Version.tryFromString(name)
                         val publishedAt =
@@ -216,9 +216,10 @@ class UpdateChecker
                         .build()
                 okHttpClient.newCall(request).execute().use {
                     if (it.isSuccessful && it.body != null) {
+                        val responseBody = it.body
                         Timber.v("Request successful for $downloadUrl")
                         withContext(Dispatchers.Main) {
-                            callback.contentLength(it.body.contentLength())
+                            callback.contentLength(responseBody.contentLength())
                         }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             val contentValues =
@@ -237,12 +238,13 @@ class UpdateChecker
                                     contentValues,
                                 )
                             if (uri != null) {
-                                it.body!!.byteStream().use { input ->
+                                responseBody.byteStream().use { input ->
                                     resolver.openOutputStream(uri).use { output ->
                                         copyTo(input, output!!, callback = callback)
                                     }
                                 }
 
+                                @Suppress("DEPRECATION")
                                 val intent = Intent(Intent.ACTION_INSTALL_PACKAGE)
                                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                                 intent.data = uri
@@ -251,6 +253,7 @@ class UpdateChecker
                                 Timber.e("Resolver URI is null, trying fallback")
 //                                showToast(context, "Unable to download the apk")
                                 val targetFile = fallbackDownload(it, callback)
+                                @Suppress("DEPRECATION")
                                 val intent = Intent(Intent.ACTION_INSTALL_PACKAGE)
                                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                                 intent.data =
@@ -264,6 +267,7 @@ class UpdateChecker
                         } else {
                             val targetFile = fallbackDownload(it, callback)
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                @Suppress("DEPRECATION")
                                 val intent = Intent(Intent.ACTION_INSTALL_PACKAGE)
                                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                                 intent.data =
@@ -292,12 +296,13 @@ class UpdateChecker
             response: Response,
             callback: DownloadCallback,
         ): File {
+            val body = response.body ?: error("Response body is null")
             val downloadDir =
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             downloadDir.mkdirs()
             val targetFile = File(downloadDir, APK_NAME)
             targetFile.outputStream().use { output ->
-                response.body!!.byteStream().use { input ->
+                body.byteStream().use { input ->
                     copyTo(input, output, callback = callback)
                 }
             }

@@ -625,7 +625,7 @@ fun CollectionFolderGrid(
                     initialPosition = viewModel.position,
                     item = item,
                     title = title,
-                    loadingState = state as DataLoadingState<List<BaseItem?>>,
+                    loadingState = @Suppress("UNCHECKED_CAST") (state as DataLoadingState<List<BaseItem?>>),
                     sortAndDirection = sortAndDirection!!,
                     modifier = Modifier.fillMaxSize(),
                     focusRequesterOnEmpty = focusRequesterOnEmpty,

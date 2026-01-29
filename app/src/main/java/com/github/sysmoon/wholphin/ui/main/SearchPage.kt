@@ -196,7 +196,7 @@ class SearchViewModel
 
                     val result = api.itemsApi.getItems(request).content
                     val items =
-                        (result.items ?: emptyList()).map {
+                        result.items.map {
                             BaseItem.from(it, api, false)
                         }
                     val sorted = items.sortedWith(compareBy { SearchRelevance.score(it, query) })

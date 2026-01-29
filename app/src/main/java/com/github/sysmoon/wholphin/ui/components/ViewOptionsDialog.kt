@@ -82,20 +82,21 @@ fun ViewOptionsDialog(
                 )
             }
             items(ViewOptions.OPTIONS) { pref ->
-                pref as AppPreference<ViewOptions, Any>
+                @Suppress("UNCHECKED_CAST")
+                val prefTyped = pref as AppPreference<ViewOptions, Any>
                 val interactionSource = remember { MutableInteractionSource() }
-                val value = pref.getter.invoke(viewOptions)
+                val value = prefTyped.getter.invoke(viewOptions)
                 ComposablePreference(
-                    preference = pref,
+                    preference = prefTyped,
                     value = value,
                     onNavigate = {},
                     onValueChange = { newValue ->
-                        onViewOptionsChange.invoke(pref.setter(viewOptions, newValue))
+                        onViewOptionsChange.invoke(prefTyped.setter(viewOptions, newValue))
                     },
                     interactionSource = interactionSource,
                     modifier = Modifier,
-                    onClickPreference = { pref ->
-                        if (pref == ViewOptions.ViewOptionsReset) {
+                    onClickPreference = { p ->
+                        if (p == ViewOptions.ViewOptionsReset) {
                             onViewOptionsChange.invoke(defaultViewOptions)
                         }
                     },

@@ -47,6 +47,7 @@ class AppUpgradeHandler
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     pkgInfo.longVersionCode
                 } else {
+                    @Suppress("DEPRECATION")
                     pkgInfo.versionCode.toLong()
                 }
             if (newVersion != previousVersion || newVersionCode != previousVersionCode) {

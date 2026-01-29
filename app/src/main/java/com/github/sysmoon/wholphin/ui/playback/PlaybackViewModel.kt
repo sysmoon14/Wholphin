@@ -53,6 +53,7 @@ import com.github.sysmoon.wholphin.services.UserPreferencesService
 import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
 import com.github.sysmoon.wholphin.ui.launchIO
 import com.github.sysmoon.wholphin.ui.nav.Destination
+import com.github.sysmoon.wholphin.ui.playback.ControllerViewState
 import com.github.sysmoon.wholphin.ui.onMain
 import com.github.sysmoon.wholphin.ui.seekBack
 import com.github.sysmoon.wholphin.ui.seekForward
@@ -1281,7 +1282,7 @@ class PlaybackViewModel
         /**
          * Atomically update [currentMediaInfo]
          */
-        internal suspend fun updateCurrentMedia(block: (CurrentMediaInfo) -> CurrentMediaInfo) =
+        internal suspend fun updateCurrentMedia(block: (CurrentMediaInfo) -> CurrentMediaInfo): Unit =
             withContext(Dispatchers.IO) {
                 mutex.withLock {
                     val newMediaInfo = block.invoke(currentMediaInfo.value!!)

@@ -42,7 +42,7 @@ runs:
         cd scripts/ffmpeg
         ./build_ffmpeg_decoder.sh "${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.NDK_VERSION }}"
     - name: Save ffmpeg module cache
-      id: cache_ffmpeg_module_save
+      if: steps.cache_ffmpeg_module.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
@@ -59,10 +59,12 @@ runs:
     - name: Build libmpv dependencies
       if: steps.cache_libmpv_module.outputs.cache-hit != 'true'
       shell: bash
+      env:
+        PATH: ${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.NDK_VERSION }}/toolchains/llvm/prebuilt/linux-x86_64/bin:${{ env.PATH }}
       run: |
         cd scripts/mpv
         ./buildall.sh --clean --arch arm64 mpv
-        ./buildall.sh mpv
+        ./buildall.sh --arch armv7l mpv
         cd ../..
         env PREFIX32="$(realpath scripts/mpv/prefix/armv7l)" PREFIX64="$(realpath scripts/mpv/prefix/arm64)" ndk-build -C app/src/main -j
 
@@ -71,10 +73,9 @@ runs:
       run: |
         cd app/src/main
         mkdir -p jniLibs
-        cp -r libs/* jniLibs
-        #ln -s libs jniLibs
+        cp -r libs/* jniLibs/
     - name: Save libmpv module cache
-      id: cache_libmpv_module_save
+      if: steps.cache_libmpv_module.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |

@@ -6,7 +6,7 @@ import android.os.StrictMode
 import android.os.StrictMode.ThreadPolicy
 import android.util.Log
 import androidx.compose.runtime.Composer
-import androidx.compose.runtime.ExperimentalComposeRuntimeApi
+import androidx.compose.runtime.tooling.ComposeStackTraceMode
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
@@ -18,7 +18,6 @@ import org.acra.ktx.initAcra
 import timber.log.Timber
 import javax.inject.Inject
 
-@OptIn(ExperimentalComposeRuntimeApi::class)
 @HiltAndroidApp
 class WholphinApplication :
     Application(),
@@ -58,7 +57,9 @@ class WholphinApplication :
             )
         }
 
-        Composer.setDiagnosticStackTraceEnabled(BuildConfig.DEBUG)
+        Composer.setDiagnosticStackTraceMode(
+            if (BuildConfig.DEBUG) ComposeStackTraceMode.SourceInformation else ComposeStackTraceMode.None,
+        )
     }
 
     override fun onCreate() {

@@ -16,6 +16,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -219,12 +220,16 @@ class MainActivity : AppCompatActivity() {
                                     .background(MaterialTheme.colorScheme.background),
                             shape = RectangleShape,
                         ) {
-                            val backStack = setupNavigationManager.backStack
+                            // Observe backStack reactively to avoid race conditions during initialization
+                            val currentDestination = remember {
+                                derivedStateOf {
+                                    setupNavigationManager.backStack.lastOrNull()
+                                }
+                            }.value
                             
                             // Process pendingIntentData when AppContent is reached
                             // Use currentUser?.id as source of truth (not destination.current.user.id)
                             // because destination might not update immediately when switching users
-                            val currentDestination = backStack.lastOrNull()
                             val currentUser = viewModel.serverRepository.currentUser.value
                             val currentServer = viewModel.serverRepository.currentServer.value
                             val appContentKey = remember(currentDestination, currentUser?.id, currentServer?.id) {
@@ -260,8 +265,8 @@ class MainActivity : AppCompatActivity() {
                             }
                             
                             NavDisplay(
-                                backStack = backStack,
-                                onBack = { backStack.removeLastOrNull() },
+                                backStack = setupNavigationManager.backStack,
+                                onBack = { setupNavigationManager.backStack.removeLastOrNull() },
                                 entryDecorators =
                                     listOf(
                                         rememberSaveableStateHolderNavEntryDecorator(),

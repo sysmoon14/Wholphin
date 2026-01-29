@@ -30,16 +30,40 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 @Suppress("unused")
 object MPVLib {
-    init {
-        val libs = arrayOf("mpv", "player")
-        for (lib in libs) {
-            System.loadLibrary(lib)
+    private var availabilityChecked: Boolean = false
+    private var isAvailable: Boolean = false
+    
+    /**
+     * Check if MPV native libraries are available
+     */
+    fun isAvailable(): Boolean {
+        if (!availabilityChecked) {
+            availabilityChecked = true
+            isAvailable = try {
+                val libs = arrayOf("mpv", "player")
+                for (lib in libs) {
+                    System.loadLibrary(lib)
+                }
+                true
+            } catch (e: UnsatisfiedLinkError) {
+                android.util.Log.w("MPVLib", "MPV native libraries not available: ${e.message}")
+                false
+            }
         }
+        return isAvailable
+    }
+    
+    init {
+        // Try to load libraries, but don't fail if they're not available
+        isAvailable()
     }
 
     external fun create(appctx: Context)
 
     fun initialize() {
+        if (!isAvailable()) {
+            throw IllegalStateException("MPV native libraries are not available")
+        }
         synchronized(this) { init() }
     }
 

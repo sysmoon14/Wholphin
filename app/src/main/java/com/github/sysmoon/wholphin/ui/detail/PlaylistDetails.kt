@@ -19,7 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -184,7 +184,7 @@ fun PlaylistDetails(
                                     listOf(
                                         DialogItem(
                                             context.getString(R.string.go_to),
-                                            Icons.Default.ArrowForward,
+                                            Icons.AutoMirrored.Filled.ArrowForward,
                                         ) {
                                             viewModel.navigationManager.navigateTo(item.destination())
                                         },

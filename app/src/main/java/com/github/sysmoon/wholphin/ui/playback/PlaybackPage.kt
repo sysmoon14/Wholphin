@@ -177,7 +177,9 @@ fun PlaybackPageContent(
 
     var playbackDialog by remember { mutableStateOf<PlaybackDialogType?>(null) }
     LaunchedEffect(player) {
-        if (playerBackend == PlayerBackend.MPV) {
+        // Only apply MPV subtitle settings when we're actually using MpvPlayer.
+        // If user chose "Prefer MPV" but libs weren't available, player is ExoPlayer.
+        if (player is MpvPlayer) {
             scope.launch(Dispatchers.IO + ExceptionHandler()) {
                 preferences.appPreferences.interfacePreferences.subtitlesPreferences.applyToMpv(
                     configuration,

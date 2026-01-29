@@ -29,17 +29,13 @@ make CC="$CC" AR="$AR rc" RANLIB="$RANLIB" \
 	MYCFLAGS="${mycflags[*]}" \
 	PLAT=linux LUA_T= LUAC_T= -j$cores
 
-# TO_BIN= disables installing lua & luac
-# Lua 5.2 Makefile install target then removes installed files (lines 66-69); reinstall manually
-make INSTALL=${INSTALL:-install} INSTALL_TOP="$prefix_dir" TO_BIN= install
-mkdir -p "$prefix_dir/include" "$prefix_dir/lib"
-cp -f src/lua.h src/luaconf.h src/lualib.h src/lauxlib.h src/lua.hpp "$prefix_dir/include/"
-cp -f src/liblua.a "$prefix_dir/lib/"
+# TO_BIN=/dev/null disables installing lua & luac
+make INSTALL=${INSTALL:-install} INSTALL_TOP="$prefix_dir" TO_BIN=/dev/null install
 
-# make pc only generates a partial pkg-config file; pass INSTALL_TOP so paths are correct
-mkdir -p "$prefix_dir/lib/pkgconfig"
-make INSTALL_TOP="$prefix_dir" pc >"$prefix_dir/lib/pkgconfig/lua.pc"
-cat >>"$prefix_dir/lib/pkgconfig/lua.pc" <<'EOF'
+# make pc only generates a partial pkg-config file because ????
+mkdir -p $prefix_dir/lib/pkgconfig
+make pc >$prefix_dir/lib/pkgconfig/lua.pc
+cat >>$prefix_dir/lib/pkgconfig/lua.pc <<'EOF'
 Name: Lua
 Description:
 Version: ${version}

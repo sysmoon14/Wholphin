@@ -59,16 +59,41 @@ class PlayerFactory
                     PlayerBackend.PREFER_MPV,
                     PlayerBackend.MPV,
                     -> {
-                        val enableHardwareDecoding =
-                            prefs?.mpvOptions?.enableHardwareDecoding
-                                ?: AppPreference.MpvHardwareDecoding.defaultValue
-                        val useGpuNext =
-                            prefs?.mpvOptions?.useGpuNext
-                                ?: AppPreference.MpvGpuNext.defaultValue
-                        MpvPlayer(context, enableHardwareDecoding, useGpuNext)
-                            .apply {
-                                playWhenReady = true
-                            }
+                        // Check if MPV is available, fall back to ExoPlayer if not
+                        if (!com.github.sysmoon.wholphin.util.mpv.MPVLib.isAvailable()) {
+                            Timber.w("MPV backend requested but native libraries not available, falling back to ExoPlayer")
+                            val extensions = prefs?.overrides?.mediaExtensionsEnabled
+                            val decodeAv1 = prefs?.overrides?.decodeAv1 == true
+                            Timber.v("extensions=$extensions")
+                            val rendererMode =
+                                when (extensions) {
+                                    MediaExtensionStatus.MES_FALLBACK -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                                    MediaExtensionStatus.MES_PREFERRED -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+                                    MediaExtensionStatus.MES_DISABLED -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
+                                    else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                                }
+                            ExoPlayer
+                                .Builder(context)
+                                .setRenderersFactory(
+                                    WholphinRenderersFactory(context, decodeAv1)
+                                        .setEnableDecoderFallback(true)
+                                        .setExtensionRendererMode(rendererMode),
+                                ).build()
+                                .apply {
+                                    playWhenReady = true
+                                }
+                        } else {
+                            val enableHardwareDecoding =
+                                prefs?.mpvOptions?.enableHardwareDecoding
+                                    ?: AppPreference.MpvHardwareDecoding.defaultValue
+                            val useGpuNext =
+                                prefs?.mpvOptions?.useGpuNext
+                                    ?: AppPreference.MpvGpuNext.defaultValue
+                            MpvPlayer(context, enableHardwareDecoding, useGpuNext)
+                                .apply {
+                                    playWhenReady = true
+                                }
+                        }
                     }
 
                     PlayerBackend.EXO_PLAYER,
@@ -116,9 +141,31 @@ class PlayerFactory
                     PlayerBackend.PREFER_MPV,
                     PlayerBackend.MPV,
                     -> {
-                        val enableHardwareDecoding = prefs.mpvOptions.enableHardwareDecoding
-                        val useGpuNext = prefs.mpvOptions.useGpuNext
-                        MpvPlayer(context, enableHardwareDecoding, useGpuNext)
+                        // Check if MPV is available, fall back to ExoPlayer if not
+                        if (!com.github.sysmoon.wholphin.util.mpv.MPVLib.isAvailable()) {
+                            Timber.w("MPV backend requested but native libraries not available, falling back to ExoPlayer")
+                            val extensions = prefs.overrides.mediaExtensionsEnabled
+                            val decodeAv1 = prefs.overrides.decodeAv1
+                            Timber.v("extensions=$extensions")
+                            val rendererMode =
+                                when (extensions) {
+                                    MediaExtensionStatus.MES_FALLBACK -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                                    MediaExtensionStatus.MES_PREFERRED -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+                                    MediaExtensionStatus.MES_DISABLED -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
+                                    else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                                }
+                            ExoPlayer
+                                .Builder(context)
+                                .setRenderersFactory(
+                                    WholphinRenderersFactory(context, decodeAv1)
+                                        .setEnableDecoderFallback(true)
+                                        .setExtensionRendererMode(rendererMode),
+                                ).build()
+                        } else {
+                            val enableHardwareDecoding = prefs.mpvOptions.enableHardwareDecoding
+                            val useGpuNext = prefs.mpvOptions.useGpuNext
+                            MpvPlayer(context, enableHardwareDecoding, useGpuNext)
+                        }
                     }
 
                     PlayerBackend.EXO_PLAYER,

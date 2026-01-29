@@ -22,6 +22,15 @@ val isCI = if (System.getenv("CI") != null) System.getenv("CI").toBoolean() else
 val ffmpegModuleExists = project.file("libs/lib-decoder-ffmpeg-release.aar").exists()
 val av1ModuleExists = project.file("libs/lib-decoder-av1-release.aar").exists()
 
+// Check if MPV native libraries are available
+val mpvLibsDir = project.file("src/main/jniLibs")
+val mpvLibsAvailable = mpvLibsDir.exists() && (
+    project.file("src/main/jniLibs/arm64-v8a/libmpv.so").exists() ||
+    project.file("src/main/jniLibs/armeabi-v7a/libmpv.so").exists() ||
+    project.file("src/main/libs/arm64-v8a/libmpv.so").exists() ||
+    project.file("src/main/libs/armeabi-v7a/libmpv.so").exists()
+)
+
 fun envOrNull(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
 
 fun isReleaseBuildRequested(): Boolean {
@@ -120,6 +129,8 @@ android {
         compilerOptions {
             jvmTarget = JvmTarget.JVM_11
             javaParameters = true
+            // Suppress warnings from OpenAPI-generated seerr API (redundant conversion, etc.)
+            suppressWarnings.set(true)
         }
     }
     buildFeatures {
@@ -210,6 +221,48 @@ openApiGenerate {
 
 tasks.named("preBuild") {
     dependsOn.add(tasks.named("openApiGenerate"))
+}
+
+// Task to validate MPV native libraries
+tasks.register("validateMpvLibs") {
+    group = "verification"
+    description = "Validates that MPV native libraries are available"
+    
+    doLast {
+        val hasArm64 = project.file("src/main/jniLibs/arm64-v8a/libmpv.so").exists() ||
+                       project.file("src/main/libs/arm64-v8a/libmpv.so").exists()
+        val hasArm32 = project.file("src/main/jniLibs/armeabi-v7a/libmpv.so").exists() ||
+                       project.file("src/main/libs/armeabi-v7a/libmpv.so").exists()
+        
+        if (!hasArm64 && !hasArm32) {
+            val warningMessage = """
+                ⚠️  MPV native libraries not found!
+                
+                To build MPV libraries, follow these steps:
+                1. cd scripts/mpv
+                2. ./get_dependencies.sh
+                3. pip install meson jsonschema
+                4. export NDK_PATH=<path-to-ndk>
+                5. Add NDK toolchain to PATH and run: ./buildall.sh --clean --arch arm64 mpv
+                6. Run: ./buildall.sh mpv
+                7. cd ../..
+                8. Run ndk-build with PREFIX32 and PREFIX64 environment variables
+                9. cp -fr app/src/main/libs/ app/src/main/jniLibs/
+                
+                See DEVELOPMENT.md for detailed instructions.
+                
+                The app will fall back to ExoPlayer if MPV libraries are not available.
+            """.trimIndent()
+            logger.warn(warningMessage)
+        } else {
+            logger.info("✓ MPV native libraries found (arm64: $hasArm64, arm32: $hasArm32)")
+        }
+    }
+}
+
+// Make validateMpvLibs run before assemble tasks (optional, can be removed if too strict)
+tasks.named("preBuild").configure {
+    dependsOn.add("validateMpvLibs")
 }
 
 dependencies {

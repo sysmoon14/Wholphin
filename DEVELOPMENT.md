@@ -56,7 +56,88 @@ You can build the module on MacOS or Linux with the [`build_ffmpeg_decoder.sh`](
 
 Wholphin has a playback engine that uses [`libmpv`](https://github.com/mpv-player/mpv). The app uses JNI code from [`mpv-android`](https://github.com/mpv-android/mpv-android) and has an implementation of `androidx.media3.common.Player` to swap out for `ExoPlayer`.
 
-See the [build scripts](scripts/mpv/) for details on building this component.
+**Building MPV native libraries**
+
+The MPV player backend requires native libraries (`libmpv.so`, `libplayer.so`, and FFmpeg shared libs such as `libavcodec.so`) to be built and included in the APK. These are not committed (see `.gitignore`) and must be built locally or produced by CI.
+
+**GitHub Actions (CI):** PR and release workflows (`.github/workflows/pr.yml`, `.github/workflows/release.yml`) run the **Native build** action (`.github/actions/native-build`), which builds MPV for arm64-v8a and armeabi-v7a, runs `ndk-build`, and copies `app/src/main/libs/*` into `app/src/main/jniLibs/`. The result is cached by script hash, so later runs reuse the cache unless MPV or JNI scripts change. No extra setup is needed for builds on GitHub.
+
+**Prerequisites:**
+- Android NDK (tested with NDK r29+)
+- Python 3 with `pip`
+- Build tools: `meson`, `jsonschema`, `build-essential`, `autoconf`, `pkg-config`, `libtool`, `ninja-build`, `unzip`, `wget`, `nasm`
+
+**Build steps:**
+
+1. **Install Python dependencies:**
+   ```bash
+   pip install meson jsonschema
+   ```
+
+2. **Set up NDK path:**
+   ```bash
+   export NDK_PATH=<path-to-your-ndk>
+   # Example: export NDK_PATH=~/Library/Android/sdk/ndk/29.0.14206865
+   ```
+
+3. **Get MPV dependencies:**
+   ```bash
+   cd scripts/mpv
+   ./get_dependencies.sh
+   ```
+
+4. **Build MPV for arm64 (64-bit ARM):**
+   ```bash
+   PATH="$PATH:$NDK_PATH/toolchains/llvm/prebuilt/darwin-x86_64/bin" ./buildall.sh --clean --arch arm64 mpv
+   ```
+   Note: On Linux, use `linux-x86_64` instead of `darwin-x86_64`.
+
+5. **Build MPV for armeabi-v7a (32-bit ARM):**
+   ```bash
+   PATH="$PATH:$NDK_PATH/toolchains/llvm/prebuilt/darwin-x86_64/bin" ./buildall.sh mpv
+   ```
+
+6. **Build JNI wrapper libraries:**
+   ```bash
+   cd ../..
+   env PREFIX32="$(realpath scripts/mpv/prefix/armv7l)" \
+       PREFIX64="$(realpath scripts/mpv/prefix/arm64)" \
+       "$NDK_PATH/ndk-build" -C app/src/main -j
+   ```
+
+7. **Copy libraries to jniLibs directory:**
+   ```bash
+   cp -fr app/src/main/libs/ app/src/main/jniLibs/
+   ```
+
+**Expected directory structure after building:**
+```
+app/src/main/
+├── jniLibs/           (packaged into APK; gitignored)
+│   ├── arm64-v8a/
+│   │   ├── libavcodec.so, libavformat.so, ... (FFmpeg)
+│   │   ├── libmpv.so
+│   │   ├── libplayer.so
+│   │   └── libc++_shared.so
+│   └── armeabi-v7a/
+│       └── (same .so files)
+└── libs/              (intermediate; ndk-build output; gitignored)
+    └── arm64-v8a/, armeabi-v7a/
+```
+Copy the full `libs/` tree into `jniLibs/` so all dependencies (e.g. `libavcodec.so`) are included; otherwise the app may fail at runtime with "library not found".
+
+**Verification:**
+- The build system will warn you if MPV libraries are missing (see `validateMpvLibs` task)
+- You can verify libraries are included by checking the APK: `unzip -l app/build/outputs/apk/debug/app-debug.apk | grep libmpv.so`
+- If libraries are not available, the app will automatically fall back to ExoPlayer
+
+**Troubleshooting:**
+- **Build fails with "command not found"**: Make sure the NDK toolchain is in your PATH
+- **Libraries not found at runtime**: Verify `jniLibs/` directory exists and contains the `.so` files
+- **Wrong architecture**: Ensure you're building for the correct ABIs (arm64-v8a and/or armeabi-v7a)
+- **Build takes a long time**: This is normal - MPV and its dependencies are large projects
+
+See the [MPV build scripts README](scripts/mpv/README.md) for more details.
 
 ### App settings
 

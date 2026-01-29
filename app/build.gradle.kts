@@ -112,7 +112,13 @@ android {
                 "proguard-rules.pro",
             )
             isDebuggable = false
-            signingConfig = signingConfigs.getByName("release")
+            // Use release keystore when env vars are set; otherwise use debug keystore
+            // so local "Build Variant = release" builds work without signing setup.
+            signingConfig = if (signingConfigs.getByName("release").storeFile != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         debug {
             isMinifyEnabled = false

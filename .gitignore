@@ -57,9 +57,8 @@ app/debug/
 .kotlin
 docs/
 
-# mpv
+# mpv (libs/ is ndk-build output; jniLibs/ can be committed to skip CI build)
 app/src/main/obj/
 app/src/main/libs/
-app/src/main/jniLibs/
 scripts/mpv/deps/
 scripts/mpv/prefix/

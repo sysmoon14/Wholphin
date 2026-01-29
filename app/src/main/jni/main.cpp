@@ -20,7 +20,7 @@ extern "C" {
 #define ARRAYLEN(a) (sizeof(a)/sizeof(a[0]))
 
 extern "C" {
-    jni_func(void, create, jobject appctx);
+    jni_func(void, createJni, jobject appctx);
     jni_func(void, init);
     jni_func(void, destroy);
 
@@ -46,11 +46,14 @@ static void prepare_environment(JNIEnv *env, jobject appctx) {
     init_methods_cache(env);
 }
 
-jni_func(void, create, jobject appctx) {
+jni_func(void, createJni, jobject appctx) {
     prepare_environment(env, appctx);
 
-    if (g_mpv)
-        die("mpv is already initialized");
+    // If already initialized, just return (handles race condition when previous player is still destroying)
+    if (g_mpv) {
+        ALOGE("mpv_create called but mpv is already initialized - ignoring");
+        return;
+    }
 
     g_mpv = mpv_create();
     if (!g_mpv)

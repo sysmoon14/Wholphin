@@ -98,6 +98,7 @@ class MpvPlayer(
         HandlerThread("MpvPlayer:Playback", Process.THREAD_PRIORITY_AUDIO)
             .also { it.start() }
     private val internalHandler: Handler = Handler(thread.looper, this)
+    private val destroyLatch = java.util.concurrent.CountDownLatch(1)
 
     @Volatile
     var isReleased = false
@@ -112,7 +113,14 @@ class MpvPlayer(
         MPVLib.addLogObserver(mpvLogger)
 
         Timber.v("Creating MPVLib")
-        MPVLib.create(context)
+        val wasCreated = MPVLib.create(context)
+        if (!wasCreated) {
+            Timber.e("MPV was already initialized - previous MpvPlayer was not fully released before creating a new one!")
+            // MPV is already initialized, which means the previous player's destroy() hasn't completed yet.
+            // This is a lifecycle bug - we should wait for the previous player to be fully released.
+            // For now, we'll throw an exception to make the issue visible rather than silently failing.
+            throw IllegalStateException("Cannot create new MpvPlayer: MPV is already initialized. Previous player must be fully released first.")
+        }
         MPVLib.setOptionString("config", "yes")
         MPVLib.setOptionString("config-dir", context.filesDir.path)
 
@@ -121,6 +129,8 @@ class MpvPlayer(
             MPVLib.setOptionString("vo", if (useGpuNext) "gpu-next" else "gpu")
         } else {
             MPVLib.setOptionString("hwdec", "no")
+            // Always set vo explicitly, even when hardware decoding is disabled
+            MPVLib.setOptionString("vo", if (useGpuNext) "gpu-next" else "gpu")
         }
         MPVLib.setOptionString("gpu-context", "android")
 
@@ -309,6 +319,16 @@ class MpvPlayer(
             internalHandler.removeCallbacks(updatePlaybackState)
             MPVLib.removeObserver(this@MpvPlayer)
             sendCommand(MpvCommand.DESTROY, null)
+            // Wait for DESTROY to complete before returning, so MPV is fully cleaned up
+            // before a new MpvPlayer can be created
+            try {
+                if (!destroyLatch.await(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                    Timber.w("Timeout waiting for MPV destruction to complete")
+                }
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                Timber.w(e, "Interrupted while waiting for MPV destruction")
+            }
             thread.quitSafely()
         }
         isReleased = true
@@ -486,10 +506,13 @@ class MpvPlayer(
     }
 
     override fun clearVideoSurfaceView(surfaceView: SurfaceView?) {
-        if (surface != null && surface == surfaceView?.holder?.surface) {
+        val shouldClear =
+            surface != null &&
+                (surfaceView == null || surface == surfaceView.holder?.surface)
+        if (shouldClear) {
             Timber.d("clearVideoSurfaceView")
             sendCommand(MpvCommand.ATTACH_SURFACE, null)
-        } else {
+        } else if (surfaceView != null) {
             Timber.w("clearVideoSurfaceView called with different surface: %s", surfaceView)
         }
     }
@@ -510,7 +533,10 @@ class MpvPlayer(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         Timber.v("surfaceDestroyed")
-        sendCommand(MpvCommand.ATTACH_SURFACE, null)
+        // Don't post to handler if player is released — thread may already be dead
+        if (!isReleased) {
+            sendCommand(MpvCommand.ATTACH_SURFACE, null)
+        }
     }
 
     override fun setVideoTextureView(textureView: TextureView?): Unit = throw UnsupportedOperationException()
@@ -984,6 +1010,9 @@ class MpvPlayer(
         cmd: MpvCommand,
         obj: Any?,
     ) {
+        // Don't post to a dead thread (e.g. surfaceDestroyed after release())
+        if (isReleased && cmd != MpvCommand.DESTROY) return
+        if (!thread.isAlive) return
         internalHandler.obtainMessage(cmd.ordinal, obj).sendToTarget()
     }
 
@@ -1064,10 +1093,12 @@ class MpvPlayer(
             MpvCommand.ATTACH_SURFACE -> {
                 val surface = obj as Surface?
                 if (surface == null || (this.surface != null && this.surface != surface)) {
-                    // If clearing or changing the surface
-                    MPVLib.detachSurface()
+                    // If clearing or changing the surface. Set vo to null first so
+                    // Android vo isn't active when we clear wid (avoids "Missing surface pointer").
                     MPVLib.setPropertyString("vo", "null")
                     MPVLib.setPropertyString("force-window", "no")
+                    MPVLib.detachSurface()
+                    this.surface = null
                     Timber.d("Detached surface")
                 }
                 if (surface != null) {
@@ -1090,10 +1121,21 @@ class MpvPlayer(
             }
 
             MpvCommand.DESTROY -> {
-                clearVideoSurfaceView(null)
+                // Detach surface inline; do not post (clearVideoSurfaceView would post
+                // ATTACH_SURFACE null, which would run after tearDown and crash).
+                // Switch to null vo first so Android vo isn't active when we clear wid
+                // (avoids "Missing surface pointer" from vo/gpu/android).
+                if (surface != null) {
+                    MPVLib.setPropertyString("vo", "null")
+                    MPVLib.setPropertyString("force-window", "no")
+                    MPVLib.detachSurface()
+                    surface = null
+                    Timber.d("Detached surface")
+                }
                 MPVLib.removeLogObserver(mpvLogger)
                 MPVLib.tearDown()
                 Timber.d("MPVLib destroyed")
+                destroyLatch.countDown()
             }
         }
     }

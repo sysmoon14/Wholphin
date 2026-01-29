@@ -15,9 +15,18 @@ runs:
         path: |
           app/libs
         key: ${{ runner.os }}-ffmpeg-${{ hashFiles('**/libs.versions.toml', '**/scripts/ffmpeg/build_ffmpeg_decoder.sh') }}
+    - name: Check for committed MPV libs
+      id: check_mpv_libs
+      shell: bash
+      run: |
+        if [ -f app/src/main/jniLibs/arm64-v8a/libmpv.so ] || [ -f app/src/main/jniLibs/armeabi-v7a/libmpv.so ]; then
+          echo "has_mpv_jnilibs=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_mpv_jnilibs=false" >> $GITHUB_OUTPUT
+        fi
     - name: Load libmpv module cache
       id: cache_libmpv_module
-      if: ${{ inputs.cache }}
+      if: ${{ inputs.cache && steps.check_mpv_libs.outputs.has_mpv_jnilibs != 'true' }}
       uses: actions/cache/restore@v4
       with:
         path: |
@@ -49,15 +58,15 @@ runs:
           app/libs
         key: ${{ steps.cache_ffmpeg_module.outputs.cache-primary-key }}
 
-# libmpv
+# libmpv (skip build when jniLibs are committed)
     - name: Get libmpv dependencies
-      if: steps.cache_libmpv_module.outputs.cache-hit != 'true'
+      if: steps.check_mpv_libs.outputs.has_mpv_jnilibs != 'true' && steps.cache_libmpv_module.outputs.cache-hit != 'true'
       shell: bash
       run: |
         cd scripts/mpv
         ./get_dependencies.sh
     - name: Build libmpv dependencies
-      if: steps.cache_libmpv_module.outputs.cache-hit != 'true'
+      if: steps.check_mpv_libs.outputs.has_mpv_jnilibs != 'true' && steps.cache_libmpv_module.outputs.cache-hit != 'true'
       shell: bash
       run: |
         export PATH="${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.NDK_VERSION }}/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
@@ -68,13 +77,14 @@ runs:
         env PREFIX32="$(realpath scripts/mpv/prefix/armv7l)" PREFIX64="$(realpath scripts/mpv/prefix/arm64)" ndk-build -C app/src/main -j
 
     - name: Setup jniLibs
+      if: steps.check_mpv_libs.outputs.has_mpv_jnilibs != 'true'
       shell: bash
       run: |
         cd app/src/main
         mkdir -p jniLibs
         cp -r libs/* jniLibs/
     - name: Save libmpv module cache
-      if: steps.cache_libmpv_module.outputs.cache-hit != 'true'
+      if: ${{ inputs.cache && steps.check_mpv_libs.outputs.has_mpv_jnilibs != 'true' && steps.cache_libmpv_module.outputs.cache-hit != 'true' }}
       uses: actions/cache/save@v4
       with:
         path: |

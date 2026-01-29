@@ -21,6 +21,7 @@ import com.github.sysmoon.wholphin.preferences.AppPreferences
 import com.github.sysmoon.wholphin.preferences.MediaExtensionStatus
 import com.github.sysmoon.wholphin.preferences.PlaybackPreferences
 import com.github.sysmoon.wholphin.preferences.PlayerBackend
+import com.github.sysmoon.wholphin.util.isRunningOnEmulator
 import com.github.sysmoon.wholphin.util.mpv.MpvPlayer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -83,11 +84,15 @@ class PlayerFactory
                                     playWhenReady = true
                                 }
                         } else {
+                            val isEmulator = isRunningOnEmulator()
                             val enableHardwareDecoding =
-                                prefs?.mpvOptions?.enableHardwareDecoding
-                                    ?: AppPreference.MpvHardwareDecoding.defaultValue
+                                (prefs?.mpvOptions?.enableHardwareDecoding
+                                    ?: AppPreference.MpvHardwareDecoding.defaultValue) &&
+                                    !isEmulator
+                            // On emulator, use simpler 'gpu' backend instead of 'gpu-next' to avoid EGL issues
                             val useGpuNext =
-                                prefs?.mpvOptions?.useGpuNext
+                                if (isEmulator) false
+                                else prefs?.mpvOptions?.useGpuNext
                                     ?: AppPreference.MpvGpuNext.defaultValue
                             MpvPlayer(context, enableHardwareDecoding, useGpuNext)
                                 .apply {
@@ -162,8 +167,13 @@ class PlayerFactory
                                         .setExtensionRendererMode(rendererMode),
                                 ).build()
                         } else {
-                            val enableHardwareDecoding = prefs.mpvOptions.enableHardwareDecoding
-                            val useGpuNext = prefs.mpvOptions.useGpuNext
+                            val isEmulator = isRunningOnEmulator()
+                            val enableHardwareDecoding =
+                                prefs.mpvOptions.enableHardwareDecoding && !isEmulator
+                            // On emulator, use simpler 'gpu' backend instead of 'gpu-next' to avoid EGL issues
+                            val useGpuNext =
+                                if (isEmulator) false
+                                else prefs.mpvOptions.useGpuNext
                             MpvPlayer(context, enableHardwareDecoding, useGpuNext)
                         }
                     }

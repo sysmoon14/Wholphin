@@ -32,6 +32,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 object MPVLib {
     private var availabilityChecked: Boolean = false
     private var isAvailable: Boolean = false
+    @Volatile
+    private var isInitialized: Boolean = false
     
     /**
      * Check if MPV native libraries are available
@@ -58,7 +60,25 @@ object MPVLib {
         isAvailable()
     }
 
-    external fun create(appctx: Context)
+    /**
+     * Create MPV instance. Can only be called once per app lifecycle.
+     * Returns true if MPV was created, false if it was already initialized.
+     * Note: The native code handles double initialization gracefully (returns early if already initialized).
+     */
+    fun create(appctx: Context): Boolean {
+        synchronized(this) {
+            if (isInitialized) {
+                android.util.Log.w("MPVLib", "MPV is already initialized - previous player may not have been fully released")
+                return false
+            }
+            createJni(appctx)
+            isInitialized = true
+            return true
+        }
+    }
+    
+    /** Native create - JNI symbol is "createJni" to match updated libplayer.so */
+    private external fun createJni(appctx: Context)
 
     fun initialize() {
         if (!isAvailable()) {
@@ -70,7 +90,14 @@ object MPVLib {
     private external fun init()
 
     fun tearDown() {
-        synchronized(this) { destroy() }
+        synchronized(this) {
+            if (!isInitialized) {
+                android.util.Log.w("MPVLib", "tearDown() called but MPV is not initialized")
+                return
+            }
+            destroy()
+            isInitialized = false
+        }
     }
 
     private external fun destroy()

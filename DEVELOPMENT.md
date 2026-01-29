@@ -58,9 +58,11 @@ Wholphin has a playback engine that uses [`libmpv`](https://github.com/mpv-playe
 
 **Building MPV native libraries**
 
-The MPV player backend requires native libraries (`libmpv.so`, `libplayer.so`, and FFmpeg shared libs such as `libavcodec.so`) to be built and included in the APK. These are not committed (see `.gitignore`) and must be built locally or produced by CI.
+The MPV player backend requires native libraries (`libmpv.so`, `libplayer.so`, and FFmpeg shared libs such as `libavcodec.so`) to be built and included in the APK.
 
-**GitHub Actions (CI):** PR and release workflows (`.github/workflows/pr.yml`, `.github/workflows/release.yml`) run the **Native build** action (`.github/actions/native-build`), which builds MPV for arm64-v8a and armeabi-v7a, runs `ndk-build`, and copies `app/src/main/libs/*` into `app/src/main/jniLibs/`. The result is cached by script hash, so later runs reuse the cache unless MPV or JNI scripts change. No extra setup is needed for builds on GitHub.
+**Option A – Ship pre-built libs (recommended if you build locally):** You can commit `app/src/main/jniLibs/` (arm64-v8a and armeabi-v7a with all `.so` files) so CI and other developers use them without building. `jniLibs/` is no longer in `.gitignore`. If `jniLibs/arm64-v8a/libmpv.so` or `jniLibs/armeabi-v7a/libmpv.so` exists in the repo, the Native build action skips the MPV build and cache steps. Re-commit `jniLibs/` when you change MPV version, NDK, or build scripts.
+
+**Option B – Build in CI:** If `jniLibs/` is not committed, PR and release workflows run the **Native build** action, which builds MPV for arm64-v8a and armeabi-v7a, runs `ndk-build`, and copies `app/src/main/libs/*` into `app/src/main/jniLibs/`. The result is cached by script hash, so later runs reuse the cache unless MPV or JNI scripts change.
 
 **Prerequisites:**
 - Android NDK (tested with NDK r29+)
@@ -109,6 +111,7 @@ The MPV player backend requires native libraries (`libmpv.so`, `libplayer.so`, a
    ```bash
    cp -fr app/src/main/libs/ app/src/main/jniLibs/
    ```
+   You can then commit `app/src/main/jniLibs/` so CI and others use these libs without building (Option A above).
 
 **Expected directory structure after building:**
 ```

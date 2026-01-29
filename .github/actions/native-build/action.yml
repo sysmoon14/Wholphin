@@ -59,9 +59,8 @@ runs:
     - name: Build libmpv dependencies
       if: steps.cache_libmpv_module.outputs.cache-hit != 'true'
       shell: bash
-      env:
-        PATH: ${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.NDK_VERSION }}/toolchains/llvm/prebuilt/linux-x86_64/bin:${{ env.PATH }}
       run: |
+        export PATH="${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.NDK_VERSION }}/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
         cd scripts/mpv
         ./buildall.sh --clean --arch arm64 mpv
         ./buildall.sh --arch armv7l mpv

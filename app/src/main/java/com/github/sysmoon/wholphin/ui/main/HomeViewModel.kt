@@ -140,23 +140,13 @@ class HomeViewModel
 
                         withContext(Dispatchers.Main) {
                             // Plugin sections replace the entire home screen
-                            // We'll put them all in latestRows and keep watchingRows empty
-                            // since the plugin manages the order and includes watching sections
                             this@HomeViewModel.watchingRows.value = emptyList()
                             if (reload) {
-                                this@HomeViewModel.latestRows.value = finalRows.map {
-                                    if (it is HomeRowLoadingState.Success) {
-                                        HomeRowLoadingState.Loading(it.title)
-                                    } else {
-                                        it
-                                    }
-                                }
+                                this@HomeViewModel.latestRows.value = finalRows
                             }
                             loadingState.value = LoadingState.Success
                         }
                         refreshState.setValueOnMain(LoadingState.Success)
-                        // Sections are already loaded, just set them
-                        this@HomeViewModel.latestRows.setValueOnMain(finalRows)
                     } else {
                         // Plugin not available, use default behavior
                         Timber.d("HomeViewModel: Plugin not available, using default home screen sections")
@@ -204,18 +194,14 @@ class HomeViewModel
                             }
 
                         val latest = latestNextUpService.getLatest(userDto, limit, includedIds)
-                        val pendingLatest = latest.map { HomeRowLoadingState.Loading(it.title) }
+                        val loadedLatest = latestNextUpService.loadLatest(latest)
 
                         withContext(Dispatchers.Main) {
                             this@HomeViewModel.watchingRows.value = watching
-                            if (reload) {
-                                this@HomeViewModel.latestRows.value = pendingLatest
-                            }
+                            this@HomeViewModel.latestRows.value = loadedLatest
                             loadingState.value = LoadingState.Success
                         }
                         refreshState.setValueOnMain(LoadingState.Success)
-                        val loadedLatest = latestNextUpService.loadLatest(latest)
-                        this@HomeViewModel.latestRows.setValueOnMain(loadedLatest)
                     }
                 }
             }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -38,6 +39,7 @@ import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.services.BackdropService
 import com.github.sysmoon.wholphin.services.NavigationManager
 import com.github.sysmoon.wholphin.services.SeerrService
+import com.github.sysmoon.wholphin.ui.Cards
 import com.github.sysmoon.wholphin.ui.cards.DiscoverItemCard
 import com.github.sysmoon.wholphin.ui.cards.ItemRow
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
@@ -51,6 +53,7 @@ import com.github.sysmoon.wholphin.util.DataLoadingState
 import com.google.common.cache.CacheBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import org.jellyfin.sdk.api.client.ApiClient
@@ -74,10 +77,10 @@ class SeerrDiscoverViewModel
                 backdropService.clearBackdrop()
             }
             fetchAndUpdateState(seerrService::discoverMovies) {
-                this.copy(movies = DiscoverRowData(context.getString(R.string.movies), it))
+                this.copy(movies = DiscoverRowData(context.getString(R.string.popular_movies), it))
             }
             fetchAndUpdateState(seerrService::discoverTv) {
-                this.copy(tv = DiscoverRowData(context.getString(R.string.tv_shows), it))
+                this.copy(tv = DiscoverRowData(context.getString(R.string.popular_series), it))
             }
             fetchAndUpdateState(seerrService::trending) {
                 this.copy(trending = DiscoverRowData(context.getString(R.string.trending), it))
@@ -197,6 +200,7 @@ fun SeerrDiscoverPage(
         listOf(state.trending, state.movies, state.tv, state.upcomingMovies, state.upcomingTv)
     val ratingMap by viewModel.rating.collectAsState()
 
+    val listState = rememberLazyListState()
     val focusRequesters = remember(rows) { List(rows.size) { FocusRequester() } }
     var position by rememberPosition(0, -1)
     val focusedItem =
@@ -212,8 +216,24 @@ fun SeerrDiscoverPage(
     LaunchedEffect(state.trending) {
         if (!firstFocused && state.trending.items is DataLoadingState.Success<*>) {
             firstFocused = focusRequesters.getOrNull(0)?.tryRequestFocus("discover") == true
+            if (firstFocused) {
+                delay(50)
+                listState.scrollToItem(0)
+            }
         } else if (firstFocused) {
             focusRequesters.getOrNull(position.row)?.tryRequestFocus()
+        }
+    }
+    LaunchedEffect(rows, position.row) {
+        if (firstFocused && rows.isNotEmpty() && position.row >= 0) {
+            val index = position.row.coerceIn(0, focusRequesters.lastIndex)
+            delay(50)
+            listState.scrollToItem(index)
+        }
+    }
+    LaunchedEffect(position) {
+        if (position.row >= 0) {
+            listState.animateScrollToItem(position.row)
         }
     }
 
@@ -246,12 +266,19 @@ fun SeerrDiscoverPage(
             timeRemaining = null,
             modifier =
                 Modifier
-                    .padding(top = 24.dp, bottom = 16.dp, start = 32.dp)
+                    .padding(top = 48.dp, bottom = 24.dp, start = 32.dp)
                     .fillMaxHeight(.25f),
         )
         LazyColumn(
+            state = listState,
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp),
+            contentPadding =
+                PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 0.dp,
+                    bottom = Cards.height2x3,
+                ),
             modifier =
                 Modifier
                     .focusRestorer()

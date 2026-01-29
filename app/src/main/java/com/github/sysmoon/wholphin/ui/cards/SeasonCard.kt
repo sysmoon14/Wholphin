@@ -40,6 +40,8 @@ fun SeasonCard(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     showImageOverlay: Boolean = false,
     aspectRatio: Float = item?.aspectRatio ?: AspectRatios.TALL,
+    overrideLine1: String? = null,
+    overrideLine2: String? = null,
 ) {
     val imageUrlService = LocalImageUrlService.current
     val density = LocalDensity.current
@@ -72,9 +74,16 @@ fun SeasonCard(
                 null
             }
         }
+    val displayLine1 = overrideLine1 ?: item?.title
+    val displayLine2 =
+        when {
+            overrideLine2 != null -> overrideLine2
+            overrideLine1 != null -> null
+            else -> item?.subtitle
+        }
     SeasonCard(
-        title = item?.title,
-        subtitle = item?.subtitle,
+        title = displayLine1,
+        subtitle = displayLine2,
         name = item?.name,
         imageUrl = imageUrl,
         isFavorite = item?.data?.userData?.isFavorite ?: false,
@@ -175,16 +184,18 @@ fun SeasonCard(
                         .padding(horizontal = 4.dp)
                         .enableMarquee(focusState.focusedAfterDelay),
             )
-            Text(
-                text = subtitle ?: "",
-                maxLines = 1,
-                textAlign = TextAlign.Center,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                        .enableMarquee(focusState.focusedAfterDelay),
-            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp)
+                            .enableMarquee(focusState.focusedAfterDelay),
+                )
+            }
         }
     }
 }

@@ -48,6 +48,8 @@ import kotlinx.coroutines.sync.withPermit
 import timber.log.Timber
 import javax.inject.Inject
 
+private const val REQUESTS_PAGE_SIZE = 32
+
 @HiltViewModel
 class SeerrRequestsViewModel
     @Inject
@@ -65,54 +67,91 @@ class SeerrRequestsViewModel
             }
             seerrServerRepository.current
                 .onEach { user ->
-                    state.update { it.copy(requests = DataLoadingState.Loading) }
                     if (user != null) {
-                        val semaphore = Semaphore(3)
-                        val mediaRequests =
-                            seerrService.api.requestApi
-                                .requestGet()
-                                .results
-                                .orEmpty()
-                        val requests =
-                            mediaRequests.mapNotNull { request ->
-                                if (request.media?.tmdbId != null) {
-                                    viewModelScope.async(Dispatchers.IO) {
-                                        semaphore.withPermit {
-                                            val type = SeerrItemType.fromString(request.type)
-                                            when (type) {
-                                                SeerrItemType.MOVIE -> {
-                                                    seerrService.api.moviesApi
-                                                        .movieMovieIdGet(
-                                                            movieId = request.media.tmdbId,
-                                                        ).let { DiscoverItem(it) }
-                                                }
-
-                                                SeerrItemType.TV -> {
-                                                    seerrService.api.tvApi
-                                                        .tvTvIdGet(tvId = request.media.tmdbId)
-                                                        .let { DiscoverItem(it) }
-                                                }
-
-                                                SeerrItemType.PERSON -> {
-                                                    null
-                                                }
-
-                                                SeerrItemType.UNKNOWN -> {
-                                                    null
-                                                }
-                                            }?.let { RequestGridItem(request, it) }
-                                        }
-                                    }
-                                } else {
-                                    Timber.v("No TMDB ID for request %s", request.id)
-                                    null
-                                }
-                            }
-                        val results = requests.awaitAll().filterNotNull()
-
-                        state.update { it.copy(requests = DataLoadingState.Success(results)) }
+                        state.update { it.copy(requests = DataLoadingState.Loading, hasMore = false) }
+                        loadPage(take = REQUESTS_PAGE_SIZE, skip = 0, append = false)
+                    } else {
+                        state.update { it.copy(requests = DataLoadingState.Pending, hasMore = false) }
                     }
                 }.launchIn(viewModelScope)
+        }
+
+        fun loadMore() {
+            if (state.value.loadingMore || !state.value.hasMore) return
+            val current = (state.value.requests as? DataLoadingState.Success)?.data ?: return
+            state.update { it.copy(loadingMore = true) }
+            viewModelScope.launchIO {
+                try {
+                    loadPage(take = REQUESTS_PAGE_SIZE, skip = current.size, append = true)
+                } finally {
+                    state.update { it.copy(loadingMore = false) }
+                }
+            }
+        }
+
+        private suspend fun loadPage(
+            take: Int,
+            skip: Int,
+            append: Boolean,
+        ) {
+            val semaphore = Semaphore(3)
+            val mediaRequests =
+                seerrService.api.requestApi
+                    .requestGet(take = take, skip = skip)
+                    .results
+                    .orEmpty()
+            val requests =
+                mediaRequests.mapNotNull { request ->
+                    if (request.media?.tmdbId != null) {
+                        viewModelScope.async(Dispatchers.IO) {
+                            semaphore.withPermit {
+                                val type = SeerrItemType.fromString(request.type)
+                                when (type) {
+                                    SeerrItemType.MOVIE -> {
+                                        seerrService.api.moviesApi
+                                            .movieMovieIdGet(
+                                                movieId = request.media.tmdbId,
+                                            ).let { DiscoverItem(it) }
+                                    }
+
+                                    SeerrItemType.TV -> {
+                                        seerrService.api.tvApi
+                                            .tvTvIdGet(tvId = request.media.tmdbId)
+                                            .let { DiscoverItem(it) }
+                                    }
+
+                                    SeerrItemType.PERSON -> {
+                                        null
+                                    }
+
+                                    SeerrItemType.UNKNOWN -> {
+                                        null
+                                    }
+                                }?.let { RequestGridItem(request, it) }
+                            }
+                        }
+                    } else {
+                        Timber.v("No TMDB ID for request %s", request.id)
+                        null
+                    }
+                }
+            val results = requests.awaitAll().filterNotNull()
+            val hasMore = mediaRequests.size == take
+
+            state.update {
+                if (append) {
+                    val existing = (it.requests as? DataLoadingState.Success)?.data.orEmpty()
+                    it.copy(
+                        requests = DataLoadingState.Success(existing + results),
+                        hasMore = hasMore,
+                    )
+                } else {
+                    it.copy(
+                        requests = DataLoadingState.Success(results),
+                        hasMore = hasMore,
+                    )
+                }
+            }
         }
 
         fun updateBackdrop(item: DiscoverItem?) {
@@ -126,6 +165,8 @@ class SeerrRequestsViewModel
 
 data class SeerrRequestsState(
     val requests: DataLoadingState<List<RequestGridItem>>,
+    val hasMore: Boolean = false,
+    val loadingMore: Boolean = false,
 ) {
     companion object {
         val EMPTY = SeerrRequestsState(DataLoadingState.Pending)
@@ -200,6 +241,7 @@ fun SeerrRequestsPage(
                         showJumpButtons = false,
                         showLetterButtons = false,
                         spacing = 16.dp,
+                        onNearEndOfList = { viewModel.loadMore() },
                         cardContent = @Composable { item, onClick, onLongClick, mod ->
                             DiscoverItemCard(
                                 item = item?.item,

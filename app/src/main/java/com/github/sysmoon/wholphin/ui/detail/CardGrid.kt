@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -70,6 +71,8 @@ import com.github.sysmoon.wholphin.ui.playback.isPlayKeyUp
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.util.ExceptionHandler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -112,6 +115,7 @@ fun <T : CardGridItem> CardGrid(
     },
     columns: Int = 6,
     spacing: Dp = 16.dp,
+    onNearEndOfList: (() -> Unit)? = null,
 ) {
     val startPosition = initialPosition.coerceIn(0, (pager.size - 1).coerceAtLeast(0))
 
@@ -145,8 +149,21 @@ fun <T : CardGridItem> CardGrid(
         alphabetFocus = false
     }
 
+    LaunchedEffect(gridState, pager.size, columns, onNearEndOfList) {
+        if (onNearEndOfList == null) return@LaunchedEffect
+        snapshotFlow {
+            val layoutInfo = gridState.layoutInfo
+            val total = pager.size
+            if (total == 0) return@snapshotFlow false
+            val lastVisible = layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: 0
+            lastVisible >= total - (columns * 2)
+        }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect { onNearEndOfList() }
+    }
+
     val useBackToJump = true // uiConfig.preferences.interfacePreferences.scrollTopOnBack
-    val showFooter = true // uiConfig.preferences.interfacePreferences.showPositionFooter
     val useJumpRemoteButtons = true // uiConfig.preferences.interfacePreferences.pageWithRemoteButtons
     val jump2 =
         remember {
@@ -341,27 +358,6 @@ fun <T : CardGridItem> CardGrid(
                             text = stringResource(R.string.no_results),
                             color = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.align(Alignment.Center),
-                        )
-                    }
-                }
-                if (showFooter) {
-                    // Footer
-                    Box(
-                        modifier =
-                            Modifier
-                                .align(Alignment.BottomCenter)
-                                .background(AppColors.TransparentBlack50),
-                    ) {
-                        val index = (focusedIndex + 1).takeIf { it > 0 } ?: "?"
-//                        if (focusedIndex >= 0) {
-//                            focusedIndex + 1
-//                        } else {
-//                            max(savedFocusedIndex, focusedIndexOnExit) + 1
-//                        }
-                        Text(
-                            modifier = Modifier.padding(4.dp),
-                            color = MaterialTheme.colorScheme.onBackground,
-                            text = "$index / ${pager.size}",
                         )
                     }
                 }

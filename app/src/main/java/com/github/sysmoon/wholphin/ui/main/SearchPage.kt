@@ -458,7 +458,7 @@ fun SearchPage(
                     tabs =
                         listOf(
                             context.getString(R.string.library),
-                            context.getString(R.string.discover),
+                            context.getString(R.string.request),
                         ),
                     focusRequesters = tabFocusRequesters,
                     onClick = { selectedTab = it },
@@ -535,7 +535,7 @@ fun SearchPage(
         }
         if (selectedTab == 1 && seerrActive && query.isNotBlank()) {
             searchResultRow(
-                title = context.getString(R.string.discover),
+                title = context.getString(R.string.request),
                 result = seerrResults,
                 rowIndex = SEERR_ROW,
                 position = position,
@@ -562,6 +562,27 @@ fun SearchPage(
     }
 }
 
+/**
+ * Returns (line1, line2) for search result card subtitle per item type:
+ * Movie: title, year; TV Show: title, start year; Episode: show name, episode name;
+ * Collection: name, null.
+ */
+private fun searchResultLibraryLines(item: BaseItem?): Pair<String?, String?> {
+    if (item == null) return null to null
+    return when (item.type) {
+        BaseItemKind.MOVIE ->
+            item.name to item.data.productionYear?.toString()
+        BaseItemKind.SERIES ->
+            item.name to item.data.productionYear?.toString()
+        BaseItemKind.EPISODE ->
+            item.data.seriesName to item.name
+        BaseItemKind.BOX_SET ->
+            item.name to null
+        else ->
+            item.title to item.subtitle
+    }
+}
+
 fun LazyListScope.searchResultRow(
     title: String,
     result: SearchResult,
@@ -579,6 +600,7 @@ fun LazyListScope.searchResultRow(
         onClick: () -> Unit,
         onLongClick: () -> Unit,
     ) -> Unit = @Composable { index, item, mod, onClick, onLongClick ->
+        val (line1, line2) = searchResultLibraryLines(item)
         SeasonCard(
             item = item,
             onClick = {
@@ -588,6 +610,8 @@ fun LazyListScope.searchResultRow(
             onLongClick = onLongClick,
             imageHeight = Cards.height2x3,
             modifier = mod,
+            overrideLine1 = line1,
+            overrideLine2 = line2,
         )
     },
 ) {
@@ -651,6 +675,8 @@ fun LazyListScope.searchResultRow(
                                 onLongClick = onLongClick,
                                 showOverlay = true,
                                 modifier = mod,
+                                line1 = item?.title,
+                                line2 = item?.releaseDate?.year?.toString(),
                             )
                         },
                     )

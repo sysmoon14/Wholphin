@@ -21,8 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Card
@@ -50,10 +50,13 @@ fun DiscoverItemCard(
     showOverlay: Boolean,
     modifier: Modifier = Modifier,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    line1: String? = null,
+    line2: String? = null,
 ) {
     val focusState = rememberCardFocusState(interactionSource)
     val width = Cards.height2x3 * AspectRatios.TALL
     val height = Dp.Unspecified * (1f / AspectRatios.TALL)
+    val showLines = line1 != null || line2 != null
     Column(
         verticalArrangement = Arrangement.spacedBy(focusState.spaceBetween),
         modifier = modifier.size(width, height),
@@ -148,33 +151,39 @@ fun DiscoverItemCard(
                 }
             }
         }
-        Column(
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-            modifier =
-                Modifier
-                    .padding(bottom = focusState.spaceBelow)
-                    .fillMaxWidth(),
-        ) {
-            Text(
-                text = item?.title ?: "",
-                maxLines = 1,
-                textAlign = TextAlign.Center,
+        if (showLines) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 modifier =
                     Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                        .enableMarquee(focusState.focusedAfterDelay),
-            )
-            Text(
-                text = item?.releaseDate?.year?.toString() ?: "",
-                maxLines = 1,
-                textAlign = TextAlign.Center,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                        .enableMarquee(focusState.focusedAfterDelay),
-            )
+                        .padding(bottom = focusState.spaceBelow)
+                        .fillMaxWidth(),
+            ) {
+                Text(
+                    text = line1 ?: "",
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp)
+                            .enableMarquee(focusState.focusedAfterDelay),
+                )
+                if (line2 != null) {
+                    Text(
+                        text = line2,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp)
+                                .enableMarquee(focusState.focusedAfterDelay),
+                    )
+                }
+            }
         }
     }
 }

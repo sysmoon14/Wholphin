@@ -456,6 +456,7 @@
 
     <string name="discover">Discover</string>
     <string name="request">Request</string>
+    <string name="requests">Requests</string>
     <string name="pending">Pending</string>
     <string name="seerr_integration">Seerr integration</string>
     <string name="remove_seerr_server">Remove Seerr Server</string>
@@ -464,6 +465,8 @@
     <string name="username">Username</string>
     <string name="url">URL</string>
     <string name="trending">Trending</string>
+    <string name="popular_movies">Popular Movies</string>
+    <string name="popular_series">Popular Series</string>
     <string name="upcoming_movies">Upcoming Movies</string>
     <string name="upcoming_tv">Upcoming TV Shows</string>
     <string name="request_4k">Request in 4K</string>

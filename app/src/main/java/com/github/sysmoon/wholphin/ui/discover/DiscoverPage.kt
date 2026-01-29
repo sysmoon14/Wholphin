@@ -42,7 +42,7 @@ fun DiscoverPage(
     val tabs =
         listOf(
             stringResource(R.string.discover),
-            stringResource(R.string.request),
+            stringResource(R.string.requests),
         )
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(rememberedTabIndex) }
     val tabFocusRequesters = remember(tabs) { List(tabs.size) { FocusRequester() } }

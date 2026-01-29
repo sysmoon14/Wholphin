@@ -1,6 +1,10 @@
 package com.github.sysmoon.wholphin.ui.main
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
@@ -127,7 +131,12 @@ fun HomePage(
             var dialog by remember { mutableStateOf<DialogParams?>(null) }
             var showPlaylistDialog by remember { mutableStateOf<UUID?>(null) }
             val playlistState by playlistViewModel.playlistState.observeAsState(PlaylistLoadingState.Pending)
-            HomePageContent(
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(animationSpec = tween(400)),
+                exit = fadeOut(animationSpec = tween(200)),
+            ) {
+                HomePageContent(
                 watchingRows + latestRows,
                 onClickItem = { position, item ->
                     viewModel.navigationManager.navigateTo(item.destination())
@@ -171,6 +180,7 @@ fun HomePage(
                 onUpdateBackdrop = viewModel::updateBackdrop,
                 modifier = modifier,
             )
+            }
             dialog?.let { params ->
                 DialogPopup(
                     params = params,
@@ -363,13 +373,12 @@ fun HomePageContent(
                                     cardContent = { index, item, cardModifier, onClick, onLongClick ->
                                         val cornerText =
                                             remember(item) {
-                                                item?.data?.indexNumber?.let { "E$it" }
-                                                    ?: item
-                                                        ?.data
-                                                        ?.userData
-                                                        ?.unplayedItemCount
-                                                        ?.takeIf { it > 0 }
-                                                        ?.let { abbreviateNumber(it) }
+                                                item
+                                                    ?.data
+                                                    ?.userData
+                                                    ?.unplayedItemCount
+                                                    ?.takeIf { it > 0 }
+                                                    ?.let { abbreviateNumber(it) }
                                             }
                                         BannerCard(
                                             name = item?.data?.seriesName ?: item?.name,

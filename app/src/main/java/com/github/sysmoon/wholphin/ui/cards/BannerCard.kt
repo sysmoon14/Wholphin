@@ -38,7 +38,6 @@ import com.github.sysmoon.wholphin.data.model.BaseItem
 import com.github.sysmoon.wholphin.ui.AppColors
 import com.github.sysmoon.wholphin.ui.AspectRatios
 import com.github.sysmoon.wholphin.ui.Cards
-import com.github.sysmoon.wholphin.ui.FontAwesome
 import com.github.sysmoon.wholphin.ui.LocalImageUrlService
 import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
 import org.jellyfin.sdk.model.api.ImageType
@@ -152,18 +151,6 @@ fun BannerCard(
                         }
                     }
                 }
-            }
-            if (favorite) {
-                Text(
-                    modifier =
-                        Modifier
-                            .align(Alignment.TopStart)
-                            .padding(8.dp),
-                    color = colorResource(android.R.color.holo_red_light),
-                    text = stringResource(R.string.fa_heart),
-                    fontSize = 16.sp,
-                    fontFamily = FontAwesome,
-                )
             }
             if (playPercent > 0 && playPercent < 100) {
                 Box(

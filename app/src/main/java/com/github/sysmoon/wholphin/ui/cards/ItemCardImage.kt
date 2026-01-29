@@ -235,15 +235,6 @@ fun ItemCardImageOverlay(
                     )
                 }
             }
-            if (favorite) {
-                Text(
-                    color = colorResource(android.R.color.holo_red_light),
-                    text = stringResource(R.string.fa_heart),
-                    fontSize = 20.sp,
-                    fontFamily = FontAwesome,
-                    modifier = Modifier,
-                )
-            }
         }
         Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),

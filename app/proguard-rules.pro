@@ -20,6 +20,11 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
+# --- MPV JNI: keep MPVLib and all static methods called from libplayer.so ---
+# Shield TV (and other release builds) crash with NoSuchMethodError for
+# eventProperty(String)V etc. because R8 removes/obfuscates them (only called from native).
+-keep class com.github.sysmoon.wholphin.util.mpv.MPVLib { *; }
+
 # --- Fix: release crash due to Protobuf reflection + R8 obfuscation ---
 # Shield crash showed:
 #   java.lang.NoSuchFieldException: No field ac3Supported_ in class ... (protobuf message)

@@ -29,9 +29,9 @@ make CC="$CC" AR="$AR rc" RANLIB="$RANLIB" \
 	MYCFLAGS="${mycflags[*]}" \
 	PLAT=linux LUA_T= LUAC_T= -j$cores
 
-# TO_BIN= disables installing lua & luac
+# TO_BIN=/dev/null skips installing lua & luac (avoids "install: missing destination" when TO_BIN= is parsed wrong)
 # Lua 5.2 Makefile install target then removes installed files (lines 66-69); reinstall manually
-make INSTALL=${INSTALL:-install} INSTALL_TOP="$prefix_dir" TO_BIN= install
+make INSTALL=${INSTALL:-install} INSTALL_TOP="$prefix_dir" TO_BIN=/dev/null install
 mkdir -p "$prefix_dir/include" "$prefix_dir/lib"
 cp -f src/lua.h src/luaconf.h src/lualib.h src/lauxlib.h src/lua.hpp "$prefix_dir/include/"
 cp -f src/liblua.a "$prefix_dir/lib/"

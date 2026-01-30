@@ -28,6 +28,7 @@ import org.jellyfin.sdk.api.okhttp.OkHttpFactory
 import org.jellyfin.sdk.createJellyfin
 import org.jellyfin.sdk.model.ClientInfo
 import org.jellyfin.sdk.model.DeviceInfo
+import timber.log.Timber
 import javax.inject.Qualifier
 import javax.inject.Singleton
 
@@ -84,10 +85,22 @@ object AppModule {
         .newBuilder()
         .addInterceptor {
             val request = it.request()
+            // When URL has ApiKey= (e.g. user-select backdrop with per-user token), authenticate using that token.
+            // Strip any existing Authorization (current user's token) and send the URL's token in the header instead,
+            // so the server gets the correct user (e.g. username-only / Quick Connect users may require header auth).
+            val urlString = request.url.toString()
+            val hasApiKeyInUrl = urlString.contains("ApiKey=", ignoreCase = true)
+            val tokenFromUrl: String? =
+                if (hasApiKeyInUrl) {
+                    request.url.queryParameterNames
+                        .firstOrNull { it.equals("ApiKey", ignoreCase = true) }
+                        ?.let { request.url.queryParameter(it) }
+                } else null
             val newRequest =
-                serverRepository.currentUser.value?.accessToken?.let { token ->
+                if (tokenFromUrl != null) {
                     request
                         .newBuilder()
+                        .removeHeader("Authorization")
                         .addHeader(
                             "Authorization",
                             AuthorizationHeaderBuilder.buildHeader(
@@ -95,11 +108,45 @@ object AppModule {
                                 clientVersion = clientInfo.version,
                                 deviceId = deviceInfo.id,
                                 deviceName = deviceInfo.name,
-                                accessToken = token,
+                                accessToken = tokenFromUrl,
                             ),
-                        ).build()
+                        )
+                        .build()
+                } else if (hasApiKeyInUrl) {
+                    request.newBuilder().removeHeader("Authorization").build()
+                } else {
+                    serverRepository.currentUser.value?.accessToken?.let { token ->
+                        request
+                            .newBuilder()
+                            .addHeader(
+                                "Authorization",
+                                AuthorizationHeaderBuilder.buildHeader(
+                                    clientName = clientInfo.name,
+                                    clientVersion = clientInfo.version,
+                                    deviceId = deviceInfo.id,
+                                    deviceName = deviceInfo.name,
+                                    accessToken = token,
+                                ),
+                            ).build()
+                    } ?: request
                 }
-            it.proceed(newRequest ?: request)
+            // Debug: log exact request for image auth (e.g. second-user 401). Redact token values in URL.
+            val logUrl = urlString.replace(Regex("([?&]ApiKey=)[^&]*", RegexOption.IGNORE_CASE), "$1***")
+            Timber.d(
+                "[AuthInterceptor] %s %s | hasApiKeyInUrl=%s tokenFromUrl=%s action=%s | outgoing hasAuthHeader=%s",
+                request.method,
+                logUrl,
+                hasApiKeyInUrl,
+                tokenFromUrl != null,
+                when {
+                    tokenFromUrl != null -> "useUrlTokenInHeader"
+                    hasApiKeyInUrl -> "stripAuth"
+                    newRequest.header("Authorization") != null -> "addAuth"
+                    else -> "noAuth"
+                },
+                newRequest.header("Authorization") != null,
+            )
+            it.proceed(newRequest)
         }.build()
 
     @Provides

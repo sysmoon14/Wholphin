@@ -2,6 +2,8 @@ package com.github.sysmoon.wholphin.ui.main
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -98,6 +100,7 @@ import com.github.sysmoon.wholphin.ui.rememberPosition
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.util.HomeRowLoadingState
 import com.github.sysmoon.wholphin.util.LoadingState
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -682,9 +685,13 @@ fun <T : Any> HeroItemRow(
     val heroFocusRequester = remember { FocusRequester() }
     var hasFocus by remember { mutableStateOf(false) }
 
-    // The passed item is the one that just vacated the hero (at index focusedIndex - 1)
-    // Only show it when we're past the first item
-    val passedItem = remember(focusedIndex, items) {
+    // Track previous focused index to determine navigation direction
+    var previousFocusedIndex by remember { mutableIntStateOf(focusedIndex) }
+    
+    // The "current" passed item is at focusedIndex - 1
+    // But during left-navigation animation, we need to show the OLD passed item
+    // until the animation completes, then switch to the new one
+    val currentPassedItem = remember(focusedIndex, items) {
         if (focusedIndex > 0 && focusedIndex <= items.size) {
             items.getOrNull(focusedIndex - 1)
         } else {
@@ -692,20 +699,73 @@ fun <T : Any> HeroItemRow(
         }
     }
     
+    // Displayed item state - controlled by animation logic
+    var displayedPassedItem by remember {
+        mutableStateOf(if (focusedIndex > 0) items.getOrNull(focusedIndex - 1) else null)
+    }
+    var displayedPassedIndex by remember {
+        mutableIntStateOf(if (focusedIndex > 0) focusedIndex - 1 else 0)
+    }
+    
     // Calculate card width (poster card width based on hero height and tall aspect ratio)
     val posterCardWidth = HERO_CARD_HEIGHT * (2f / 3f)  // Tall aspect ratio ≈ 173dp
     
-    // Passed item positioning (no animation for now - just get the position right)
-    // The clipping box extends from screen edge (x=0) to hero edge (x=passedAreaWidth)
-    // We want to show ~1/3 of the card peeking from the left edge of the screen
-    val passedAreaWidth = HERO_ROW_LEFT_PADDING + 16.dp  // Box width: from screen edge to hero
-    val visiblePortion = 24.dp  // How much of the card to show at the screen edge
+    // Animation positions (in Box coordinates, where Box starts at screen x=16):
+    // - visibleOffset: card right edge at (HERO_ROW_LEFT_PADDING - HERO_POSTER_GAP) = screen x=24
+    // - hiddenOffset: card right edge at HERO_ROW_LEFT_PADDING = screen x=40 (under hero)
+    val visibleOffset = (HERO_ROW_LEFT_PADDING - HERO_POSTER_GAP) - posterCardWidth  // ≈ -165dp
+    val hiddenOffset = HERO_ROW_LEFT_PADDING - posterCardWidth  // ≈ -149dp (card tucked under hero)
     
-    // Animate upcoming items when focusedIndex changes
+    val passedCardOffset = remember {
+        Animatable(if (focusedIndex > 0) visibleOffset else hiddenOffset, Dp.VectorConverter)
+    }
+    
+    // Animate when focusedIndex changes
     LaunchedEffect(focusedIndex) {
-        val upcomingTarget = (focusedIndex + 1).coerceIn(0, items.lastIndex.coerceAtLeast(0))
-        val upcomingScrollOffset = if (focusedIndex >= items.lastIndex) 10000 else 0
-        upcomingState.animateScrollToItem(upcomingTarget, upcomingScrollOffset)
+        // Skip first invocation - initial state set via remember{}
+        if (focusedIndex == previousFocusedIndex) return@LaunchedEffect
+        
+        val navigatingRight = focusedIndex > previousFocusedIndex
+        previousFocusedIndex = focusedIndex
+        
+        coroutineScope {
+            // Animate upcoming items scroll
+            launch {
+                val upcomingTarget = (focusedIndex + 1).coerceIn(0, items.lastIndex.coerceAtLeast(0))
+                val upcomingScrollOffset = if (focusedIndex >= items.lastIndex) 10000 else 0
+                upcomingState.animateScrollToItem(upcomingTarget, upcomingScrollOffset)
+            }
+            
+            // Animate passed card
+            launch {
+                when {
+                    navigatingRight && focusedIndex > 0 -> {
+                        // Navigating RIGHT: new passed item slides out from under hero
+                        // First update the displayed item to the new one
+                        displayedPassedItem = items.getOrNull(focusedIndex - 1)
+                        displayedPassedIndex = focusedIndex - 1
+                        // Snap to hidden position (under hero) then animate to visible
+                        passedCardOffset.snapTo(hiddenOffset)
+                        passedCardOffset.animateTo(visibleOffset, tween(300))
+                    }
+                    !navigatingRight && focusedIndex == 0 -> {
+                        // Going back to first item: slide current passed item under hero
+                        // Keep showing the OLD item during animation
+                        passedCardOffset.animateTo(hiddenOffset, tween(300))
+                        displayedPassedItem = null
+                    }
+                    !navigatingRight && focusedIndex > 0 -> {
+                        // Navigating LEFT (not to first): old passed item slides under hero
+                        // Keep showing OLD item during slide-out animation
+                        passedCardOffset.animateTo(hiddenOffset, tween(300))
+                        // Then switch to new passed item and snap to visible
+                        displayedPassedItem = items.getOrNull(focusedIndex - 1)
+                        displayedPassedIndex = focusedIndex - 1
+                        passedCardOffset.snapTo(visibleOffset)
+                    }
+                }
+            }
+        }
     }
 
     // When this HeroItemRow is first composed (row became focused), request focus on hero card
@@ -742,28 +802,17 @@ fun <T : Any> HeroItemRow(
         // Use a Box to allow absolute positioning of passed card behind the hero
         Box(modifier = Modifier.fillMaxWidth()) {
             // Passed item - positioned absolutely so it doesn't affect hero position
-            // Positioned so its RIGHT edge + gap aligns with hero's LEFT edge
-            // The card's left edge will be cut off by the screen edge
-            passedItem?.let { item ->
-                // Positioning:
-                // - Box starts at Row origin (screen x=16 due to LazyColumn padding)
-                // - Hero is at HERO_ROW_LEFT_PADDING (24dp) from Row start = screen x=40
-                // - Passed card right edge should be at hero left - gap = 40 - 16 = screen x=24
-                // - In Box coordinates: card right edge at x = 24 - 16 = 8dp
-                // - Card is posterCardWidth (~173dp) wide
-                // - Card offset = right edge position - card width = 8 - 173 = -165dp
-                val cardRightEdgeInBox = HERO_ROW_LEFT_PADDING - HERO_POSTER_GAP
-                val cardOffset = cardRightEdgeInBox - posterCardWidth
-                
+            // Animates from under the hero (hidden) to the peek position (visible)
+            displayedPassedItem?.let { item ->
                 Box(
                     modifier = Modifier
-                        .offset(x = cardOffset)
+                        .offset(x = passedCardOffset.value)
                         .height(HERO_CARD_HEIGHT)
                         .clip(RoundedCornerShape(HERO_ROW_CARD_CORNER_RADIUS))
                         .graphicsLayer { alpha = PASSED_ITEMS_ALPHA },
                 ) {
                     cardContent.invoke(
-                        focusedIndex - 1,
+                        displayedPassedIndex,
                         item,
                         Modifier.focusProperties { canFocus = false },
                     )

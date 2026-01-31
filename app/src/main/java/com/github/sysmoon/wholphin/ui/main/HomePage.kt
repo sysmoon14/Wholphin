@@ -2,10 +2,11 @@ package com.github.sysmoon.wholphin.ui.main
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,9 +27,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,16 +43,28 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.transitionFactory
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.data.model.BaseItem
 import com.github.sysmoon.wholphin.preferences.UserPreferences
@@ -56,6 +73,9 @@ import com.github.sysmoon.wholphin.ui.Cards
 import com.github.sysmoon.wholphin.ui.abbreviateNumber
 import com.github.sysmoon.wholphin.ui.cards.BannerCard
 import com.github.sysmoon.wholphin.ui.cards.ItemRow
+import com.github.sysmoon.wholphin.ui.CrossFadeFactory
+import com.github.sysmoon.wholphin.ui.LocalImageUrlService
+import com.github.sysmoon.wholphin.ui.rememberInt
 import com.github.sysmoon.wholphin.ui.components.CircularProgress
 import com.github.sysmoon.wholphin.ui.components.DialogParams
 import com.github.sysmoon.wholphin.ui.components.DialogPopup
@@ -79,11 +99,24 @@ import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.util.HomeRowLoadingState
 import com.github.sysmoon.wholphin.util.LoadingState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.MediaType
 import timber.log.Timber
 import java.util.UUID
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 
 @Composable
 fun HomePage(
@@ -278,24 +311,16 @@ fun HomePageContent(
         headerItem?.let { onUpdateBackdrop.invoke(it) }
     }
     Box(modifier = modifier) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            HomePageHeader(
-                item = headerItem,
-                modifier =
-                    Modifier
-                        .padding(top = 48.dp, bottom = 32.dp, start = 32.dp)
-                        .fillMaxHeight(.33f),
-            )
-            LazyColumn(
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding =
-                    PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = 0.dp,
-                        bottom = Cards.height2x3,
-                    ),
+        LazyColumn(
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding =
+                PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 16.dp,
+                    bottom = Cards.height2x3,
+                ),
                 modifier =
                     Modifier
                         .focusRestorer(),
@@ -355,22 +380,15 @@ fun HomePageContent(
 
                         is HomeRowLoadingState.Success -> {
                             if (row.items.isNotEmpty()) {
-                                ItemRow(
-                                    title = row.title,
-                                    items = row.items,
-                                    onClickItem = { index, item ->
-                                        onClickItem.invoke(RowColumn(rowIndex, index), item)
-                                    },
-                                    onLongClickItem = { index, item ->
-                                        onLongClickItem.invoke(RowColumn(rowIndex, index), item)
-                                    },
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .focusGroup()
-                                            .focusRequester(rowFocusRequesters[rowIndex])
-                                            .animateItem(),
-                                    cardContent = { index, item, cardModifier, onClick, onLongClick ->
+                                val rowModifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .focusGroup()
+                                        .focusRequester(rowFocusRequesters[rowIndex])
+                                        .animateItem()
+                                // Card content for non-hero rows (focusable cards)
+                                val rowCardContent: @Composable (Int, BaseItem?, Modifier, () -> Unit, () -> Unit) -> Unit =
+                                    { index, item, cardModifier, onClick, onLongClick ->
                                         val cornerText =
                                             remember(item) {
                                                 item
@@ -398,7 +416,6 @@ fun HomePageContent(
                                                     .onFocusChanged {
                                                         if (it.isFocused) {
                                                             position = RowColumn(rowIndex, index)
-//                                                            item?.let(onUpdateBackdrop)
                                                         }
                                                         if (it.isFocused && onFocusPosition != null) {
                                                             val nonEmptyRowBefore =
@@ -425,14 +442,111 @@ fun HomePageContent(
                                             interactionSource = null,
                                             cardHeight = Cards.height2x3,
                                         )
-                                    },
-                                )
+                                    }
+                                // Card content for hero row poster preview (non-focusable cards)
+                                // Use same height as hero card for visual consistency
+                                val heroRowPosterContent: @Composable (Int, BaseItem?, Modifier) -> Unit =
+                                    { index, item, cardModifier ->
+                                        val cornerText =
+                                            remember(item) {
+                                                item
+                                                    ?.data
+                                                    ?.userData
+                                                    ?.unplayedItemCount
+                                                    ?.takeIf { it > 0 }
+                                                    ?.let { abbreviateNumber(it) }
+                                            }
+                                        BannerCard(
+                                            name = item?.data?.seriesName ?: item?.name,
+                                            item = item,
+                                            aspectRatio = AspectRatios.TALL,
+                                            forceTextOnly = item?.type == BaseItemKind.BOX_SET && item.name == "View All",
+                                            cornerText = cornerText,
+                                            played = item?.data?.userData?.played ?: false,
+                                            favorite = item?.favorite ?: false,
+                                            playPercent =
+                                                item?.data?.userData?.playedPercentage
+                                                    ?: 0.0,
+                                            onClick = { },
+                                            onLongClick = { },
+                                            modifier = cardModifier,
+                                            interactionSource = null,
+                                            cardHeight = HERO_CARD_HEIGHT,
+                                        )
+                                    }
+                                if (rowIndex == position.row) {
+                                    // Find the next valid row index (with non-empty items)
+                                    val nextRowIndex = (rowIndex + 1 until homeRows.size).firstOrNull { idx ->
+                                        (homeRows[idx] as? HomeRowLoadingState.Success)?.items?.isNotEmpty() == true
+                                    }
+                                    // Find the previous valid row index (with non-empty items)
+                                    val prevRowIndex = (rowIndex - 1 downTo 0).firstOrNull { idx ->
+                                        (homeRows[idx] as? HomeRowLoadingState.Success)?.items?.isNotEmpty() == true
+                                    }
+                                    HeroItemRow(
+                                        title = row.title,
+                                        items = row.items,
+                                        heroItem = headerItem,
+                                        focusedIndex = position.column.coerceIn(0, row.items.lastIndex.coerceAtLeast(0)),
+                                        onFocusedIndexChange = { newIndex ->
+                                            position = RowColumn(rowIndex, newIndex)
+                                            onFocusPosition?.invoke(position)
+                                        },
+                                        onClickItem = { index, item ->
+                                            onClickItem.invoke(RowColumn(rowIndex, index), item)
+                                        },
+                                        onLongClickItem = { index, item ->
+                                            onLongClickItem.invoke(RowColumn(rowIndex, index), item)
+                                        },
+                                        onPlayItem = { index, item ->
+                                            if (item.type?.playable == true) {
+                                                Timber.v("Clicked play on ${item.id}")
+                                                onClickPlay.invoke(RowColumn(rowIndex, index), item)
+                                            }
+                                        },
+                                        // Only provide onNavigateUp if there's a row above (null allows default behavior to nav bar)
+                                        onNavigateUp = prevRowIndex?.let { prevIdx ->
+                                            {
+                                                val prevRow = homeRows[prevIdx] as HomeRowLoadingState.Success
+                                                position = RowColumn(prevIdx, position.column.coerceIn(0, prevRow.items.lastIndex.coerceAtLeast(0)))
+                                            }
+                                        },
+                                        // Always provide onNavigateDown to prevent focus escaping; only navigate if there's a row below
+                                        onNavigateDown = nextRowIndex?.let { nextIdx ->
+                                            {
+                                                val nextRow = homeRows[nextIdx] as HomeRowLoadingState.Success
+                                                position = RowColumn(nextIdx, position.column.coerceIn(0, nextRow.items.lastIndex.coerceAtLeast(0)))
+                                            }
+                                        } ?: { /* At last row, do nothing but consume the event */ },
+                                        modifier =
+                                            rowModifier
+                                                .onFocusChanged {
+                                                    if (it.hasFocus) {
+                                                        // Update position when the hero row gains focus
+                                                        position = RowColumn(rowIndex, position.column.coerceIn(0, row.items.lastIndex.coerceAtLeast(0)))
+                                                    }
+                                                },
+                                        cardContent = heroRowPosterContent,
+                                    )
+                                } else {
+                                    ItemRow(
+                                        title = row.title,
+                                        items = row.items,
+                                        onClickItem = { index, item ->
+                                            onClickItem.invoke(RowColumn(rowIndex, index), item)
+                                        },
+                                        onLongClickItem = { index, item ->
+                                            onLongClickItem.invoke(RowColumn(rowIndex, index), item)
+                                        },
+                                        modifier = rowModifier,
+                                        cardContent = rowCardContent,
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        }
         when (loadingState) {
             LoadingState.Pending,
             LoadingState.Loading,
@@ -525,6 +639,421 @@ fun HomePageHeader(
             } else {
                 Spacer(overviewModifier)
             }
+        }
+    }
+}
+
+private val HERO_CARD_HEIGHT = 260.dp
+private val HERO_CARD_WIDTH = HERO_CARD_HEIGHT * AspectRatios.WIDE
+private val HERO_ROW_CARD_CORNER_RADIUS = 4.dp
+private val HERO_ROW_LEFT_PADDING = 24.dp  // Space for passed card to peep from left edge
+private val HERO_POSTER_GAP = 16.dp  // Same as gap between poster cards
+private val HERO_INFO_TOP_SPACING = 12.dp
+private val HERO_ROW_BOTTOM_SPACING = 48.dp
+private const val PASSED_ITEMS_ALPHA = 0.25f  // Dimmed alpha for passed items
+
+/**
+ * A row with a large hero card on the left (showing the focused item's backdrop + logo)
+ * and scrollable poster cards to the right. The hero card is the focusable element;
+ * D-pad left/right changes which item is the hero. Poster cards show items AFTER
+ * the focused index and are not individually focusable - they scroll under the hero.
+ */
+@Composable
+fun <T : Any> HeroItemRow(
+    title: String,
+    items: List<T?>,
+    heroItem: BaseItem?,
+    focusedIndex: Int,
+    onFocusedIndexChange: (Int) -> Unit,
+    onClickItem: (Int, T) -> Unit,
+    onLongClickItem: (Int, T) -> Unit,
+    onPlayItem: ((Int, T) -> Unit)? = null,
+    onNavigateUp: (() -> Unit)? = null,
+    onNavigateDown: (() -> Unit)? = null,
+    cardContent: @Composable (
+        index: Int,
+        item: T?,
+        modifier: Modifier,
+    ) -> Unit,
+    modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 16.dp,
+) {
+    val upcomingState = rememberLazyListState()
+    val heroFocusRequester = remember { FocusRequester() }
+    var hasFocus by remember { mutableStateOf(false) }
+
+    // The passed item is the one that just vacated the hero (at index focusedIndex - 1)
+    // Only show it when we're past the first item
+    val passedItem = remember(focusedIndex, items) {
+        if (focusedIndex > 0 && focusedIndex <= items.size) {
+            items.getOrNull(focusedIndex - 1)
+        } else {
+            null
+        }
+    }
+    
+    // Calculate card width (poster card width based on hero height and tall aspect ratio)
+    val posterCardWidth = HERO_CARD_HEIGHT * (2f / 3f)  // Tall aspect ratio ≈ 173dp
+    
+    // Passed item positioning (no animation for now - just get the position right)
+    // The clipping box extends from screen edge (x=0) to hero edge (x=passedAreaWidth)
+    // We want to show ~1/3 of the card peeking from the left edge of the screen
+    val passedAreaWidth = HERO_ROW_LEFT_PADDING + 16.dp  // Box width: from screen edge to hero
+    val visiblePortion = 24.dp  // How much of the card to show at the screen edge
+    
+    // Animate upcoming items when focusedIndex changes
+    LaunchedEffect(focusedIndex) {
+        val upcomingTarget = (focusedIndex + 1).coerceIn(0, items.lastIndex.coerceAtLeast(0))
+        val upcomingScrollOffset = if (focusedIndex >= items.lastIndex) 10000 else 0
+        upcomingState.animateScrollToItem(upcomingTarget, upcomingScrollOffset)
+    }
+
+    // When this HeroItemRow is first composed (row became focused), request focus on hero card
+    DisposableEffect(Unit) {
+        heroFocusRequester.tryRequestFocus()
+        onDispose { }
+    }
+
+    // Initial scroll position when first composed
+    LaunchedEffect(Unit) {
+        val upcomingTarget = (focusedIndex + 1).coerceIn(0, items.lastIndex.coerceAtLeast(0))
+        val upcomingOffset = if (focusedIndex >= items.lastIndex) 10000 else 0
+        if (items.isNotEmpty()) {
+            upcomingState.scrollToItem(upcomingTarget, upcomingOffset)
+        }
+    }
+
+    Column(
+        modifier =
+            modifier
+                .focusGroup()
+                .focusProperties {
+                    // When entering this row via D-pad, focus the hero card
+                    onEnter = { heroFocusRequester }
+                },
+    ) {
+        // Row title - above the hero card, aligned with its left edge
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+            modifier = Modifier.padding(start = HERO_ROW_LEFT_PADDING, bottom = 8.dp),
+        )
+        // Use a Box to allow absolute positioning of passed card behind the hero
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // Passed item - positioned absolutely so it doesn't affect hero position
+            // Positioned so its RIGHT edge + gap aligns with hero's LEFT edge
+            // The card's left edge will be cut off by the screen edge
+            passedItem?.let { item ->
+                // Positioning:
+                // - Box starts at Row origin (screen x=16 due to LazyColumn padding)
+                // - Hero is at HERO_ROW_LEFT_PADDING (24dp) from Row start = screen x=40
+                // - Passed card right edge should be at hero left - gap = 40 - 16 = screen x=24
+                // - In Box coordinates: card right edge at x = 24 - 16 = 8dp
+                // - Card is posterCardWidth (~173dp) wide
+                // - Card offset = right edge position - card width = 8 - 173 = -165dp
+                val cardRightEdgeInBox = HERO_ROW_LEFT_PADDING - HERO_POSTER_GAP
+                val cardOffset = cardRightEdgeInBox - posterCardWidth
+                
+                Box(
+                    modifier = Modifier
+                        .offset(x = cardOffset)
+                        .height(HERO_CARD_HEIGHT)
+                        .clip(RoundedCornerShape(HERO_ROW_CARD_CORNER_RADIUS))
+                        .graphicsLayer { alpha = PASSED_ITEMS_ALPHA },
+                ) {
+                    cardContent.invoke(
+                        focusedIndex - 1,
+                        item,
+                        Modifier.focusProperties { canFocus = false },
+                    )
+                }
+            }
+            
+            // Main row content - hero and upcoming cards
+            Row(
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                // Spacer to position hero at HERO_ROW_LEFT_PADDING
+                Spacer(modifier = Modifier.width(HERO_ROW_LEFT_PADDING))
+                
+                // Hero card + info - this is the focusable element
+            Column(
+                modifier = Modifier.width(HERO_CARD_WIDTH),
+            ) {
+                Card(
+                    onClick = {
+                        val item = items.getOrNull(focusedIndex)
+                        if (item != null) onClickItem.invoke(focusedIndex, item)
+                    },
+                    onLongClick = {
+                        val item = items.getOrNull(focusedIndex)
+                        if (item != null) onLongClickItem.invoke(focusedIndex, item)
+                    },
+                    colors = CardDefaults.colors(
+                        containerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                    ),
+                    modifier =
+                        Modifier
+                            .height(HERO_CARD_HEIGHT)
+                            .width(HERO_CARD_WIDTH)
+                            .focusRequester(heroFocusRequester)
+                            .onFocusChanged { focusState ->
+                                hasFocus = focusState.isFocused
+                            }
+                            .onPreviewKeyEvent { event ->
+                                // Use onPreviewKeyEvent to intercept before Card processes
+                                when (event.key) {
+                                    Key.DirectionRight -> {
+                                        // Always consume left/right to prevent focus escaping
+                                        if (event.type == KeyEventType.KeyUp && focusedIndex < items.lastIndex) {
+                                            onFocusedIndexChange(focusedIndex + 1)
+                                        }
+                                        return@onPreviewKeyEvent true // Consume both KeyDown and KeyUp
+                                    }
+                                    Key.DirectionLeft -> {
+                                        // Always consume left/right to prevent focus escaping
+                                        if (event.type == KeyEventType.KeyUp && focusedIndex > 0) {
+                                            onFocusedIndexChange(focusedIndex - 1)
+                                        }
+                                        return@onPreviewKeyEvent true // Consume both KeyDown and KeyUp
+                                    }
+                                    Key.DirectionUp -> {
+                                        // Handle up navigation - either go to previous row or let it escape to nav bar
+                                        if (onNavigateUp != null) {
+                                            if (event.type == KeyEventType.KeyUp) {
+                                                onNavigateUp.invoke()
+                                            }
+                                            return@onPreviewKeyEvent true // Consume to prevent default behavior
+                                        }
+                                        // If no callback, allow default behavior (e.g., go to nav bar from first row)
+                                        return@onPreviewKeyEvent false
+                                    }
+                                    Key.DirectionDown -> {
+                                        // Handle down navigation
+                                        if (onNavigateDown != null) {
+                                            if (event.type == KeyEventType.KeyUp) {
+                                                onNavigateDown.invoke()
+                                            }
+                                            return@onPreviewKeyEvent true // Consume to prevent default behavior
+                                        }
+                                        // If no callback, consume anyway to prevent focus escaping
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    Key.MediaPlay, Key.MediaPlayPause -> {
+                                        if (event.type == KeyEventType.KeyUp) {
+                                            val item = items.getOrNull(focusedIndex)
+                                            if (item != null && onPlayItem != null) {
+                                                onPlayItem.invoke(focusedIndex, item)
+                                                return@onPreviewKeyEvent true
+                                            }
+                                        }
+                                    }
+                                }
+                                // Let other keys propagate
+                                false
+                            },
+                ) {
+                    HeroCardContent(
+                        item = heroItem,
+                        hasFocus = hasFocus,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                Spacer(modifier = Modifier.height(HERO_INFO_TOP_SPACING))
+                HeroInfo(item = heroItem)
+            }
+            // Right: upcoming items - shows all items but scrolls to show only those after focused
+            // These are NOT focusable - they're a visual preview that scrolls under the hero
+            LazyRow(
+                state = upcomingState,
+                horizontalArrangement = Arrangement.spacedBy(horizontalPadding),
+                contentPadding =
+                    PaddingValues(
+                        start = HERO_POSTER_GAP,
+                        // Large end padding to allow scrolling to continue at end of list
+                        end = HERO_CARD_WIDTH * 2,
+                        top = 0.dp,
+                        bottom = 0.dp,
+                    ),
+                userScrollEnabled = false, // Scrolling is controlled by focus changes
+                modifier = Modifier.weight(1f),
+            ) {
+                itemsIndexed(items) { index, item ->
+                    cardContent.invoke(
+                        index,
+                        item,
+                        Modifier.focusProperties { canFocus = false },
+                    )
+                }
+            }
+            }  // End Row
+        }  // End Box (wrapper for passed card + row)
+        // Bottom spacing to push next row down
+        Spacer(modifier = Modifier.height(HERO_ROW_BOTTOM_SPACING))
+    }
+}
+
+/**
+ * Inner content of the hero card showing an item's backdrop image with its logo overlaid.
+ * Falls back to title text if the logo image is unavailable.
+ */
+@Composable
+fun HeroCardContent(
+    item: BaseItem?,
+    hasFocus: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val imageUrlService = LocalImageUrlService.current
+    val backdropUrl = imageUrlService.rememberImageUrl(item, ImageType.BACKDROP)
+    val logoUrl = imageUrlService.rememberImageUrl(item, ImageType.LOGO)
+    var logoError by remember(item) { mutableStateOf(false) }
+    var backdropError by remember(item) { mutableStateOf(false) }
+    val focusBorderColor = MaterialTheme.colorScheme.border
+    val focusBorderWidth = 3.dp
+
+    Box(
+        modifier =
+            modifier
+                .clip(RoundedCornerShape(HERO_ROW_CARD_CORNER_RADIUS))
+                .then(
+                    if (hasFocus) {
+                        Modifier.border(
+                            width = focusBorderWidth,
+                            color = focusBorderColor,
+                            shape = RoundedCornerShape(HERO_ROW_CARD_CORNER_RADIUS),
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
+    ) {
+        // Backdrop image fills the card
+        if (!backdropError && backdropUrl != null) {
+            AsyncImage(
+                model =
+                    ImageRequest
+                        .Builder(context)
+                        .data(backdropUrl)
+                        .transitionFactory(CrossFadeFactory(600.milliseconds))
+                        .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                onError = { backdropError = true },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+            )
+        }
+
+        // Bottom gradient scrim for logo legibility
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        drawRect(
+                            brush =
+                                Brush.verticalGradient(
+                                    colors =
+                                        listOf(
+                                            Color.Transparent,
+                                            Color.Black.copy(alpha = 0.75f),
+                                        ),
+                                    startY = size.height * 0.4f,
+                                    endY = size.height,
+                                ),
+                        )
+                    },
+        )
+
+        // Logo image or title text fallback, bottom-left
+        Box(
+            contentAlignment = Alignment.BottomStart,
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+        ) {
+            if (!logoError && logoUrl != null) {
+                AsyncImage(
+                    model =
+                        ImageRequest
+                            .Builder(context)
+                            .data(logoUrl)
+                            .transitionFactory(CrossFadeFactory(600.milliseconds))
+                            .build(),
+                    contentDescription = item?.title,
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.BottomStart,
+                    onError = { logoError = true },
+                    modifier =
+                        Modifier
+                            .width(200.dp)
+                            .height(80.dp),
+                )
+            } else {
+                item?.title?.let { title ->
+                    Text(
+                        text = title,
+                        style =
+                            MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Metadata displayed below the hero card: quick details (genre, year, runtime, rating),
+ * and overview. For episodes, the episode name is prepended to the quick details line.
+ * No title — the logo in the hero card serves that purpose.
+ */
+@Composable
+fun HeroInfo(item: BaseItem?) {
+    item ?: return
+    val isEpisode = item.type == BaseItemKind.EPISODE
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        // For episodes, prepend episode name to details; otherwise just show details
+        if (isEpisode && !item.data.name.isNullOrBlank()) {
+            val episodeName = item.data.name ?: ""
+            val separator = " • "
+            // Build combined text: "Episode Name • S1:E2 • 45 min • etc"
+            val combinedDetails = buildAnnotatedString {
+                append(episodeName)
+                if (item.ui.quickDetails.isNotEmpty()) {
+                    append(separator)
+                    append(item.ui.quickDetails)
+                }
+            }
+            QuickDetails(combinedDetails, item.timeRemainingOrRuntime)
+        } else {
+            QuickDetails(item.ui.quickDetails, item.timeRemainingOrRuntime)
+        }
+        item.data.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+            Text(
+                text = overview,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

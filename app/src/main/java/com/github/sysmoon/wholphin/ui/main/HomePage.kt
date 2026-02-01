@@ -711,11 +711,14 @@ fun <T : Any> HeroItemRow(
     // Calculate card width (poster card width based on hero height and tall aspect ratio)
     val posterCardWidth = HERO_CARD_HEIGHT * (2f / 3f)  // Tall aspect ratio ≈ 173dp
     
-    // Animation positions (in Box coordinates, where Box starts at screen x=16):
-    // - visibleOffset: card right edge at (HERO_ROW_LEFT_PADDING - HERO_POSTER_GAP) = screen x=24
-    // - hiddenOffset: card right edge at HERO_ROW_LEFT_PADDING = screen x=40 (under hero)
-    val visibleOffset = (HERO_ROW_LEFT_PADDING - HERO_POSTER_GAP) - posterCardWidth  // ≈ -165dp
-    val hiddenOffset = HERO_ROW_LEFT_PADDING  // Card left edge at hero left edge — fully behind hero via z-order
+    // Clipping box dimensions (extends from screen edge to hero's left edge)
+    val clipBoxWidth = HERO_ROW_LEFT_PADDING + 16.dp  // 40dp total
+    
+    // Animation positions (in clipping box coordinates, where clipping box origin is at screen x=0):
+    // - visible: card right edge at (clipBoxWidth - HERO_POSTER_GAP) = 24dp, showing rightmost portion at screen edge
+    // - hidden: card left edge at clipBoxWidth = 40dp, card fully outside clipping area (hidden under hero)
+    val visibleOffset = (clipBoxWidth - HERO_POSTER_GAP) - posterCardWidth  // Card right edge at 24dp ≈ -149dp
+    val hiddenOffset = clipBoxWidth  // Card left edge at 40dp (fully hidden)
     
     val passedCardOffset = remember {
         Animatable(if (focusedIndex > 0) visibleOffset else hiddenOffset, Dp.VectorConverter)
@@ -803,20 +806,35 @@ fun <T : Any> HeroItemRow(
         // Use a Box to allow absolute positioning of passed card behind the hero
         Box(modifier = Modifier.fillMaxWidth()) {
             // Passed item - positioned absolutely so it doesn't affect hero position
-            // Animates from under the hero (hidden) to the peek position (visible)
+            // Wrapped in a clipping Box that clips at the hero's left edge
+            // This ensures the card slides "under" the hero visually
             displayedPassedItem?.let { item ->
+                // Clipping region: from screen edge (offset -16dp) to hero's left edge
+                // Clips at the right edge so card appears to slide "under" the hero
                 Box(
                     modifier = Modifier
-                        .offset(x = passedCardOffset.value)
+                        .offset(x = (-16).dp)  // Extend to screen edge (compensate for LazyColumn padding)
+                        .width(clipBoxWidth)  // From screen edge to hero
                         .height(HERO_CARD_HEIGHT)
-                        .clip(RoundedCornerShape(HERO_ROW_CARD_CORNER_RADIUS))
-                        .graphicsLayer { alpha = PASSED_ITEMS_ALPHA },
+                        .clipToBounds(),  // Clip content at boundaries
                 ) {
-                    cardContent.invoke(
-                        displayedPassedIndex,
-                        item,
-                        Modifier.focusProperties { canFocus = false },
-                    )
+                    // Card positioned directly in clipping box coordinates
+                    // wrapContentSize(unbounded = true) allows card to be full size, not constrained to clip box
+                    // At visible: right edge at 24dp (shows 24dp at left screen edge)
+                    // At hidden: left edge at 40dp (completely outside visible area)
+                    Box(
+                        modifier = Modifier
+                            .wrapContentSize(unbounded = true, align = Alignment.TopStart)
+                            .offset(x = passedCardOffset.value)
+                            .clip(RoundedCornerShape(HERO_ROW_CARD_CORNER_RADIUS))
+                            .graphicsLayer { alpha = PASSED_ITEMS_ALPHA },
+                    ) {
+                        cardContent.invoke(
+                            displayedPassedIndex,
+                            item,
+                            Modifier.focusProperties { canFocus = false },
+                        )
+                    }
                 }
             }
             

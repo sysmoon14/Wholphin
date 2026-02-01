@@ -57,6 +57,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -714,7 +715,7 @@ fun <T : Any> HeroItemRow(
     // - visibleOffset: card right edge at (HERO_ROW_LEFT_PADDING - HERO_POSTER_GAP) = screen x=24
     // - hiddenOffset: card right edge at HERO_ROW_LEFT_PADDING = screen x=40 (under hero)
     val visibleOffset = (HERO_ROW_LEFT_PADDING - HERO_POSTER_GAP) - posterCardWidth  // ≈ -165dp
-    val hiddenOffset = HERO_ROW_LEFT_PADDING - posterCardWidth  // ≈ -149dp (card tucked under hero)
+    val hiddenOffset = HERO_ROW_LEFT_PADDING  // Card left edge at hero left edge — fully behind hero via z-order
     
     val passedCardOffset = remember {
         Animatable(if (focusedIndex > 0) visibleOffset else hiddenOffset, Dp.VectorConverter)
@@ -822,7 +823,7 @@ fun <T : Any> HeroItemRow(
             // Main row content - hero and upcoming cards
             Row(
                 verticalAlignment = Alignment.Top,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().zIndex(1f),
             ) {
                 // Spacer to position hero at HERO_ROW_LEFT_PADDING
                 Spacer(modifier = Modifier.width(HERO_ROW_LEFT_PADDING))

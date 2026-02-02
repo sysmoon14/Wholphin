@@ -716,12 +716,14 @@ fun <T : Any> HeroItemRow(
     
     // Animation positions (in clipping box coordinates, where clipping box origin is at screen x=0):
     // - visible: card right edge at (clipBoxWidth - HERO_POSTER_GAP) = 24dp, showing rightmost portion at screen edge
-    // - hidden: card left edge at clipBoxWidth = 40dp, card fully outside clipping area (hidden under hero)
+    // - hiddenRight: card left edge at clipBoxWidth = 40dp, card fully outside clipping area (hidden under hero)
+    // - hiddenLeft: card right edge at 0dp, card fully off-screen to the left
     val visibleOffset = (clipBoxWidth - HERO_POSTER_GAP) - posterCardWidth  // Card right edge at 24dp ≈ -149dp
-    val hiddenOffset = clipBoxWidth  // Card left edge at 40dp (fully hidden)
+    val hiddenRightOffset = clipBoxWidth  // Card left edge at 40dp (fully hidden under hero)
+    val hiddenLeftOffset = -posterCardWidth  // Card right edge at 0dp (fully off-screen left) ≈ -173dp
     
     val passedCardOffset = remember {
-        Animatable(if (focusedIndex > 0) visibleOffset else hiddenOffset, Dp.VectorConverter)
+        Animatable(if (focusedIndex > 0) visibleOffset else hiddenRightOffset, Dp.VectorConverter)
     }
     
     // Track if last navigation was right (for handling rapid navigation)
@@ -758,38 +760,41 @@ fun <T : Any> HeroItemRow(
                         
                         // Check if card is mid-animation (between hidden and visible, not at either end)
                         val midAnimation = passedCardOffset.value > visibleOffset + 10.dp && 
-                                          passedCardOffset.value < hiddenOffset - 10.dp
+                                          passedCardOffset.value < hiddenRightOffset - 10.dp
                         
                         if (sameDirection && midAnimation) {
                             // Rapid right navigation while mid-animation - continue from current position
-                            passedCardOffset.animateTo(visibleOffset, tween(150))
-                        } else {
-                            // Normal navigation or at rest - full animation from hidden
-                            passedCardOffset.snapTo(hiddenOffset)
                             passedCardOffset.animateTo(visibleOffset, tween(200))
+                        } else {
+                            // Normal navigation or at rest - full animation from hidden (under hero)
+                            passedCardOffset.snapTo(hiddenRightOffset)
+                            passedCardOffset.animateTo(visibleOffset, tween(300))
                         }
                     }
                     !navigatingRight && focusedIndex == 0 -> {
                         // Going back to first item: slide current passed item under hero
-                        passedCardOffset.animateTo(hiddenOffset, tween(200))
+                        passedCardOffset.animateTo(hiddenRightOffset, tween(300))
                         displayedPassedItem = null
                     }
                     !navigatingRight && focusedIndex > 0 -> {
-                        // Navigating LEFT: slide current passed item under hero
+                        // Navigating LEFT: old passed item slides under hero, new one slides in from left
+                        // Use shorter durations (150ms each) so total time (~300ms) matches other animations
                         // Check if card is mid-animation
                         val midAnimation = passedCardOffset.value > visibleOffset + 10.dp && 
-                                          passedCardOffset.value < hiddenOffset - 10.dp
+                                          passedCardOffset.value < hiddenRightOffset - 10.dp
                         
                         if (sameDirection && midAnimation) {
-                            // Rapid left navigation while mid-animation - continue from current position
-                            passedCardOffset.animateTo(hiddenOffset, tween(150))
+                            // Rapid left navigation while mid-animation - continue sliding under hero
+                            passedCardOffset.animateTo(hiddenRightOffset, tween(100))
                         } else {
-                            passedCardOffset.animateTo(hiddenOffset, tween(200))
+                            // Slide old item under hero
+                            passedCardOffset.animateTo(hiddenRightOffset, tween(150))
                         }
-                        // Switch to new passed item and snap to visible
+                        // Switch to new passed item and animate from off-screen left
                         displayedPassedItem = items.getOrNull(focusedIndex - 1)
                         displayedPassedIndex = focusedIndex - 1
-                        passedCardOffset.snapTo(visibleOffset)
+                        passedCardOffset.snapTo(hiddenLeftOffset)
+                        passedCardOffset.animateTo(visibleOffset, tween(150))
                     }
                 }
             }

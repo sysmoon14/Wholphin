@@ -49,6 +49,11 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 
 /**
  * Top navigation bar (Netflix-style): profile left, word nav items in center, settings right.
@@ -61,6 +66,7 @@ fun TopNavBar(
     user: JellyfinUser,
     server: JellyfinServer,
     viewModel: NavDrawerViewModel,
+    onNavigateDown: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val moreLibraries by viewModel.moreLibraries.observeAsState(initial = listOf())
@@ -84,6 +90,21 @@ fun TopNavBar(
             add(librariesList.size to NavDrawerItem.More)
         }
     }
+    val downKeyModifier =
+        if (onNavigateDown != null) {
+            Modifier.onPreviewKeyEvent { event ->
+                if (event.key == Key.DirectionDown) {
+                    if (event.type == KeyEventType.KeyUp) {
+                        onNavigateDown.invoke()
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+        } else {
+            Modifier
+        }
 
     Box(
         modifier = Modifier
@@ -119,6 +140,7 @@ fun TopNavBar(
                 onClick = {
                     viewModel.setupNavigationManager.navigateTo(SetupDestination.UserList(server))
                 },
+                modifier = downKeyModifier,
             )
 
             // Center: nav items (centered in the remaining space)
@@ -145,6 +167,7 @@ fun TopNavBar(
                                         viewModel.setIndex(-2)
                                         viewModel.navigationManager.navigateToFromDrawer(Destination.Search)
                                     },
+                                    modifier = downKeyModifier,
                                 )
                             }
                             NavDrawerItem.More -> {
@@ -152,6 +175,7 @@ fun TopNavBar(
                                     text = context.getString(R.string.more),
                                     selected = false,
                                     onClick = { viewModel.setShowMore(!showMore) },
+                                    modifier = downKeyModifier,
                                 )
                             }
                             else -> {
@@ -184,6 +208,7 @@ fun TopNavBar(
                                             else -> { /* More handled separately */ }
                                         }
                                     },
+                                    modifier = downKeyModifier,
                                 )
                             }
                         }
@@ -198,6 +223,7 @@ fun TopNavBar(
                         Destination.Settings(PreferenceScreenOption.BASIC),
                     )
                 },
+                modifier = downKeyModifier,
             )
         }
     }
@@ -210,11 +236,12 @@ private fun RowScope.TopNavProfileButton(
     user: JellyfinUser,
     imageUrl: String?,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
-        modifier = Modifier.size(36.dp),
+        modifier = modifier.size(36.dp),
         shape = ClickableSurfaceDefaults.shape(shape = NavBarPillShape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
@@ -246,6 +273,7 @@ private fun RowScope.TopNavProfileButton(
 private fun TopNavSearchIconButton(
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
@@ -255,7 +283,7 @@ private fun TopNavSearchIconButton(
     )
     Surface(
         onClick = onClick,
-        modifier = Modifier.size(36.dp),
+        modifier = modifier.size(36.dp),
         shape = ClickableSurfaceDefaults.shape(shape = NavBarPillShape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = backgroundColor,
@@ -284,6 +312,7 @@ private fun TopNavWordItem(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
@@ -294,7 +323,7 @@ private fun TopNavWordItem(
     val contentColor = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
     Surface(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .height(36.dp)
             .padding(horizontal = 12.dp),
         shape = ClickableSurfaceDefaults.shape(shape = NavBarPillShape),
@@ -323,11 +352,12 @@ private fun TopNavWordItem(
 @Composable
 private fun RowScope.TopNavSettingsButton(
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
-        modifier = Modifier.size(40.dp),
+        modifier = modifier.size(40.dp),
         shape = ClickableSurfaceDefaults.shape(shape = NavBarPillShape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,

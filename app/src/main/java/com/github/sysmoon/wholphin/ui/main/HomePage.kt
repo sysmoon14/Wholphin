@@ -134,6 +134,7 @@ fun HomePage(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
     playlistViewModel: AddPlaylistViewModel = hiltViewModel(),
+    topRowFocusRequester: FocusRequester? = null,
 ) {
     val context = LocalContext.current
     var firstLoad by rememberSaveable { mutableStateOf(true) }
@@ -222,6 +223,7 @@ fun HomePage(
                 showClock = preferences.appPreferences.interfacePreferences.showClock,
                 onUpdateBackdrop = viewModel::updateBackdrop,
                 modifier = modifier,
+                topRowFocusRequester = topRowFocusRequester,
             )
             }
             dialog?.let { params ->
@@ -262,8 +264,11 @@ fun HomePageContent(
     modifier: Modifier = Modifier,
     onFocusPosition: ((RowColumn) -> Unit)? = null,
     loadingState: LoadingState? = null,
+    topRowFocusRequester: FocusRequester? = null,
 ) {
     var position by rememberPosition()
+    // Track column position for each row independently
+    val rowColumnPositions = remember { mutableMapOf<Int, Int>() }
     val focusedItem =
         position.let {
             (homeRows.getOrNull(it.row) as? HomeRowLoadingState.Success)?.items?.getOrNull(it.column)
@@ -282,6 +287,11 @@ fun HomePageContent(
 
     val listState = rememberLazyListState()
     val rowFocusRequesters = remember(homeRows) { List(homeRows.size) { FocusRequester() } }
+    val topRowHeroFocusRequester = topRowFocusRequester ?: remember { FocusRequester() }
+    val firstRowIndex =
+        homeRows.indexOfFirst {
+            it is HomeRowLoadingState.Success && it.items.isNotEmpty()
+        }.takeIf { it >= 0 } ?: 0
     var firstFocused by remember { mutableStateOf(false) }
     LaunchedEffect(homeRows) {
         if (!firstFocused && homeRows.isNotEmpty()) {
@@ -304,6 +314,9 @@ fun HomePageContent(
             }
         }
     }
+    // Track previous row to detect actual row changes (not initial focus)
+    var previousRow by remember { mutableIntStateOf(-1) }
+    
     // Ensure scrolling happens when returning to the screen with a saved position
     LaunchedEffect(homeRows, position.row) {
         if (firstFocused && homeRows.isNotEmpty() && position.row >= 0) {
@@ -312,10 +325,12 @@ fun HomePageContent(
             listState.scrollToItem(index)
         }
     }
-    LaunchedEffect(position) {
-        if (position.row >= 0) {
+    // Only scroll vertically when navigating between rows (not on initial focus from nav bar)
+    LaunchedEffect(position.row) {
+        if (previousRow >= 0 && position.row >= 0 && position.row != previousRow) {
             listState.animateScrollToItem(position.row)
         }
+        previousRow = position.row
     }
     LaunchedEffect(onUpdateBackdrop, headerItem) {
         headerItem?.let { onUpdateBackdrop.invoke(it) }
@@ -333,7 +348,29 @@ fun HomePageContent(
                 ),
                 modifier =
                     Modifier
-                        .focusRestorer(),
+                        .focusGroup()
+                        .focusProperties {
+                            // When focus enters from the top nav, always land on the top row.
+                            onEnter = {
+                                if (homeRows.isEmpty()) {
+                                    FocusRequester.Default
+                                } else {
+                                    val targetRow =
+                                        firstRowIndex.coerceIn(0, rowFocusRequesters.lastIndex.coerceAtLeast(0))
+                                    val savedColumn = rowColumnPositions[targetRow] ?: 0
+                                    position =
+                                        RowColumn(
+                                            targetRow,
+                                            savedColumn.coerceAtLeast(0),
+                                        )
+                                    if (targetRow == firstRowIndex) {
+                                        topRowHeroFocusRequester
+                                    } else {
+                                        rowFocusRequesters.getOrNull(targetRow) ?: FocusRequester.Default
+                                    }
+                                }
+                            }
+                        },
             ) {
                 itemsIndexed(homeRows) { rowIndex, row ->
                     when (val r = row) {
@@ -519,15 +556,23 @@ fun HomePageContent(
                                         // Only provide onNavigateUp if there's a row above (null allows default behavior to nav bar)
                                         onNavigateUp = prevRowIndex?.let { prevIdx ->
                                             {
+                                                // Save current row's column position before navigating
+                                                rowColumnPositions[rowIndex] = position.column
                                                 val prevRow = homeRows[prevIdx] as HomeRowLoadingState.Success
-                                                position = RowColumn(prevIdx, position.column.coerceIn(0, prevRow.items.lastIndex.coerceAtLeast(0)))
+                                                // Restore previous row's saved column position, or default to 0
+                                                val savedColumn = rowColumnPositions[prevIdx] ?: 0
+                                                position = RowColumn(prevIdx, savedColumn.coerceIn(0, prevRow.items.lastIndex.coerceAtLeast(0)))
                                             }
                                         },
                                         // Always provide onNavigateDown to prevent focus escaping; only navigate if there's a row below
                                         onNavigateDown = nextRowIndex?.let { nextIdx ->
                                             {
+                                                // Save current row's column position before navigating
+                                                rowColumnPositions[rowIndex] = position.column
                                                 val nextRow = homeRows[nextIdx] as HomeRowLoadingState.Success
-                                                position = RowColumn(nextIdx, position.column.coerceIn(0, nextRow.items.lastIndex.coerceAtLeast(0)))
+                                                // Restore next row's saved column position, or default to 0
+                                                val savedColumn = rowColumnPositions[nextIdx] ?: 0
+                                                position = RowColumn(nextIdx, savedColumn.coerceIn(0, nextRow.items.lastIndex.coerceAtLeast(0)))
                                             }
                                         } ?: { /* At last row, do nothing but consume the event */ },
                                         modifier =
@@ -535,9 +580,17 @@ fun HomePageContent(
                                                 .onFocusChanged {
                                                     if (it.hasFocus) {
                                                         // Update position when the hero row gains focus
-                                                        position = RowColumn(rowIndex, position.column.coerceIn(0, row.items.lastIndex.coerceAtLeast(0)))
+                                                        // Use saved column position for this row, or default to 0
+                                                        val savedColumn = rowColumnPositions[rowIndex] ?: 0
+                                                        position = RowColumn(rowIndex, savedColumn.coerceIn(0, row.items.lastIndex.coerceAtLeast(0)))
                                                     }
                                                 },
+                                        heroFocusRequester =
+                                            if (rowIndex == firstRowIndex) {
+                                                topRowHeroFocusRequester
+                                            } else {
+                                                null
+                                            },
                                         cardContent = heroRowPosterContent,
                                     )
                                 } else {
@@ -685,6 +738,7 @@ fun <T : Any> HeroItemRow(
     onPlayItem: ((Int, T) -> Unit)? = null,
     onNavigateUp: (() -> Unit)? = null,
     onNavigateDown: (() -> Unit)? = null,
+    heroFocusRequester: FocusRequester? = null,
     cardContent: @Composable (
         index: Int,
         item: T?,
@@ -694,7 +748,7 @@ fun <T : Any> HeroItemRow(
     horizontalPadding: Dp = 16.dp,
 ) {
     val upcomingState = rememberLazyListState()
-    val heroFocusRequester = remember { FocusRequester() }
+    val internalHeroFocusRequester = heroFocusRequester ?: remember { FocusRequester() }
     var hasFocus by remember { mutableStateOf(false) }
 
     // Track previous focused index to determine navigation direction
@@ -814,7 +868,7 @@ fun <T : Any> HeroItemRow(
 
     // When this HeroItemRow is first composed (row became focused), request focus on hero card
     DisposableEffect(Unit) {
-        heroFocusRequester.tryRequestFocus()
+        internalHeroFocusRequester.tryRequestFocus()
         onDispose { }
     }
 
@@ -833,7 +887,7 @@ fun <T : Any> HeroItemRow(
                 .focusGroup()
                 .focusProperties {
                     // When entering this row via D-pad, focus the hero card
-                    onEnter = { heroFocusRequester }
+                    onEnter = { internalHeroFocusRequester }
                 },
     ) {
         // Row title - above the hero card, aligned with its left edge
@@ -903,11 +957,12 @@ fun <T : Any> HeroItemRow(
                         containerColor = Color.Transparent,
                         focusedContainerColor = Color.Transparent,
                     ),
+                    scale = CardDefaults.scale(focusedScale = 1f, pressedScale = 1f),
                     modifier =
                         Modifier
                             .height(HERO_CARD_HEIGHT)
                             .width(HERO_CARD_WIDTH)
-                            .focusRequester(heroFocusRequester)
+                            .focusRequester(internalHeroFocusRequester)
                             .onFocusChanged { focusState ->
                                 hasFocus = focusState.isFocused
                             }

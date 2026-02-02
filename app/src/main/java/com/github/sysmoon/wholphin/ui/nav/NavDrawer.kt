@@ -263,6 +263,8 @@ fun NavDrawer(
         viewModel.setShowMore(false)
     }
 
+    val homeTopRowFocusRequester = remember { FocusRequester() }
+
     Column(modifier = modifier.fillMaxSize()) {
         TopNavBar(
             destination = destination,
@@ -270,6 +272,14 @@ fun NavDrawer(
             user = user,
             server = server,
             viewModel = viewModel,
+            onNavigateDown =
+                if (destination is Destination.Home) {
+                    {
+                        homeTopRowFocusRequester.tryRequestFocus("top_nav_to_home")
+                    }
+                } else {
+                    null
+                },
         )
         Box(modifier = Modifier.fillMaxSize()) {
             DestinationContent(
@@ -277,6 +287,7 @@ fun NavDrawer(
                 preferences = preferences,
                 onClearBackdrop = onClearBackdrop,
                 modifier = Modifier.fillMaxSize(),
+                homeTopRowFocusRequester = homeTopRowFocusRequester,
             )
             if (preferences.appPreferences.interfacePreferences.showClock) {
                 TimeDisplay()

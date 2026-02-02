@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -38,7 +39,8 @@ fun <T> ItemRow(
         onLongClick: () -> Unit,
     ) -> Unit,
     modifier: Modifier = Modifier,
-    horizontalPadding: Dp = 16.dp,
+    startPadding: Dp = 16.dp,
+    cardSpacing: Dp = 16.dp,
 ) {
     val state = rememberLazyListState()
     val firstFocus = remember { FocusRequester() }
@@ -55,13 +57,14 @@ fun <T> ItemRow(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
+            modifier = Modifier.padding(start = startPadding),
         )
         LazyRow(
             state = state,
-            horizontalArrangement = Arrangement.spacedBy(horizontalPadding),
-            contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(cardSpacing),
+            contentPadding = PaddingValues(start = startPadding, end = cardSpacing, top = 8.dp, bottom = 8.dp),
             modifier =
                 Modifier
                     .fillMaxWidth()

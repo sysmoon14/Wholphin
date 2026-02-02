@@ -162,64 +162,6 @@ fun ApplicationContent(
                         },
             )
         }
-        if (backdropStyle != BackdropStyle.BACKDROP_NONE) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                AsyncImage(
-                    model =
-                        ImageRequest
-                            .Builder(LocalContext.current)
-                            .data(backdrop.imageUrl)
-                            .transitionFactory(CrossFadeFactory(800.milliseconds))
-                            .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    alignment = Alignment.TopEnd,
-                    modifier =
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .fillMaxHeight(.7f)
-                            .fillMaxWidth(.7f)
-                            .alpha(.95f)
-                            .drawWithContent {
-                                drawContent()
-                                // Subtle top scrim for system UI readability (clock, tabs)
-                                if (enableTopScrim) {
-                                    drawRect(
-                                        brush =
-                                            Brush.verticalGradient(
-                                                colorStops =
-                                                    arrayOf(
-                                                        0f to Color.Black.copy(alpha = TOP_SCRIM_ALPHA),
-                                                        TOP_SCRIM_END_FRACTION to Color.Transparent,
-                                                    ),
-                                            ),
-                                        blendMode = BlendMode.Multiply,
-                                    )
-                                }
-                                drawRect(
-                                    brush =
-                                        Brush.horizontalGradient(
-                                            colors = listOf(Color.Transparent, Color.Black),
-                                            startX = 0f,
-                                            endX = size.width * 0.6f,
-                                        ),
-                                    blendMode = BlendMode.DstIn,
-                                )
-                                drawRect(
-                                    brush =
-                                        Brush.verticalGradient(
-                                            colors = listOf(Color.Black, Color.Transparent),
-                                            startY = 0f,
-                                            endY = size.height,
-                                        ),
-                                    blendMode = BlendMode.DstIn,
-                                )
-                            },
-                )
-            }
-        }
         NavDisplay(
             backStack = navigationManager.backStack,
             onBack = { navigationManager.goBack() },

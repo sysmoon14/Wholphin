@@ -86,6 +86,11 @@ import com.github.sysmoon.wholphin.ui.components.EpisodeName
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
 import com.github.sysmoon.wholphin.ui.components.LoadingPage
 import com.github.sysmoon.wholphin.ui.components.QuickDetails
+import com.github.sysmoon.wholphin.ui.components.StreamLabel
+import com.github.sysmoon.wholphin.ui.util.StreamFormatting.concatWithSpace
+import com.github.sysmoon.wholphin.ui.util.StreamFormatting.formatAudioCodec
+import com.github.sysmoon.wholphin.ui.util.StreamFormatting.formatVideoRange
+import com.github.sysmoon.wholphin.ui.util.StreamFormatting.resolutionString
 import com.github.sysmoon.wholphin.ui.data.AddPlaylistViewModel
 import com.github.sysmoon.wholphin.ui.data.RowColumn
 import com.github.sysmoon.wholphin.ui.detail.MoreDialogActions
@@ -106,6 +111,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ImageType
+import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.MediaType
 import timber.log.Timber
 import java.util.UUID
@@ -444,7 +450,8 @@ fun HomePageContent(
                                                         return@onKeyEvent false
                                                     },
                                             interactionSource = null,
-                                            cardHeight = Cards.height2x3,
+                                            cardHeight = HERO_CARD_HEIGHT,
+                                            cornerRadius = HERO_ROW_CARD_CORNER_RADIUS,
                                         )
                                     }
                                 // Card content for hero row poster preview (non-focusable cards)
@@ -476,6 +483,7 @@ fun HomePageContent(
                                             modifier = cardModifier,
                                             interactionSource = null,
                                             cardHeight = HERO_CARD_HEIGHT,
+                                            cornerRadius = HERO_ROW_CARD_CORNER_RADIUS,
                                         )
                                     }
                                 if (rowIndex == position.row) {
@@ -543,6 +551,8 @@ fun HomePageContent(
                                             onLongClickItem.invoke(RowColumn(rowIndex, index), item)
                                         },
                                         modifier = rowModifier,
+                                        startPadding = HERO_ROW_LEFT_PADDING,
+                                        cardSpacing = HERO_POSTER_GAP,
                                         cardContent = rowCardContent,
                                     )
                                 }
@@ -653,7 +663,8 @@ private val HERO_ROW_CARD_CORNER_RADIUS = 4.dp
 private val HERO_ROW_LEFT_PADDING = 24.dp  // Space for passed card to peep from left edge
 private val HERO_POSTER_GAP = 16.dp  // Same as gap between poster cards
 private val HERO_INFO_TOP_SPACING = 12.dp
-private val HERO_ROW_BOTTOM_SPACING = 48.dp
+private val HERO_INFO_HEIGHT = 100.dp  // Fixed height for info section to prevent row shifting
+private val HERO_ROW_BOTTOM_SPACING = 8.dp
 private const val PASSED_ITEMS_ALPHA = 0.25f  // Dimmed alpha for passed items
 
 /**
@@ -828,8 +839,8 @@ fun <T : Any> HeroItemRow(
         // Row title - above the hero card, aligned with its left edge
         Text(
             text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
             modifier = Modifier.padding(start = HERO_ROW_LEFT_PADDING, bottom = 8.dp),
         )
         // Use a Box to allow absolute positioning of passed card behind the hero
@@ -1123,9 +1134,47 @@ fun HeroCardContent(
 @Composable
 fun HeroInfo(item: BaseItem?) {
     item ?: return
+    val context = LocalContext.current
     val isEpisode = item.type == BaseItemKind.EPISODE
+    val isMovie = item.type == BaseItemKind.MOVIE
+    
+    // Extract video and audio info from media sources for movies and episodes
+    val mediaSource = remember(item) { item.data.mediaSources?.firstOrNull() }
+    val videoStream = remember(mediaSource) {
+        mediaSource?.mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }
+    }
+    val audioStream = remember(mediaSource) {
+        mediaSource?.mediaStreams?.firstOrNull { it.type == MediaStreamType.AUDIO }
+    }
+    
+    // Format video badge (resolution + HDR)
+    val videoBadge = remember(videoStream) {
+        videoStream?.let {
+            val width = it.width
+            val height = it.height
+            val resName = if (width != null && height != null) {
+                resolutionString(width, height, videoStream.isInterlaced)
+            } else null
+            val range = formatVideoRange(context, it.videoRange, it.videoRangeType, it.videoDoViTitle)
+            resName.concatWithSpace(range)
+        }
+    }
+    
+    // Format audio badge - show profile (e.g., "Dolby Atmos") or codec + channel layout (e.g., "DD+ 5.1")
+    val audioBadge = remember(audioStream) {
+        audioStream?.let { stream ->
+            // Prefer profile name (Dolby Atmos, DTS:X, etc)
+            stream.profile?.takeIf { it.isNotBlank() }
+                ?: listOfNotNull(
+                    formatAudioCodec(context, stream.codec, stream.profile),
+                    stream.channelLayout
+                ).joinToString(" ").takeIf { it.isNotBlank() }
+        }
+    }
+    
     Column(
         verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.height(HERO_INFO_HEIGHT),
     ) {
         // For episodes, prepend episode name to details; otherwise just show details
         if (isEpisode && !item.data.name.isNullOrBlank()) {
@@ -1143,13 +1192,27 @@ fun HeroInfo(item: BaseItem?) {
         } else {
             QuickDetails(item.ui.quickDetails, item.timeRemainingOrRuntime)
         }
-        item.data.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+        
+        // Media badges for movies and episodes (resolution/HDR, audio format)
+        if ((isMovie || isEpisode) && (videoBadge != null || audioBadge != null)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                videoBadge?.let { StreamLabel(text = it) }
+                audioBadge?.let { StreamLabel(text = it) }
+            }
+        }
+        
+        // Overview - displayed for all item types (movies, TV shows, episodes)
+        val overview = item.data.overview?.takeIf { it.isNotBlank() }
+        if (overview != null) {
             Text(
                 text = overview,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }

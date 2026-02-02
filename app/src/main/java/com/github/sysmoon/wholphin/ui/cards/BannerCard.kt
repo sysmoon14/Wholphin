@@ -60,6 +60,7 @@ fun BannerCard(
     cardHeight: Dp = 120.dp,
     aspectRatio: Float = AspectRatios.WIDE,
     interactionSource: MutableInteractionSource? = null,
+    cornerRadius: Dp = 8.dp,
 ) {
     val imageUrlService = LocalImageUrlService.current
     val density = LocalDensity.current
@@ -90,6 +91,7 @@ fun BannerCard(
         onClick = onClick,
         onLongClick = onLongClick,
         interactionSource = interactionSource,
+        shape = CardDefaults.shape(RoundedCornerShape(cornerRadius)),
         colors =
             CardDefaults.colors(
 //                containerColor = Color.Transparent,

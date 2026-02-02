@@ -3,6 +3,7 @@ package com.github.sysmoon.wholphin.services
 import android.content.Context
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.data.model.BaseItem
+import com.github.sysmoon.wholphin.ui.DefaultItemFields
 import com.github.sysmoon.wholphin.ui.SlimItemFields
 import com.github.sysmoon.wholphin.ui.main.LatestData
 import com.github.sysmoon.wholphin.ui.main.supportedLatestCollectionTypes
@@ -114,7 +115,7 @@ class LatestNextUpService
                                 ?: context.getString(R.string.recently_added)
                         val request =
                             GetLatestMediaRequest(
-                                fields = SlimItemFields,
+                                fields = DefaultItemFields,  // Use DefaultItemFields to ensure overview is included
                                 imageTypeLimit = 1,
                                 parentId = view.id,
                                 groupItems = true,

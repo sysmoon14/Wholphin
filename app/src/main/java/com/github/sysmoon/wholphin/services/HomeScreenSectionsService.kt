@@ -19,6 +19,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.itemsApi
+import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.suggestionsApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.api.client.util.AuthorizationHeaderBuilder
@@ -28,6 +29,7 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.SortOrder
 import org.jellyfin.sdk.model.api.request.GetItemsRequest
+import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
 import org.jellyfin.sdk.model.api.request.GetSuggestionsRequest
 import org.jellyfin.sdk.model.serializer.toUUIDOrNull
 import timber.log.Timber
@@ -155,6 +157,7 @@ class HomeScreenSectionsService
                         .Builder()
                         .url(url)
                         .addHeader("Authorization", authHeader)
+                        .addHeader("X-Emby-Token", accessToken)
                         .get()
                         .build()
 
@@ -225,21 +228,23 @@ class HomeScreenSectionsService
                 return null
             }
 
+            val becauseYouWatchedTitle =
+                if (nativeRow == "BecauseYouWatched") {
+                    buildBecauseYouWatchedTitle(row)
+                } else {
+                    null
+                }
             val title =
-                row.label
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { label ->
-                        if (label.equals("Continue Watching (Combined)", ignoreCase = true)) {
-                            context.getString(R.string.continue_watching)
-                        } else {
-                            label
+                becauseYouWatchedTitle
+                    ?: row.label
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { label ->
+                            if (label.equals("Continue Watching (Combined)", ignoreCase = true)) {
+                                context.getString(R.string.continue_watching)
+                            } else {
+                                label
+                            }
                         }
-                    }
-                    ?: if (nativeRow == "BecauseYouWatched") {
-                        buildBecauseYouWatchedTitle(row)
-                    } else {
-                        null
-                    }
                     ?: defaultTitleForNativeRow(nativeRow)
 
             val items =
@@ -291,12 +296,24 @@ class HomeScreenSectionsService
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
                         )
-                    "BecauseYouWatched" ->
-                        getSuggestions(
-                            userId = userId,
-                            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
-                            limit = itemsPerRow,
-                        )
+                    "BecauseYouWatched" -> {
+                        val baseItemId =
+                            extractBasedOnId(row)
+                                ?.let { parseAnyIdToUuidOrNull(it) }
+                        if (baseItemId != null) {
+                            getSimilarItems(
+                                userId = userId,
+                                itemId = baseItemId,
+                                limit = itemsPerRow,
+                            )
+                        } else {
+                            getSuggestions(
+                                userId = userId,
+                                includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
+                                limit = itemsPerRow,
+                            )
+                        }
+                    }
                     "WatchItAgain" ->
                         getPlayedItems(
                             userId = userId,
@@ -455,6 +472,31 @@ class HomeScreenSectionsService
             }
         }
 
+        private suspend fun getSimilarItems(
+            userId: UUID,
+            itemId: UUID,
+            limit: Int,
+        ): List<BaseItem> {
+            val result =
+                api.libraryApi
+                    .getSimilarItems(
+                        GetSimilarItemsRequest(
+                            userId = userId,
+                            itemId = itemId,
+                            fields = SlimItemFields,
+                            limit = limit,
+                        ),
+                    ).content.items
+            return result.mapNotNull { dto ->
+                try {
+                    BaseItem.from(dto, api, true)
+                } catch (ex: Exception) {
+                    Timber.e(ex, "Error creating BaseItem from similar item dto")
+                    null
+                }
+            }
+        }
+
         private suspend fun getPlayedItems(
             userId: UUID,
             includeItemTypes: List<BaseItemKind>,
@@ -516,8 +558,8 @@ class HomeScreenSectionsService
         private fun extractBasedOnId(row: WholphinRow): String? {
             val params = row.endpointParams ?: return null
             return listOf(
-                "BasedOnId",
                 "ItemId",
+                "BasedOnId",
                 "BecauseYouWatchedId",
                 "BaseItemId",
                 "Id",

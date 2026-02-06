@@ -235,6 +235,11 @@ class HomeScreenSectionsService
                             label
                         }
                     }
+                    ?: if (nativeRow == "BecauseYouWatched") {
+                        buildBecauseYouWatchedTitle(row)
+                    } else {
+                        null
+                    }
                     ?: defaultTitleForNativeRow(nativeRow)
 
             val items =
@@ -295,7 +300,7 @@ class HomeScreenSectionsService
                     "WatchItAgain" ->
                         getPlayedItems(
                             userId = userId,
-                            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.EPISODE),
+                            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
                             limit = itemsPerRow,
                         )
                     else -> {
@@ -324,15 +329,11 @@ class HomeScreenSectionsService
             }
 
             val items =
-                getItemsByType(
+                getCollectionItems(
                     userId = userId,
-                    includeItemTypes = emptyList(),
-                    sortBy = ItemSortBy.SORT_NAME,
-                    sortOrder = SortOrder.ASCENDING,
                     limit = itemsPerRow,
                     parentId = collectionId,
                     excludeItemIds = listOf(collectionId),
-                    recursive = true,
                 )
 
             val (boxSetName, viewAllItem) = fetchBoxSetViewAll(collectionId)
@@ -364,6 +365,34 @@ class HomeScreenSectionsService
             } catch (ex: Exception) {
                 Timber.d(ex, "HomeScreenSectionsService: Failed fetching collection for id=%s", collectionId)
                 null to null
+            }
+        }
+
+        private suspend fun getCollectionItems(
+            userId: UUID,
+            limit: Int,
+            parentId: UUID,
+            excludeItemIds: List<UUID>? = null,
+        ): List<BaseItem> {
+            val request =
+                GetItemsRequest(
+                    userId = userId,
+                    parentId = parentId,
+                    excludeItemIds = excludeItemIds,
+                    fields = SlimItemFields,
+                    recursive = true,
+                    enableUserData = true,
+                    startIndex = 0,
+                    limit = limit,
+                )
+            val result = api.itemsApi.getItems(request).content.items
+            return result.mapNotNull { dto ->
+                try {
+                    BaseItem.from(dto, api, true)
+                } catch (ex: Exception) {
+                    Timber.e(ex, "Error creating BaseItem from collection item dto")
+                    null
+                }
             }
         }
 
@@ -452,6 +481,48 @@ class HomeScreenSectionsService
                     Timber.e(ex, "Error creating BaseItem from played item dto")
                     null
                 }
+            }
+        }
+
+        private suspend fun buildBecauseYouWatchedTitle(row: WholphinRow): String? {
+            val basedOnName = extractBasedOnName(row)
+            if (!basedOnName.isNullOrBlank()) {
+                return "Because You Watched $basedOnName"
+            }
+
+            val basedOnId =
+                extractBasedOnId(row)?.let { parseAnyIdToUuidOrNull(it) }
+                    ?: return null
+            return try {
+                val item = api.userLibraryApi.getItem(basedOnId).content
+                item.name?.let { "Because You Watched $it" }
+            } catch (ex: Exception) {
+                Timber.d(ex, "HomeScreenSectionsService: Failed fetching BecauseYouWatched item for id=%s", basedOnId)
+                null
+            }
+        }
+
+        private fun extractBasedOnName(row: WholphinRow): String? {
+            val params = row.endpointParams ?: return null
+            return listOf(
+                "BasedOnName",
+                "ItemName",
+                "Name",
+            ).firstNotNullOfOrNull { key ->
+                params[key]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotBlank() }
+            }
+        }
+
+        private fun extractBasedOnId(row: WholphinRow): String? {
+            val params = row.endpointParams ?: return null
+            return listOf(
+                "BasedOnId",
+                "ItemId",
+                "BecauseYouWatchedId",
+                "BaseItemId",
+                "Id",
+            ).firstNotNullOfOrNull { key ->
+                params[key]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotBlank() }
             }
         }
 

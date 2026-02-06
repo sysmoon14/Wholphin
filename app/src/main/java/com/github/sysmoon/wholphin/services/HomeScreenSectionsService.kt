@@ -136,7 +136,7 @@ class HomeScreenSectionsService
                         .addPathSegment("Config")
                         .apply {
                             if (userId != null) {
-                                addQueryParameter("userId", userId.toString())
+                                addQueryParameter("userId", formatUserId(userId))
                             }
                         }
                         .build()
@@ -483,6 +483,8 @@ class HomeScreenSectionsService
                 else -> nativeRow
             }
         }
+
+        private fun formatUserId(userId: UUID): String = userId.toString().replace("-", "")
 
         private fun parseAnyIdToUuidOrNull(raw: String?): UUID? {
             val v = raw?.trim().orEmpty()

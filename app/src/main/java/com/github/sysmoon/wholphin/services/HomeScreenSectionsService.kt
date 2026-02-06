@@ -272,19 +272,11 @@ class HomeScreenSectionsService
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
                         )
-                    "RecentlyReleased" ->
-                        getItemsByType(
-                            userId = userId,
-                            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.EPISODE),
-                            sortBy = ItemSortBy.PREMIERE_DATE,
-                            sortOrder = SortOrder.DESCENDING,
-                            limit = itemsPerRow,
-                        )
                     "LatestMovies" ->
                         getItemsByType(
                             userId = userId,
                             includeItemTypes = listOf(BaseItemKind.MOVIE),
-                            sortBy = ItemSortBy.DATE_CREATED,
+                            sortBy = ItemSortBy.PREMIERE_DATE,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
                         )
@@ -292,7 +284,7 @@ class HomeScreenSectionsService
                         getItemsByType(
                             userId = userId,
                             includeItemTypes = listOf(BaseItemKind.SERIES),
-                            sortBy = ItemSortBy.DATE_CREATED,
+                            sortBy = ItemSortBy.PREMIERE_DATE,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
                         )
@@ -591,7 +583,6 @@ class HomeScreenSectionsService
                 "LatestMovies",
                 "LatestShows",
                 -> context.getString(R.string.recently_added)
-                "RecentlyReleased" -> context.getString(R.string.recently_released)
                 "BecauseYouWatched" -> context.getString(R.string.suggestions)
                 else -> nativeRow
             }

@@ -361,7 +361,7 @@ fun HomePageContent(
             contentPadding =
                 PaddingValues(
                     start = 16.dp,
-                    end = 16.dp,
+                    end = 0.dp,  // Allow rows to extend to screen edge
                     top = 16.dp,
                     bottom = Cards.height2x3,
                 ),

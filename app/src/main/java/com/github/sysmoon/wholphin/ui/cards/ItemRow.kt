@@ -64,7 +64,7 @@ fun <T> ItemRow(
         LazyRow(
             state = state,
             horizontalArrangement = Arrangement.spacedBy(cardSpacing),
-            contentPadding = PaddingValues(start = startPadding, end = cardSpacing, top = 8.dp, bottom = 8.dp),
+            contentPadding = PaddingValues(start = startPadding, end = startPadding, top = 8.dp, bottom = 8.dp),
             modifier =
                 Modifier
                     .fillMaxWidth()

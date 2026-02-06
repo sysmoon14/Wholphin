@@ -80,9 +80,10 @@ import com.github.sysmoon.wholphin.data.model.BaseItem
 import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.ui.AspectRatios
 import com.github.sysmoon.wholphin.ui.Cards
-import com.github.sysmoon.wholphin.ui.abbreviateNumber
+import com.github.sysmoon.wholphin.ui.AppColors
 import com.github.sysmoon.wholphin.ui.cards.BannerCard
 import com.github.sysmoon.wholphin.ui.cards.ItemRow
+import com.github.sysmoon.wholphin.ui.cards.WatchedIcon
 import com.github.sysmoon.wholphin.ui.CrossFadeFactory
 import com.github.sysmoon.wholphin.ui.LocalImageUrlService
 import com.github.sysmoon.wholphin.ui.rememberInt
@@ -133,6 +134,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 
 @Composable
@@ -1409,6 +1411,9 @@ fun HeroCardContent(
     var backdropError by remember(item) { mutableStateOf(false) }
     val focusBorderColor = MaterialTheme.colorScheme.border
     val focusBorderWidth = 3.dp
+    
+    val played = item?.data?.userData?.played ?: false
+    val playPercent = item?.data?.userData?.playedPercentage ?: 0.0
 
     Box(
         modifier =
@@ -1469,6 +1474,28 @@ fun HeroCardContent(
                         )
                     },
         )
+
+        // Played indicator (top-end)
+        if (played && (playPercent <= 0 || playPercent >= 100)) {
+            WatchedIcon(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(24.dp),
+            )
+        }
+
+        // Progress bar for items in progress (bottom)
+        if (playPercent > 0 && playPercent < 100) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .background(MaterialTheme.colorScheme.tertiary)
+                    .clip(RectangleShape)
+                    .height(Cards.playedPercentHeight)
+                    .fillMaxWidth((playPercent / 100).toFloat()),
+            )
+        }
 
         // Logo image or title text fallback, bottom-left
         Box(
@@ -1612,6 +1639,9 @@ fun AnimatingHeroCardContent(
             }
         } else {
             // Normal item - show backdrop and logo
+            val played = item?.data?.userData?.played ?: false
+            val playPercent = item?.data?.userData?.playedPercentage ?: 0.0
+
             // Backdrop image fills the card
             if (!backdropError && backdropUrl != null) {
                 AsyncImage(
@@ -1650,6 +1680,28 @@ fun AnimatingHeroCardContent(
                         )
                     },
             )
+
+            // Played indicator (top-end)
+            if (played && (playPercent <= 0 || playPercent >= 100)) {
+                WatchedIcon(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(24.dp),
+                )
+            }
+
+            // Progress bar for items in progress (bottom)
+            if (playPercent > 0 && playPercent < 100) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .background(MaterialTheme.colorScheme.tertiary)
+                        .clip(RectangleShape)
+                        .height(Cards.playedPercentHeight)
+                        .fillMaxWidth((playPercent / 100).toFloat()),
+                )
+            }
 
             // Logo image or title text fallback - animates position from center to left
             // Use BiasAlignment with animated horizontal bias for smooth position animation
@@ -1717,6 +1769,9 @@ fun BackdropPosterCard(
     val focusBorderColor = MaterialTheme.colorScheme.border
     val focusBorderWidth = 3.dp
     
+    val played = item?.data?.userData?.played ?: false
+    val playPercent = item?.data?.userData?.playedPercentage ?: 0.0
+
     // Poster card dimensions
     val posterCardWidth = HERO_CARD_HEIGHT * (2f / 3f)
 
@@ -1775,6 +1830,28 @@ fun BackdropPosterCard(
                     )
                 },
         )
+
+        // Played indicator (top-end)
+        if (played && (playPercent <= 0 || playPercent >= 100)) {
+            WatchedIcon(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(24.dp),
+            )
+        }
+
+        // Progress bar for items in progress (bottom)
+        if (playPercent > 0 && playPercent < 100) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .background(MaterialTheme.colorScheme.tertiary)
+                    .clip(RectangleShape)
+                    .height(Cards.playedPercentHeight)
+                    .fillMaxWidth((playPercent / 100).toFloat()),
+            )
+        }
 
         // Logo image or title text fallback, bottom-center
         Box(

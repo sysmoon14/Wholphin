@@ -123,6 +123,8 @@ fun PlaybackOverlay(
 
     val density = LocalDensity.current
 
+    val logoImageUrl = LocalImageUrlService.current.rememberImageUrl(item, ImageType.LOGO)
+    val logoSectionHeight = 128.dp
     val titleHeight =
         remember {
             if (item?.title.isNotNullOrBlank()) with(density) { titleTextSize.toDp() } else 0.dp
@@ -131,6 +133,7 @@ fun PlaybackOverlay(
         remember {
             if (item?.subtitleLong.isNotNullOrBlank()) with(density) { subtitleTextSize.toDp() } else 0.dp
         }
+    val topSectionHeight = if (logoImageUrl.isNotNullOrBlank()) logoSectionHeight else titleHeight
 
     // This will be calculated after composition
     var controllerHeight by remember { mutableStateOf(0.dp) }
@@ -221,7 +224,7 @@ fun PlaybackOverlay(
                         },
             ) {
                 Controller(
-                    title = item?.title,
+                    logoImageUrl = logoImageUrl,
                     subtitle = item?.subtitleLong,
                     playerControls = playerControls,
                     controllerViewState = controllerViewState,
@@ -459,7 +462,7 @@ fun PlaybackOverlay(
                             .align(Alignment.BottomStart)
                             .offsetByPercent(
                                 xPercentage = seekProgressPercent.coerceIn(0f, 1f),
-                            ).padding(bottom = controllerHeight - titleHeight - subtitleHeight),
+                            ).padding(bottom = controllerHeight - topSectionHeight - subtitleHeight),
                 ) {
                     if (trickplayInfo != null) {
                         val tilesPerImage = trickplayInfo.tileWidth * trickplayInfo.tileHeight
@@ -483,21 +486,6 @@ fun PlaybackOverlay(
                     )
                 }
             }
-        }
-        val logoImageUrl = LocalImageUrlService.current.rememberImageUrl(item, ImageType.LOGO)
-        // Logo (top): slide down on show, slide up on hide
-        if (!showDebugInfo && logoImageUrl.isNotNullOrBlank() && (controllerViewState.controlsVisible || progressValue < 1f)) {
-            AsyncImage(
-                model = logoImageUrl,
-                contentDescription = "Logo",
-                alignment = Alignment.TopStart,
-                modifier =
-                    Modifier
-                        .align(Alignment.TopStart)
-                        .graphicsLayer { translationY = -progressValue * fullHeightPx }
-                        .size(width = 240.dp, height = 120.dp)
-                        .padding(16.dp),
-            )
         }
         // Clock (top): slide down on show, slide up on hide
         if (!showDebugInfo && showClock && (controllerViewState.controlsVisible || progressValue < 1f)) {
@@ -542,11 +530,11 @@ enum class OverlayViewState {
 }
 
 /**
- * A wrapper for the playback controls to show title and other information, plus the actual controls
+ * A wrapper for the playback controls to show logo and other information, plus the actual controls
  */
 @Composable
 fun Controller(
-    title: String?,
+    logoImageUrl: String?,
     playerControls: Player,
     controllerViewState: ControllerViewState,
     showClock: Boolean,
@@ -575,11 +563,12 @@ fun Controller(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(start = 16.dp),
         ) {
-            title?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontSize = titleTextSize,
+            if (logoImageUrl.isNotNullOrBlank()) {
+                AsyncImage(
+                    model = logoImageUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(width = 240.dp, height = 80.dp),
                 )
             }
             Row(

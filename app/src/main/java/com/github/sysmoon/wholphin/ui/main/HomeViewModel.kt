@@ -87,62 +87,26 @@ class HomeViewModel
                     val enableCustomHomeRows = preferences.appPreferences.interfacePreferences.enableCustomHomeRows
                     Timber.d("HomeViewModel: Custom home rows enabled=$enableCustomHomeRows")
                     
-                    val useNativeContinueNext =
-                        preferences.appPreferences.interfacePreferences.customHomeRowsUseNativeContinueNext
-                    Timber.d("HomeViewModel: Custom home rows native Continue/Next enabled=$useNativeContinueNext")
-                    val customSections = if (enableCustomHomeRows) {
-                        homeScreenSectionsService.getCustomSections(userDto.id)
-                    } else {
-                        null
-                    }
+                    val customRows =
+                        if (enableCustomHomeRows) {
+                            homeScreenSectionsService.getCustomRows(
+                                userId = userDto.id,
+                                itemsPerRow = limit,
+                                enableRewatchingNextUp = prefs.enableRewatchingNextUp,
+                            )
+                        } else {
+                            null
+                        }
                     
-                    if (customSections != null) {
-                        // Plugin sections are available, use them
-                        // The plugin provides all sections in order, including continue watching and next up
-                        Timber.i("HomeViewModel: Using custom home screen sections from plugin (${customSections.size} sections)")
-
-                        val baseRows =
-                            if (useNativeContinueNext) {
-                                // Replace ContinueWatchingNextUp section with Wholphin's native interleaving logic
-                                val continueNextIndex =
-                                    customSections.indexOfFirst { it.sectionId == "ContinueWatchingNextUp" }
-                                if (continueNextIndex >= 0) {
-                                    Timber.d("HomeViewModel: Replacing ContinueWatchingNextUp with native combined logic")
-                                    val resume = latestNextUpService.getResume(userDto.id, limit, true)
-                                    val nextUp =
-                                        latestNextUpService.getNextUp(
-                                            userDto.id,
-                                            limit,
-                                            prefs.enableRewatchingNextUp,
-                                            false,
-                                        )
-                                    val combined = latestNextUpService.buildCombined(resume, nextUp).take(limit)
-                                    customSections.mapIndexed { idx, sectionRow ->
-                                        if (idx == continueNextIndex && sectionRow.row is HomeRowLoadingState.Success) {
-                                            sectionRow.row.let { existing ->
-                                                HomeRowLoadingState.Success(
-                                                    title = existing.title,
-                                                    items = combined,
-                                                )
-                                            }
-                                        } else {
-                                            sectionRow.row
-                                        }
-                                    }
-                                } else {
-                                    customSections.map { it.row }
-                                }
-                            } else {
-                                customSections.map { it.row }
-                            }
-
-                        val finalRows = baseRows
+                    if (customRows != null) {
+                        // Plugin rows are available, use them
+                        Timber.i("HomeViewModel: Using custom home rows from plugin (%s rows)", customRows.size)
 
                         withContext(Dispatchers.Main) {
-                            // Plugin sections replace the entire home screen
+                            // Plugin rows replace the entire home screen
                             this@HomeViewModel.watchingRows.value = emptyList()
                             if (reload) {
-                                this@HomeViewModel.latestRows.value = finalRows
+                                this@HomeViewModel.latestRows.value = customRows
                             }
                             loadingState.value = LoadingState.Success
                         }

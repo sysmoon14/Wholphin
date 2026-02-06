@@ -282,6 +282,9 @@ fun RecommendedTvShow(
     parentId: UUID,
     onFocusPosition: (RowColumn) -> Unit,
     modifier: Modifier = Modifier,
+    topRowFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    resetPositionOnEnter: Boolean = false,
+    consumeDownToTopRow: Boolean = false,
     viewModel: RecommendedTvShowViewModel =
         hiltViewModel<RecommendedTvShowViewModel, RecommendedTvShowViewModel.Factory>(
             creationCallback = { it.create(parentId) },
@@ -292,5 +295,8 @@ fun RecommendedTvShow(
         viewModel = viewModel,
         onFocusPosition = onFocusPosition,
         modifier = modifier,
+        topRowFocusRequester = topRowFocusRequester,
+        resetPositionOnEnter = resetPositionOnEnter,
+        consumeDownToTopRow = consumeDownToTopRow,
     )
 }

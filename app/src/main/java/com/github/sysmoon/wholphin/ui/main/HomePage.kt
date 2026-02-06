@@ -265,6 +265,7 @@ fun HomePageContent(
     onFocusPosition: ((RowColumn) -> Unit)? = null,
     loadingState: LoadingState? = null,
     topRowFocusRequester: FocusRequester? = null,
+    resetPositionOnEnter: Boolean = false,
 ) {
     var position by rememberPosition()
     // Track column position for each row independently
@@ -293,6 +294,7 @@ fun HomePageContent(
             it is HomeRowLoadingState.Success && it.items.isNotEmpty()
         }.takeIf { it >= 0 } ?: 0
     var firstFocused by remember { mutableStateOf(false) }
+    var hasResetPosition by remember(resetPositionOnEnter) { mutableStateOf(false) }
     LaunchedEffect(homeRows) {
         if (!firstFocused && homeRows.isNotEmpty()) {
             if (position.row >= 0) {
@@ -316,6 +318,23 @@ fun HomePageContent(
     }
     // Track previous row to detect actual row changes (not initial focus)
     var previousRow by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(homeRows, resetPositionOnEnter) {
+        if (resetPositionOnEnter && !hasResetPosition && homeRows.isNotEmpty()) {
+            val firstRowIndex =
+                homeRows.indexOfFirst {
+                    it is HomeRowLoadingState.Success && it.items.isNotEmpty()
+                }.takeIf { it >= 0 } ?: 0
+            rowColumnPositions.clear()
+            rowColumnPositions[firstRowIndex] = 0
+            position = RowColumn(firstRowIndex, 0)
+            previousRow = firstRowIndex
+            rowFocusRequesters.getOrNull(firstRowIndex)?.tryRequestFocus()
+            delay(50)
+            listState.scrollToItem(firstRowIndex)
+            firstFocused = true
+            hasResetPosition = true
+        }
+    }
     
     // Ensure scrolling happens when returning to the screen with a saved position
     LaunchedEffect(homeRows, position.row) {

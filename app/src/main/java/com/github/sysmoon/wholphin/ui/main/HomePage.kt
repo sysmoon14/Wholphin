@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -542,92 +544,65 @@ fun HomePageContent(
                                             cornerRadius = HERO_ROW_CARD_CORNER_RADIUS,
                                         )
                                     }
-                                if (rowIndex == position.row) {
-                                    // Find the next valid row index (with non-empty items)
-                                    val nextRowIndex = (rowIndex + 1 until homeRows.size).firstOrNull { idx ->
-                                        (homeRows[idx] as? HomeRowLoadingState.Success)?.items?.isNotEmpty() == true
-                                    }
-                                    // Find the previous valid row index (with non-empty items)
-                                    val prevRowIndex = (rowIndex - 1 downTo 0).firstOrNull { idx ->
-                                        (homeRows[idx] as? HomeRowLoadingState.Success)?.items?.isNotEmpty() == true
-                                    }
-                                    HeroItemRow(
-                                        title = row.title,
-                                        items = row.items,
-                                        heroItem = headerItem,
-                                        focusedIndex = position.column.coerceIn(0, row.items.lastIndex.coerceAtLeast(0)),
-                                        onFocusedIndexChange = { newIndex ->
-                                            position = RowColumn(rowIndex, newIndex)
-                                            onFocusPosition?.invoke(position)
-                                        },
-                                        onClickItem = { index, item ->
-                                            onClickItem.invoke(RowColumn(rowIndex, index), item)
-                                        },
-                                        onLongClickItem = { index, item ->
-                                            onLongClickItem.invoke(RowColumn(rowIndex, index), item)
-                                        },
-                                        onPlayItem = { index, item ->
-                                            if (item.type?.playable == true) {
-                                                Timber.v("Clicked play on ${item.id}")
-                                                onClickPlay.invoke(RowColumn(rowIndex, index), item)
-                                            }
-                                        },
-                                        // Only provide onNavigateUp if there's a row above (null allows default behavior to nav bar)
-                                        onNavigateUp = prevRowIndex?.let { prevIdx ->
-                                            {
-                                                // Save current row's column position before navigating
-                                                rowColumnPositions[rowIndex] = position.column
-                                                val prevRow = homeRows[prevIdx] as HomeRowLoadingState.Success
-                                                // Restore previous row's saved column position, or default to 0
-                                                val savedColumn = rowColumnPositions[prevIdx] ?: 0
-                                                position = RowColumn(prevIdx, savedColumn.coerceIn(0, prevRow.items.lastIndex.coerceAtLeast(0)))
-                                            }
-                                        },
-                                        // Always provide onNavigateDown to prevent focus escaping; only navigate if there's a row below
-                                        onNavigateDown = nextRowIndex?.let { nextIdx ->
-                                            {
-                                                // Save current row's column position before navigating
-                                                rowColumnPositions[rowIndex] = position.column
-                                                val nextRow = homeRows[nextIdx] as HomeRowLoadingState.Success
-                                                // Restore next row's saved column position, or default to 0
-                                                val savedColumn = rowColumnPositions[nextIdx] ?: 0
-                                                position = RowColumn(nextIdx, savedColumn.coerceIn(0, nextRow.items.lastIndex.coerceAtLeast(0)))
-                                            }
-                                        } ?: { /* At last row, do nothing but consume the event */ },
-                                        modifier =
-                                            rowModifier
-                                                .onFocusChanged {
-                                                    if (it.hasFocus) {
-                                                        // Update position when the hero row gains focus
-                                                        // Use saved column position for this row, or default to 0
-                                                        val savedColumn = rowColumnPositions[rowIndex] ?: 0
-                                                        position = RowColumn(rowIndex, savedColumn.coerceIn(0, row.items.lastIndex.coerceAtLeast(0)))
-                                                    }
-                                                },
-                                        heroFocusRequester =
-                                            if (rowIndex == firstRowIndex) {
-                                                topRowHeroFocusRequester
-                                            } else {
-                                                null
-                                            },
-                                        cardContent = heroRowPosterContent,
-                                    )
-                                } else {
-                                    ItemRow(
-                                        title = row.title,
-                                        items = row.items,
-                                        onClickItem = { index, item ->
-                                            onClickItem.invoke(RowColumn(rowIndex, index), item)
-                                        },
-                                        onLongClickItem = { index, item ->
-                                            onLongClickItem.invoke(RowColumn(rowIndex, index), item)
-                                        },
-                                        modifier = rowModifier,
-                                        startPadding = HERO_ROW_LEFT_PADDING,
-                                        cardSpacing = HERO_POSTER_GAP,
-                                        cardContent = rowCardContent,
-                                    )
+                                val isHeroRow = rowIndex == position.row
+                                // Find the next valid row index (with non-empty items)
+                                val nextRowIndex = (rowIndex + 1 until homeRows.size).firstOrNull { idx ->
+                                    (homeRows[idx] as? HomeRowLoadingState.Success)?.items?.isNotEmpty() == true
                                 }
+                                // Find the previous valid row index (with non-empty items)
+                                val prevRowIndex = (rowIndex - 1 downTo 0).firstOrNull { idx ->
+                                    (homeRows[idx] as? HomeRowLoadingState.Success)?.items?.isNotEmpty() == true
+                                }
+                                
+                                AnimatingHeroRow(
+                                    title = row.title,
+                                    items = row.items,
+                                    heroItem = headerItem,
+                                    isHeroRow = isHeroRow,
+                                    focusedIndex = if (isHeroRow) position.column.coerceIn(0, row.items.lastIndex.coerceAtLeast(0)) else (rowColumnPositions[rowIndex] ?: 0).coerceIn(0, row.items.lastIndex.coerceAtLeast(0)),
+                                    onFocusedIndexChange = { newIndex ->
+                                        position = RowColumn(rowIndex, newIndex)
+                                        onFocusPosition?.invoke(position)
+                                    },
+                                    onClickItem = { index, item ->
+                                        onClickItem.invoke(RowColumn(rowIndex, index), item)
+                                    },
+                                    onLongClickItem = { index, item ->
+                                        onLongClickItem.invoke(RowColumn(rowIndex, index), item)
+                                    },
+                                    onPlayItem = { index, item ->
+                                        if (item.type?.playable == true) {
+                                            Timber.v("Clicked play on ${item.id}")
+                                            onClickPlay.invoke(RowColumn(rowIndex, index), item)
+                                        }
+                                    },
+                                    onNavigateUp = prevRowIndex?.let { prevIdx ->
+                                        {
+                                            rowColumnPositions[rowIndex] = position.column
+                                            val prevRow = homeRows[prevIdx] as HomeRowLoadingState.Success
+                                            val savedColumn = rowColumnPositions[prevIdx] ?: 0
+                                            position = RowColumn(prevIdx, savedColumn.coerceIn(0, prevRow.items.lastIndex.coerceAtLeast(0)))
+                                        }
+                                    },
+                                    onNavigateDown = nextRowIndex?.let { nextIdx ->
+                                        {
+                                            rowColumnPositions[rowIndex] = position.column
+                                            val nextRow = homeRows[nextIdx] as HomeRowLoadingState.Success
+                                            val savedColumn = rowColumnPositions[nextIdx] ?: 0
+                                            position = RowColumn(nextIdx, savedColumn.coerceIn(0, nextRow.items.lastIndex.coerceAtLeast(0)))
+                                        }
+                                    } ?: { },
+                                    modifier = rowModifier
+                                        .onFocusChanged {
+                                            if (it.hasFocus) {
+                                                val savedColumn = rowColumnPositions[rowIndex] ?: 0
+                                                position = RowColumn(rowIndex, savedColumn.coerceIn(0, row.items.lastIndex.coerceAtLeast(0)))
+                                            }
+                                        },
+                                    heroFocusRequester = if (rowIndex == firstRowIndex) topRowHeroFocusRequester else null,
+                                    heroCardContent = heroRowPosterContent,
+                                    posterCardContent = rowCardContent,
+                                )
                             }
                         }
                     }
@@ -1075,6 +1050,368 @@ fun <T : Any> HeroItemRow(
         }  // End Box (wrapper for passed card + row)
         // Bottom spacing to push next row down
         Spacer(modifier = Modifier.height(HERO_ROW_BOTTOM_SPACING))
+    }
+}
+
+/**
+ * A row that animates between hero (expanded) and non-hero (collapsed) states.
+ * When isHeroRow is true, the first card expands to hero size and other cards slide right.
+ * When isHeroRow is false, all cards are poster-sized in a standard row.
+ */
+@Composable
+fun <T : Any> AnimatingHeroRow(
+    title: String,
+    items: List<T?>,
+    heroItem: BaseItem?,
+    isHeroRow: Boolean,
+    focusedIndex: Int,
+    onFocusedIndexChange: (Int) -> Unit,
+    onClickItem: (Int, T) -> Unit,
+    onLongClickItem: (Int, T) -> Unit,
+    onPlayItem: ((Int, T) -> Unit)? = null,
+    onNavigateUp: (() -> Unit)? = null,
+    onNavigateDown: (() -> Unit)? = null,
+    heroFocusRequester: FocusRequester? = null,
+    heroCardContent: @Composable (Int, T?, Modifier) -> Unit,
+    posterCardContent: @Composable (Int, T?, Modifier, () -> Unit, () -> Unit) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val posterCardWidth = HERO_CARD_HEIGHT * (2f / 3f)  // ~173dp
+    val animationDuration = 600
+    
+    // Animate first card width between poster and hero size
+    val firstCardWidth by animateDpAsState(
+        targetValue = if (isHeroRow) HERO_CARD_WIDTH else posterCardWidth,
+        animationSpec = tween(animationDuration),
+        label = "firstCardWidth",
+    )
+    
+    // Animate the offset for other cards (they slide right when hero expands)
+    val cardsOffset by animateDpAsState(
+        targetValue = if (isHeroRow) (HERO_CARD_WIDTH - posterCardWidth) else 0.dp,
+        animationSpec = tween(animationDuration),
+        label = "cardsOffset",
+    )
+    
+    // Animate hero info visibility
+    val heroInfoAlpha by animateFloatAsState(
+        targetValue = if (isHeroRow) 1f else 0f,
+        animationSpec = tween(animationDuration),
+        label = "heroInfoAlpha",
+    )
+    
+    // Hero content crossfade (show backdrop when hero, poster when not)
+    val heroContentAlpha by animateFloatAsState(
+        targetValue = if (isHeroRow) 1f else 0f,
+        animationSpec = tween(animationDuration),
+        label = "heroContentAlpha",
+    )
+    
+    val internalHeroFocusRequester = heroFocusRequester ?: remember { FocusRequester() }
+    var hasFocus by remember { mutableStateOf(false) }
+    val lazyListState = rememberLazyListState()
+    
+    // For hero mode: track passed items
+    var previousFocusedIndex by remember { mutableIntStateOf(focusedIndex) }
+    var displayedPassedItem by remember {
+        mutableStateOf(if (focusedIndex > 0) items.getOrNull(focusedIndex - 1) else null)
+    }
+    var displayedPassedIndex by remember {
+        mutableIntStateOf(if (focusedIndex > 0) focusedIndex - 1 else 0)
+    }
+    
+    // Passed card animation values
+    val clipBoxWidth = HERO_ROW_LEFT_PADDING + 16.dp
+    val visibleOffset = (clipBoxWidth - HERO_POSTER_GAP) - posterCardWidth
+    val hiddenRightOffset = clipBoxWidth
+    val hiddenLeftOffset = -posterCardWidth
+    
+    val passedCardOffset = remember {
+        Animatable(if (focusedIndex > 0) visibleOffset else hiddenRightOffset, Dp.VectorConverter)
+    }
+    var wasNavigatingRight by remember { mutableStateOf(true) }
+    
+    // When becoming hero row, request focus
+    LaunchedEffect(isHeroRow) {
+        if (isHeroRow) {
+            internalHeroFocusRequester.tryRequestFocus()
+        }
+    }
+    
+    // Handle focus index changes (only when in hero mode)
+    LaunchedEffect(focusedIndex, isHeroRow) {
+        if (!isHeroRow) return@LaunchedEffect
+        if (focusedIndex == previousFocusedIndex) return@LaunchedEffect
+        
+        val navigatingRight = focusedIndex > previousFocusedIndex
+        val sameDirection = navigatingRight == wasNavigatingRight
+        previousFocusedIndex = focusedIndex
+        wasNavigatingRight = navigatingRight
+        
+        passedCardOffset.stop()
+        
+        coroutineScope {
+            // Scroll the upcoming items (LazyRow uses items.drop(1), so index is focusedIndex, not focusedIndex+1)
+            launch {
+                val droppedListLastIndex = (items.size - 2).coerceAtLeast(0)
+                val upcomingTarget = focusedIndex.coerceIn(0, droppedListLastIndex)
+                val scrollOffset = if (focusedIndex >= items.lastIndex) 10000 else 0
+                lazyListState.animateScrollToItem(upcomingTarget, scrollOffset)
+            }
+            
+            // Animate passed card
+            launch {
+                when {
+                    navigatingRight && focusedIndex > 0 -> {
+                        displayedPassedItem = items.getOrNull(focusedIndex - 1)
+                        displayedPassedIndex = focusedIndex - 1
+                        val midAnimation = passedCardOffset.value > visibleOffset + 10.dp && 
+                                          passedCardOffset.value < hiddenRightOffset - 10.dp
+                        if (sameDirection && midAnimation) {
+                            passedCardOffset.animateTo(visibleOffset, tween(200))
+                        } else {
+                            passedCardOffset.snapTo(hiddenRightOffset)
+                            passedCardOffset.animateTo(visibleOffset, tween(300))
+                        }
+                    }
+                    !navigatingRight && focusedIndex == 0 -> {
+                        passedCardOffset.animateTo(hiddenRightOffset, tween(300))
+                        displayedPassedItem = null
+                    }
+                    !navigatingRight && focusedIndex > 0 -> {
+                        val midAnimation = passedCardOffset.value > visibleOffset + 10.dp && 
+                                          passedCardOffset.value < hiddenRightOffset - 10.dp
+                        if (sameDirection && midAnimation) {
+                            passedCardOffset.animateTo(hiddenRightOffset, tween(100))
+                        } else {
+                            passedCardOffset.animateTo(hiddenRightOffset, tween(150))
+                        }
+                        displayedPassedItem = items.getOrNull(focusedIndex - 1)
+                        displayedPassedIndex = focusedIndex - 1
+                        passedCardOffset.snapTo(hiddenLeftOffset)
+                        passedCardOffset.animateTo(visibleOffset, tween(150))
+                    }
+                }
+            }
+        }
+    }
+    
+    // Initial scroll position (LazyRow uses items.drop(1), so index is focusedIndex, not focusedIndex+1)
+    LaunchedEffect(Unit) {
+        if (isHeroRow && items.isNotEmpty()) {
+            val droppedListLastIndex = (items.size - 2).coerceAtLeast(0)
+            val target = focusedIndex.coerceIn(0, droppedListLastIndex)
+            val offset = if (focusedIndex >= items.lastIndex) 10000 else 0
+            lazyListState.scrollToItem(target, offset)
+        }
+    }
+    
+    Column(
+        modifier = modifier
+            .focusGroup()
+            .focusProperties {
+                onEnter = { internalHeroFocusRequester }
+            },
+    ) {
+        // Row title
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
+            modifier = Modifier.padding(start = HERO_ROW_LEFT_PADDING, bottom = 8.dp),
+        )
+        
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // Passed item - shown when focusedIndex > 0
+            // In hero mode: uses animated offset
+            // In non-hero mode: uses static visible position
+            val showPassedCard = if (isHeroRow) displayedPassedItem != null else focusedIndex > 0
+            val passedItem = if (isHeroRow) displayedPassedItem else items.getOrNull(focusedIndex - 1)
+            val passedIndex = if (isHeroRow) displayedPassedIndex else focusedIndex - 1
+            val passedOffset = if (isHeroRow) passedCardOffset.value else visibleOffset
+            
+            if (showPassedCard && passedItem != null) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = (-16).dp)
+                        .width(clipBoxWidth)
+                        .height(HERO_CARD_HEIGHT)
+                        .clipToBounds(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .wrapContentSize(unbounded = true, align = Alignment.TopStart)
+                            .offset(x = passedOffset)
+                            .clip(RoundedCornerShape(HERO_ROW_CARD_CORNER_RADIUS))
+                            .graphicsLayer { alpha = PASSED_ITEMS_ALPHA },
+                    ) {
+                        heroCardContent.invoke(
+                            passedIndex,
+                            passedItem,
+                            Modifier.focusProperties { canFocus = false },
+                        )
+                    }
+                }
+            }
+            
+            // Main row content
+            Row(
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier.fillMaxWidth().zIndex(1f),
+            ) {
+                Spacer(modifier = Modifier.width(HERO_ROW_LEFT_PADDING))
+                
+                // First card (hero/expanded card)
+                Column(modifier = Modifier.width(firstCardWidth)) {
+                    Card(
+                        onClick = {
+                            val item = items.getOrNull(focusedIndex)
+                            if (item != null) onClickItem.invoke(focusedIndex, item)
+                        },
+                        onLongClick = {
+                            val item = items.getOrNull(focusedIndex)
+                            if (item != null) onLongClickItem.invoke(focusedIndex, item)
+                        },
+                        colors = CardDefaults.colors(
+                            containerColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                        ),
+                        scale = CardDefaults.scale(focusedScale = 1f, pressedScale = 1f),
+                        modifier = Modifier
+                            .height(HERO_CARD_HEIGHT)
+                            .fillMaxWidth()
+                            .focusRequester(internalHeroFocusRequester)
+                            .onFocusChanged { focusState ->
+                                hasFocus = focusState.isFocused
+                            }
+                            .onPreviewKeyEvent { event ->
+                                if (!isHeroRow) return@onPreviewKeyEvent false
+                                when (event.key) {
+                                    Key.DirectionRight -> {
+                                        if (event.type == KeyEventType.KeyUp && focusedIndex < items.lastIndex) {
+                                            onFocusedIndexChange(focusedIndex + 1)
+                                        }
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    Key.DirectionLeft -> {
+                                        if (event.type == KeyEventType.KeyUp && focusedIndex > 0) {
+                                            onFocusedIndexChange(focusedIndex - 1)
+                                        }
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    Key.DirectionUp -> {
+                                        if (onNavigateUp != null) {
+                                            if (event.type == KeyEventType.KeyUp) onNavigateUp.invoke()
+                                            return@onPreviewKeyEvent true
+                                        }
+                                        return@onPreviewKeyEvent false
+                                    }
+                                    Key.DirectionDown -> {
+                                        if (onNavigateDown != null) {
+                                            if (event.type == KeyEventType.KeyUp) onNavigateDown.invoke()
+                                            return@onPreviewKeyEvent true
+                                        }
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    Key.MediaPlay, Key.MediaPlayPause -> {
+                                        if (event.type == KeyEventType.KeyUp) {
+                                            val item = items.getOrNull(focusedIndex)
+                                            if (item != null && onPlayItem != null) {
+                                                onPlayItem.invoke(focusedIndex, item)
+                                                return@onPreviewKeyEvent true
+                                            }
+                                        }
+                                    }
+                                }
+                                false
+                            },
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            // Poster content (visible when not hero or transitioning)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer { alpha = 1f - heroContentAlpha },
+                            ) {
+                                heroCardContent.invoke(
+                                    focusedIndex,
+                                    items.getOrNull(focusedIndex),
+                                    Modifier.fillMaxSize(),
+                                )
+                            }
+                            // Hero backdrop content (visible when hero)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer { alpha = heroContentAlpha },
+                            ) {
+                                HeroCardContent(
+                                    item = heroItem,
+                                    hasFocus = hasFocus && isHeroRow,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        }
+                    }
+                    // Hero info (animated visibility)
+                    if (heroInfoAlpha > 0f) {
+                        Spacer(modifier = Modifier.height(HERO_INFO_TOP_SPACING))
+                        Box(modifier = Modifier.graphicsLayer { alpha = heroInfoAlpha }) {
+                            HeroInfo(item = heroItem)
+                        }
+                    }
+                }
+                
+                // Gap between first card and rest
+                Spacer(modifier = Modifier.width(HERO_POSTER_GAP))
+                
+                // Other cards in a LazyRow
+                LazyRow(
+                    state = lazyListState,
+                    horizontalArrangement = Arrangement.spacedBy(HERO_POSTER_GAP),
+                    contentPadding = PaddingValues(
+                        start = 0.dp,
+                        end = HERO_CARD_WIDTH * 2,
+                        top = 0.dp,
+                        bottom = 0.dp,
+                    ),
+                    userScrollEnabled = !isHeroRow,
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusGroup(),
+                ) {
+                    // Start from index 1 since item 0 is shown as the first/hero card
+                    itemsIndexed(items.drop(1)) { index, item ->
+                        val actualIndex = index + 1
+                        if (isHeroRow) {
+                            // Hero mode: non-focusable preview cards
+                            heroCardContent.invoke(
+                                actualIndex,
+                                item,
+                                Modifier.focusProperties { canFocus = false },
+                            )
+                        } else {
+                            // Non-hero mode: focusable cards with click handlers
+                            posterCardContent.invoke(
+                                actualIndex,
+                                item,
+                                Modifier,
+                                { if (item != null) onClickItem.invoke(actualIndex, item) },
+                                { if (item != null) onLongClickItem.invoke(actualIndex, item) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Bottom spacing (matches hero row spacing when in hero mode)
+        val bottomSpacing by animateDpAsState(
+            targetValue = if (isHeroRow) HERO_ROW_BOTTOM_SPACING else 8.dp,
+            animationSpec = tween(animationDuration),
+            label = "bottomSpacing",
+        )
+        Spacer(modifier = Modifier.height(bottomSpacing))
     }
 }
 

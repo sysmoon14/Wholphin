@@ -39,11 +39,13 @@ import coil3.request.transitionFactory
 import com.github.sysmoon.wholphin.data.model.JellyfinServer
 import com.github.sysmoon.wholphin.data.model.JellyfinUser
 import com.github.sysmoon.wholphin.preferences.BackdropStyle
+import org.jellyfin.sdk.model.api.BaseItemKind
 import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.services.BackdropService
 import com.github.sysmoon.wholphin.services.NavigationManager
 import com.github.sysmoon.wholphin.ui.CrossFadeFactory
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
+import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
 import com.github.sysmoon.wholphin.ui.launchIO
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -52,6 +54,8 @@ import kotlin.time.Duration.Companion.milliseconds
 // Top scrim configuration for text readability (clock, season tabs)
 private const val TOP_SCRIM_ALPHA = 0.55f
 private const val TOP_SCRIM_END_FRACTION = 0.25f // Fraction of backdrop image height
+// Backdrop image dimming and scrim for content readability (Netflix-style)
+private const val BACKDROP_IMAGE_ALPHA = 0.5f
 
 @HiltViewModel
 class ApplicationContentViewModel
@@ -91,10 +95,65 @@ fun ApplicationContent(
     navigationManager.backStack = backStack
     val backdrop by viewModel.backdropService.backdropFlow.collectAsStateWithLifecycle()
     val backdropStyle = preferences.appPreferences.interfacePreferences.backdropStyle
+    val currentDestination = backStack.lastOrNull() as? Destination
+    val showBackdropImage =
+        when (currentDestination) {
+            is Destination.MediaItem ->
+                currentDestination.type in setOf(
+                    BaseItemKind.MOVIE,
+                    BaseItemKind.SERIES,
+                    BaseItemKind.EPISODE,
+                )
+            is Destination.SeriesOverview -> true
+            else -> false
+        }
     Box(
         modifier = modifier,
     ) {
         val baseBackgroundColor = MaterialTheme.colorScheme.background
+        // Full-screen backdrop image only on detail pages (movie/series/episode/season list), not home
+        if (showBackdropImage &&
+            backdrop.imageUrl.isNotNullOrBlank() &&
+            backdropStyle != BackdropStyle.BACKDROP_NONE
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                AsyncImage(
+                    model =
+                        ImageRequest
+                            .Builder(LocalContext.current)
+                            .data(backdrop.imageUrl)
+                            .transitionFactory(CrossFadeFactory(400.milliseconds))
+                            .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .alpha(BACKDROP_IMAGE_ALPHA),
+                )
+                // Scrim for text readability: gradient from transparent to dark bottom
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .drawBehind {
+                                drawRect(
+                                    brush =
+                                        Brush.verticalGradient(
+                                            colors =
+                                                listOf(
+                                                    Color.Transparent,
+                                                    Color.Black.copy(alpha = 0.4f),
+                                                    Color.Black.copy(alpha = 0.75f),
+                                                ),
+                                            startY = 0f,
+                                            endY = size.height,
+                                        ),
+                                )
+                            },
+                )
+            }
+        }
         if (backdrop.hasColors &&
             (backdropStyle == BackdropStyle.BACKDROP_DYNAMIC_COLOR || backdropStyle == BackdropStyle.UNRECOGNIZED)
         ) {
@@ -117,6 +176,13 @@ fun ApplicationContent(
                 modifier =
                     Modifier
                         .fillMaxSize()
+                        .then(
+                            if (showBackdropImage && backdrop.imageUrl.isNotNullOrBlank()) {
+                                Modifier.alpha(0.75f)
+                            } else {
+                                Modifier
+                            },
+                        )
                         .drawBehind {
                             drawRect(color = baseBackgroundColor)
                             // Top Left (Vibrant/Muted)

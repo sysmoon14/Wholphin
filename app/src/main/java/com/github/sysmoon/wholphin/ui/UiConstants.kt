@@ -43,6 +43,10 @@ object AppColors {
 
 const val DEFAULT_PAGE_SIZE = 100
 
+/** Normalized logo dimensions for item headers and playback overlay so logos don't vary wildly in size. */
+val ItemLogoWidth = 200.dp
+val ItemLogoHeight = 56.dp
+
 /**
  * The default [ItemFields] to fetch for most queries
  */

@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -62,6 +63,8 @@ import com.github.sysmoon.wholphin.data.model.Playlist
 import com.github.sysmoon.wholphin.data.model.aspectRatioFloat
 import com.github.sysmoon.wholphin.ui.AppColors
 import com.github.sysmoon.wholphin.ui.AspectRatios
+import com.github.sysmoon.wholphin.ui.ItemLogoHeight
+import com.github.sysmoon.wholphin.ui.ItemLogoWidth
 import com.github.sysmoon.wholphin.ui.LocalImageUrlService
 import com.github.sysmoon.wholphin.ui.TimeFormatter
 import com.github.sysmoon.wholphin.ui.cards.ChapterCard
@@ -124,7 +127,7 @@ fun PlaybackOverlay(
     val density = LocalDensity.current
 
     val logoImageUrl = LocalImageUrlService.current.rememberImageUrl(item, ImageType.LOGO)
-    val logoSectionHeight = 128.dp
+    val logoSectionHeight = ItemLogoHeight + 8.dp
     val titleHeight =
         remember {
             if (item?.title.isNotNullOrBlank()) with(density) { titleTextSize.toDp() } else 0.dp
@@ -567,8 +570,8 @@ fun Controller(
                 AsyncImage(
                     model = logoImageUrl,
                     contentDescription = null,
-                    modifier = Modifier
-                        .size(width = 240.dp, height = 80.dp),
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(width = ItemLogoWidth, height = ItemLogoHeight),
                 )
             }
             Row(

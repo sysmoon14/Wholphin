@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -33,9 +35,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import coil3.compose.AsyncImage
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -76,6 +81,10 @@ import com.github.sysmoon.wholphin.ui.detail.buildMoreDialogItemsForHome
 import com.github.sysmoon.wholphin.ui.detail.buildMoreDialogItemsForPerson
 import com.github.sysmoon.wholphin.ui.discover.DiscoverRow
 import com.github.sysmoon.wholphin.ui.discover.DiscoverRowData
+import com.github.sysmoon.wholphin.ui.ItemLogoHeight
+import com.github.sysmoon.wholphin.ui.ItemLogoWidth
+import com.github.sysmoon.wholphin.ui.LocalImageUrlService
+import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
 import com.github.sysmoon.wholphin.ui.letNotEmpty
 import com.github.sysmoon.wholphin.ui.nav.Destination
 import com.github.sysmoon.wholphin.ui.rememberInt
@@ -84,6 +93,7 @@ import com.github.sysmoon.wholphin.util.ExceptionHandler
 import com.github.sysmoon.wholphin.util.LoadingState
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.MediaType
 import java.util.UUID
 import kotlin.time.Duration
@@ -612,17 +622,35 @@ fun SeriesDetailsHeader(
 ) {
     val scope = rememberCoroutineScope()
     val dto = series.data
+    val imageUrlService = LocalImageUrlService.current
+    val logoUrl = imageUrlService.rememberImageUrl(series, ImageType.LOGO)
+    var logoError by remember(series) { mutableStateOf(false) }
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier,
     ) {
-        Text(
-            text = series.name ?: stringResource(R.string.unknown),
-            style = MaterialTheme.typography.displaySmall,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth(.75f),
-        )
+        if (logoUrl.isNotNullOrBlank() && !logoError) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                AsyncImage(
+                    model = logoUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    onError = { logoError = true },
+                    modifier = Modifier.size(width = ItemLogoWidth, height = ItemLogoHeight),
+                )
+            }
+        } else {
+            Text(
+                text = series.name ?: stringResource(R.string.unknown),
+                style = MaterialTheme.typography.displaySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(.75f),
+            )
+        }
         Column(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.fillMaxWidth(.60f),

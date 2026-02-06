@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,8 +33,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
@@ -48,7 +51,11 @@ import com.github.sysmoon.wholphin.data.ChosenStreams
 import com.github.sysmoon.wholphin.data.model.BaseItem
 import com.github.sysmoon.wholphin.data.model.Person
 import com.github.sysmoon.wholphin.preferences.UserPreferences
+import coil3.compose.AsyncImage
 import com.github.sysmoon.wholphin.ui.AspectRatios
+import com.github.sysmoon.wholphin.ui.ItemLogoHeight
+import com.github.sysmoon.wholphin.ui.ItemLogoWidth
+import com.github.sysmoon.wholphin.ui.LocalImageUrlService
 import com.github.sysmoon.wholphin.ui.cards.BannerCard
 import com.github.sysmoon.wholphin.ui.cards.PersonRow
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
@@ -63,6 +70,8 @@ import com.github.sysmoon.wholphin.ui.rememberInt
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.ui.util.rememberDelayedNestedScroll
 import kotlinx.coroutines.launch
+import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
+import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.PersonKind
 import kotlin.time.Duration
 
@@ -162,7 +171,27 @@ fun SeriesOverviewContent(
                             .padding(paddingValues)
                             .fillMaxWidth(),
                 )
-                SeriesName(series.name, Modifier)
+                run {
+                    val imageUrlService = LocalImageUrlService.current
+                    val logoUrl = imageUrlService.rememberImageUrl(series, ImageType.LOGO)
+                    var logoError by remember(series) { mutableStateOf(false) }
+                    if (logoUrl.isNotNullOrBlank() && !logoError) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            AsyncImage(
+                                model = logoUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                onError = { logoError = true },
+                                modifier = Modifier.size(width = ItemLogoWidth, height = ItemLogoHeight),
+                            )
+                        }
+                    } else {
+                        SeriesName(series.name, Modifier)
+                    }
+                }
                 FocusedEpisodeHeader(
                     preferences = preferences,
                     ep = focusedEpisode,

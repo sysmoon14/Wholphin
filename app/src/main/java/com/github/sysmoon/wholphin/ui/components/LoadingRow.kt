@@ -33,7 +33,8 @@ fun LoadingRow(
     onClickPosition: (RowColumn) -> Unit,
     modifier: Modifier = Modifier,
     showIfEmpty: Boolean = true,
-    horizontalPadding: Dp = 16.dp,
+    startPadding: Dp = 16.dp,
+    cardSpacing: Dp = 16.dp,
     cardContent: @Composable (
         index: Int,
         item: BaseItem?,
@@ -87,7 +88,8 @@ fun LoadingRow(
                     onLongClickItem = { _, _ -> },
                     modifier = modifier,
                     cardContent = cardContent,
-                    horizontalPadding = horizontalPadding,
+                    startPadding = startPadding,
+                    cardSpacing = cardSpacing,
                 )
             } else if (showIfEmpty) {
                 LoadingRowPlaceholder(

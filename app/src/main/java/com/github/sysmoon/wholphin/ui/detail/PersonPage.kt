@@ -360,7 +360,8 @@ fun PersonPageContent(
                 onClickItem = onClickItem,
                 onClickPosition = { position = it },
                 showIfEmpty = false,
-                horizontalPadding = 24.dp,
+                startPadding = 24.dp,
+                cardSpacing = 24.dp,
                 modifier = Modifier.fillMaxWidth(),
                 cardContent = { index, item, mod, onClick, onLongClick ->
                     SeasonCard(

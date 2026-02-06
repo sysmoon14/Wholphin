@@ -354,6 +354,7 @@ fun UserIconCardImage(
     imageUrl: String?,
     modifier: Modifier = Modifier,
     alpha: Float = 1f,
+    shape: androidx.compose.ui.graphics.Shape = CircleShape,
 ) {
     var imageError by remember { mutableStateOf(false) }
     val userColor = rememberIdColor(id, alpha)
@@ -361,7 +362,7 @@ fun UserIconCardImage(
         modifier =
             modifier.background(
                 color = userColor,
-                shape = CircleShape,
+                shape = shape,
             ),
         contentAlignment = Alignment.Center,
     ) {
@@ -374,7 +375,7 @@ fun UserIconCardImage(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .clip(CircleShape),
+                        .clip(shape),
             )
         } else {
             val firstLetter =

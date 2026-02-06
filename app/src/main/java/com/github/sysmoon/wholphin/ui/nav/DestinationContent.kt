@@ -48,6 +48,7 @@ fun DestinationContent(
     preferences: UserPreferences,
     onClearBackdrop: () -> Unit,
     modifier: Modifier = Modifier,
+    homeTopRowFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
 ) {
     if (destination.fullScreen) {
         LaunchedEffect(Unit) { onClearBackdrop.invoke() }
@@ -57,6 +58,7 @@ fun DestinationContent(
             HomePage(
                 preferences = preferences,
                 modifier = modifier,
+                topRowFocusRequester = homeTopRowFocusRequester,
             )
         }
 

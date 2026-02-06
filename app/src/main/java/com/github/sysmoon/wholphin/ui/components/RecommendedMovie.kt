@@ -222,6 +222,10 @@ fun RecommendedMovie(
     parentId: UUID,
     onFocusPosition: (RowColumn) -> Unit,
     modifier: Modifier = Modifier,
+    resetPositionOnEnter: Boolean = false,
+    topRowFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    consumeDownToTopRow: Boolean = false,
+    dropEmptyRows: Boolean = false,
     viewModel: RecommendedMovieViewModel =
         hiltViewModel<RecommendedMovieViewModel, RecommendedMovieViewModel.Factory>(
             creationCallback = { it.create(parentId) },
@@ -232,5 +236,9 @@ fun RecommendedMovie(
         viewModel = viewModel,
         onFocusPosition = onFocusPosition,
         modifier = modifier,
+        resetPositionOnEnter = resetPositionOnEnter,
+        topRowFocusRequester = topRowFocusRequester,
+        consumeDownToTopRow = consumeDownToTopRow,
+        dropEmptyRows = dropEmptyRows,
     )
 }

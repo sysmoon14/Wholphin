@@ -3,16 +3,29 @@ package com.github.sysmoon.wholphin.ui.components
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -32,6 +45,7 @@ import com.github.sysmoon.wholphin.ui.detail.PlaylistLoadingState
 import com.github.sysmoon.wholphin.ui.detail.buildMoreDialogItemsForHome
 import com.github.sysmoon.wholphin.ui.launchIO
 import com.github.sysmoon.wholphin.ui.main.HomePageContent
+import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.ui.nav.Destination
 import com.github.sysmoon.wholphin.util.ApiRequestPager
 import com.github.sysmoon.wholphin.util.HomeRowLoadingState
@@ -123,6 +137,10 @@ fun RecommendedContent(
     modifier: Modifier = Modifier,
     playlistViewModel: AddPlaylistViewModel = hiltViewModel(),
     onFocusPosition: ((RowColumn) -> Unit)? = null,
+    resetPositionOnEnter: Boolean = false,
+    topRowFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    consumeDownToTopRow: Boolean = false,
+    dropEmptyRows: Boolean = false,
 ) {
     val context = LocalContext.current
     var moreDialog by remember { mutableStateOf<Optional<RowColumnItem>>(Optional.absent()) }
@@ -134,6 +152,20 @@ fun RecommendedContent(
     }
     val loading by viewModel.loading.observeAsState(LoadingState.Loading)
     val rows by viewModel.rows.collectAsState()
+    val effectiveRows =
+        if (dropEmptyRows) {
+            rows.filterNot { row ->
+                row is HomeRowLoadingState.Success && row.items.isEmpty()
+            }
+        } else {
+            rows
+        }
+    val resetKey = rememberSaveable { mutableStateOf(0) }
+    LaunchedEffect(resetPositionOnEnter) {
+        if (resetPositionOnEnter) {
+            resetKey.value += 1
+        }
+    }
 
     when (val state = loading) {
         is LoadingState.Error -> {
@@ -147,22 +179,70 @@ fun RecommendedContent(
         }
 
         LoadingState.Success -> {
-            HomePageContent(
-                homeRows = rows,
-                onClickItem = { _, item ->
-                    viewModel.navigationManager.navigateTo(item.destination())
-                },
-                onLongClickItem = { position, item ->
-                    moreDialog.makePresent(RowColumnItem(position, item))
-                },
-                onClickPlay = { _, item ->
-                    viewModel.navigationManager.navigateTo(Destination.Playback(item))
-                },
-                onFocusPosition = onFocusPosition,
-                showClock = preferences.appPreferences.interfacePreferences.showClock,
-                onUpdateBackdrop = viewModel::updateBackdrop,
-                modifier = modifier,
-            )
+            val focusEntryModifier =
+                if (topRowFocusRequester != null) {
+                    Modifier
+                        .focusGroup()
+                        .focusProperties { onEnter = { topRowFocusRequester } }
+                } else {
+                    Modifier
+                }
+            var consumeNextDown by remember { mutableStateOf(true) }
+            val focusGateModifier =
+                if (consumeDownToTopRow && topRowFocusRequester != null) {
+                    Modifier.onFocusChanged { focusState ->
+                        if (focusState.hasFocus) {
+                            consumeNextDown = true
+                        }
+                    }
+                } else {
+                    Modifier
+                }
+            val downKeyModifier =
+                if (consumeDownToTopRow && topRowFocusRequester != null) {
+                    Modifier.onPreviewKeyEvent { event ->
+                        if (event.key == Key.DirectionDown) {
+                            if (consumeNextDown) {
+                                if (event.type == KeyEventType.KeyUp) {
+                                    topRowFocusRequester.tryRequestFocus("recommended_down_to_top_row")
+                                }
+                                consumeNextDown = false
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                } else {
+                    Modifier
+                }
+            key(resetKey.value) {
+                HomePageContent(
+                    homeRows = effectiveRows,
+                    onClickItem = { _, item ->
+                        viewModel.navigationManager.navigateTo(item.destination())
+                    },
+                    onLongClickItem = { position, item ->
+                        moreDialog.makePresent(RowColumnItem(position, item))
+                    },
+                    onClickPlay = { _, item ->
+                        viewModel.navigationManager.navigateTo(Destination.Playback(item))
+                    },
+                    onFocusPosition = onFocusPosition,
+                    showClock = preferences.appPreferences.interfacePreferences.showClock,
+                    onUpdateBackdrop = viewModel::updateBackdrop,
+                    modifier =
+                        modifier
+                            .then(focusEntryModifier)
+                            .then(focusGateModifier)
+                            .then(downKeyModifier)
+                            .fillMaxSize(),
+                    resetPositionOnEnter = resetPositionOnEnter,
+                    topRowFocusRequester = topRowFocusRequester,
+                )
+            }
         }
     }
     moreDialog.compose { (position, item) ->

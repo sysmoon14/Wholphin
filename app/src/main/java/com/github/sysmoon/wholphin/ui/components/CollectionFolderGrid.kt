@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -540,6 +541,7 @@ fun CollectionFolderGrid(
     useSeriesForPrimary: Boolean = true,
     filterOptions: List<ItemFilterBy<*>> = DefaultFilterOptions,
     focusRequesterOnEmpty: FocusRequester? = null,
+    onHeaderFocusChange: ((Boolean) -> Unit)? = null,
 ) = CollectionFolderGrid(
     preferences,
     itemId.toServerString(),
@@ -557,6 +559,7 @@ fun CollectionFolderGrid(
     useSeriesForPrimary = useSeriesForPrimary,
     filterOptions = filterOptions,
     focusRequesterOnEmpty = focusRequesterOnEmpty,
+    onHeaderFocusChange = onHeaderFocusChange,
 )
 
 @Composable
@@ -577,6 +580,7 @@ fun CollectionFolderGrid(
     useSeriesForPrimary: Boolean = true,
     filterOptions: List<ItemFilterBy<*>> = DefaultFilterOptions,
     focusRequesterOnEmpty: FocusRequester? = null,
+    onHeaderFocusChange: ((Boolean) -> Unit)? = null,
     playlistViewModel: AddPlaylistViewModel = hiltViewModel(),
     viewModel: CollectionFolderViewModel =
         hiltViewModel<CollectionFolderViewModel, CollectionFolderViewModel.Factory>(
@@ -773,6 +777,7 @@ fun CollectionFolderGridContent(
     filterOptions: List<ItemFilterBy<*>> = listOf(),
     onFilterChange: (GetItemsFilter) -> Unit = {},
     focusRequesterOnEmpty: FocusRequester? = null,
+    onHeaderFocusChange: ((Boolean) -> Unit)? = null,
 ) {
     val context = LocalContext.current
 
@@ -834,7 +839,10 @@ fun CollectionFolderGridContent(
                             Modifier
                                 .padding(start = 16.dp, end = endPadding)
                                 .fillMaxWidth()
-                                .focusRequester(headerRowFocusRequester),
+                                .focusRequester(headerRowFocusRequester)
+                                .onFocusChanged { focusState ->
+                                    onHeaderFocusChange?.invoke(focusState.hasFocus)
+                                },
                     ) {
                         if (sortOptions.isNotEmpty() || filterOptions.isNotEmpty()) {
                             Row(

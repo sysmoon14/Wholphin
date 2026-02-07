@@ -13,6 +13,7 @@ import com.github.sysmoon.wholphin.ui.components.LicenseInfo
 import com.github.sysmoon.wholphin.ui.data.MovieSortOptions
 import com.github.sysmoon.wholphin.ui.detail.CollectionFolderBoxSet
 import com.github.sysmoon.wholphin.ui.detail.CollectionFolderGeneric
+import com.github.sysmoon.wholphin.ui.detail.castcrew.CastAndCrewPage
 import com.github.sysmoon.wholphin.ui.detail.CollectionFolderLiveTv
 import com.github.sysmoon.wholphin.ui.detail.CollectionFolderMovie
 import com.github.sysmoon.wholphin.ui.detail.CollectionFolderPlaylist
@@ -197,6 +198,14 @@ fun DestinationContent(
                     Text("Unsupported item type: ${destination.type}")
                 }
             }
+        }
+
+        is Destination.CastAndCrew -> {
+            LaunchedEffect(Unit) { onClearBackdrop.invoke() }
+            CastAndCrewPage(
+                destination = destination,
+                modifier = modifier,
+            )
         }
 
         is Destination.FilteredCollection -> {

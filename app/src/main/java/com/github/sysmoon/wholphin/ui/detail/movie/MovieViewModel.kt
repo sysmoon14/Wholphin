@@ -26,6 +26,7 @@ import com.github.sysmoon.wholphin.services.ThemeSongPlayer
 import com.github.sysmoon.wholphin.services.TrailerService
 import com.github.sysmoon.wholphin.services.UserPreferencesService
 import com.github.sysmoon.wholphin.ui.SlimItemFields
+import com.github.sysmoon.wholphin.ui.detail.CollectionRow
 import com.github.sysmoon.wholphin.ui.launchIO
 import com.github.sysmoon.wholphin.ui.letNotEmpty
 import com.github.sysmoon.wholphin.ui.nav.Destination
@@ -47,10 +48,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaStreamType
+import org.jellyfin.sdk.model.api.request.GetItemsRequest
 import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
+import timber.log.Timber
 import java.util.UUID
 
 @HiltViewModel(assistedFactory = MovieViewModel.Factory::class)
@@ -87,6 +92,7 @@ class MovieViewModel
         val similar = MutableLiveData<List<BaseItem>>()
         val chosenStreams = MutableLiveData<ChosenStreams?>(null)
         val discovered = MutableStateFlow<List<DiscoverItem>>(listOf())
+        val collections = MutableLiveData<List<CollectionRow>>(listOf())
 
         init {
             init()
@@ -117,6 +123,20 @@ class MovieViewModel
                     ),
             ) {
                 val item = fetchAndSetItem().await()
+                viewModelScope.launchIO {
+                    val similar =
+                        api.libraryApi
+                            .getSimilarItems(
+                                GetSimilarItemsRequest(
+                                    userId = serverRepository.currentUser.value?.id,
+                                    itemId = itemId,
+                                    fields = SlimItemFields,
+                                    limit = 25,
+                                ),
+                            ).content.items
+                            .map { BaseItem.Companion.from(it, api) }
+                    this@MovieViewModel.similar.setValueOnMain(similar)
+                }
                 val result =
                     itemPlaybackRepository.getSelectedTracks(
                         item.id,
@@ -154,21 +174,103 @@ class MovieViewModel
                 withContext(Dispatchers.Main) {
                     chapters.value = Chapter.fromDto(item.data, api)
                 }
-                if (!similar.isInitialized) {
-                    val similar =
-                        api.libraryApi
-                            .getSimilarItems(
-                                GetSimilarItemsRequest(
-                                    userId = serverRepository.currentUser.value?.id,
-                                    itemId = itemId,
+                loadParentCollection(item)
+            }
+
+        private fun loadParentCollection(item: BaseItem) {
+            viewModelScope.launch(ExceptionHandler() + Dispatchers.IO) {
+                val userId = serverRepository.currentUser.value?.id ?: return@launch
+                try {
+                    // 1) Try parentId when item is directly under a Box Set
+                    val parentId = item.data.parentId
+                    if (parentId != null) {
+                        val parentDto = api.userLibraryApi.getItem(parentId).content
+                        if (parentDto.type == BaseItemKind.BOX_SET) {
+                            val request =
+                                GetItemsRequest(
+                                    userId = userId,
+                                    parentId = parentId,
+                                    excludeItemIds = listOf(item.id),
                                     fields = SlimItemFields,
-                                    limit = 25,
-                                ),
-                            ).content.items
-                            .map { BaseItem.Companion.from(it, api) }
-                    this@MovieViewModel.similar.setValueOnMain(similar)
+                                    recursive = true,
+                                    enableUserData = true,
+                                    startIndex = 0,
+                                    limit = 20,
+                                )
+                            val items =
+                                api.itemsApi.getItems(request).content.items.mapNotNull { dto ->
+                                    try {
+                                        BaseItem.from(dto, api, true)
+                                    } catch (e: Exception) {
+                                        Timber.w(e, "Failed to parse collection item")
+                                        null
+                                    }
+                                }
+                                    .filter { it.type == BaseItemKind.MOVIE || it.type == BaseItemKind.SERIES }
+                            if (items.isNotEmpty()) {
+                                val name = parentDto.name ?: context.getString(com.github.sysmoon.wholphin.R.string.collection)
+                                this@MovieViewModel.collections.setValueOnMain(
+                                    listOf(CollectionRow(name, items)),
+                                )
+                                return@launch
+                            }
+                        }
+                    }
+                    // 2) Fallback: find Box Sets that contain this item (e.g. when parentId is not set)
+                    val boxSetsRequest =
+                        GetItemsRequest(
+                            userId = userId,
+                            parentId = null,
+                            includeItemTypes = listOf(BaseItemKind.BOX_SET),
+                            fields = SlimItemFields,
+                            recursive = true,
+                            enableUserData = false,
+                            startIndex = 0,
+                            limit = 40,
+                        )
+                    val boxSetDtos = api.itemsApi.getItems(boxSetsRequest).content.items
+                    val collectionRows = mutableListOf<CollectionRow>()
+                    for (boxSetDto in boxSetDtos) {
+                        val boxSetId = boxSetDto.id
+                        val childRequest =
+                            GetItemsRequest(
+                                userId = userId,
+                                parentId = boxSetId,
+                                fields = SlimItemFields,
+                                recursive = true,
+                                enableUserData = true,
+                                startIndex = 0,
+                                limit = 100,
+                            )
+                        val children = api.itemsApi.getItems(childRequest).content.items
+                        val containsItem = children.any { it.id == item.id }
+                        if (containsItem) {
+                            val siblings =
+                                children
+                                    .filter { it.id != item.id }
+                                    .mapNotNull { dto ->
+                                        try {
+                                            BaseItem.from(dto, api, true)
+                                        } catch (e: Exception) {
+                                            Timber.w(e, "Failed to parse collection item")
+                                            null
+                                        }
+                                    }
+                                    .filter { it.type == BaseItemKind.MOVIE || it.type == BaseItemKind.SERIES }
+                            if (siblings.isNotEmpty()) {
+                                val name = boxSetDto.name ?: context.getString(com.github.sysmoon.wholphin.R.string.collection)
+                                collectionRows.add(CollectionRow(name, siblings))
+                            }
+                        }
+                    }
+                    if (collectionRows.isNotEmpty()) {
+                        this@MovieViewModel.collections.setValueOnMain(collectionRows)
+                    }
+                } catch (e: Exception) {
+                    Timber.d(e, "Could not load parent collection for item ${item.id}")
                 }
             }
+        }
 
         fun setWatched(
             itemId: UUID,

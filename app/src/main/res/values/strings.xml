@@ -29,6 +29,9 @@
     <string name="default_track">Default</string>
     <string name="delete">Delete</string>
     <string name="died">Died</string>
+    <string name="cast_info">Cast Info</string>
+    <string name="cast_label">Cast: %1$s</string>
+    <string name="choose_subtitles">Choose Subtitles</string>
     <string name="directed_by">Directed by %1$s</string>
     <string name="director">Director</string>
     <string name="disabled">Disabled</string>
@@ -64,6 +67,8 @@
     <string name="mark_unwatched">Mark as unwatched</string>
     <string name="mark_watched">Mark as watched</string>
     <string name="max_bitrate">Max bitrate</string>
+    <string name="more_from_collection">More from %1$s</string>
+    <string name="more_episodes">More Episodes</string>
     <string name="more_like_this">More like this</string>
     <string name="more">More</string>
     <string name="movies">Movies</string>
@@ -82,6 +87,8 @@
     <string name="play_count">Play Count</string>
     <string name="play_from_here">Play from here</string>
     <string name="play">Play</string>
+    <string name="play_season_episode">Play Season %1$d Episode %2$d</string>
+    <string name="resume_season_episode">Resume Season %1$d Episode %2$d</string>
     <string name="playback_debug_info">Show playback debug info</string>
     <string name="playback_speed">Playback Speed</string>
     <string name="playback">Playback</string>
@@ -161,6 +168,9 @@
     <string name="unknown">Unknown</string>
     <string name="updates">Updates</string>
     <string name="version">Version</string>
+    <string name="seasons_count_format">%d seasons</string>
+    <string name="episode_count_format">%d Episodes</string>
+    <string name="written_by">Writer(s): %1$s</string>
     <string name="video_scale">Video Scale</string>
     <string name="video">Video</string>
     <string name="videos">Videos</string>
@@ -394,6 +404,7 @@
     <string name="show_details">Show details</string>
     <string name="image_type">Image type</string>
     <string name="cast_and_crew"><![CDATA[Cast & Crew]]></string>
+    <string name="no_cast_and_crew">No cast and crew</string>
     <string name="guest_stars">Guest stars</string>
     <string name="edge_size">Edge size</string>
     <string name="refresh_rate_switching">Refresh rate switching</string>

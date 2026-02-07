@@ -129,23 +129,6 @@ fun DiscoverMovieDetailsHeader(
                         },
                 )
             }
-
-            val directorName =
-                remember(movie.credits?.crew) {
-                    movie.credits
-                        ?.crew
-                        ?.filter { it.job == "Directing" }
-                        ?.joinToString(", ") { it.name!! }
-                }
-
-            directorName
-                ?.let {
-                    Text(
-                        text = stringResource(R.string.directed_by, it),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
         }
     }
 }

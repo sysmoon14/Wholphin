@@ -1,5 +1,6 @@
 package com.github.sysmoon.wholphin.ui.detail.movie
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
@@ -22,6 +24,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -42,15 +50,13 @@ import com.github.sysmoon.wholphin.services.TrailerService
 import com.github.sysmoon.wholphin.ui.AspectRatios
 import com.github.sysmoon.wholphin.ui.Cards
 import com.github.sysmoon.wholphin.ui.RequestOrRestoreFocus
-import com.github.sysmoon.wholphin.ui.cards.ChapterRow
 import com.github.sysmoon.wholphin.ui.cards.ExtrasRow
 import com.github.sysmoon.wholphin.ui.cards.ItemRow
-import com.github.sysmoon.wholphin.ui.cards.PersonRow
 import com.github.sysmoon.wholphin.ui.cards.SeasonCard
 import com.github.sysmoon.wholphin.ui.components.DialogParams
 import com.github.sysmoon.wholphin.ui.components.DialogPopup
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
-import com.github.sysmoon.wholphin.ui.components.ExpandablePlayButtons
+import com.github.sysmoon.wholphin.ui.detail.DetailActionButtons
 import com.github.sysmoon.wholphin.ui.components.LoadingPage
 import com.github.sysmoon.wholphin.ui.components.Optional
 import com.github.sysmoon.wholphin.ui.components.chooseStream
@@ -68,6 +74,7 @@ import com.github.sysmoon.wholphin.ui.discover.DiscoverRow
 import com.github.sysmoon.wholphin.ui.discover.DiscoverRowData
 import com.github.sysmoon.wholphin.ui.nav.Destination
 import com.github.sysmoon.wholphin.ui.rememberInt
+import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.util.DataLoadingState
 import com.github.sysmoon.wholphin.util.ExceptionHandler
 import com.github.sysmoon.wholphin.util.LoadingState
@@ -104,6 +111,7 @@ fun MovieDetails(
     val trailers by viewModel.trailers.observeAsState(listOf())
     val extras by viewModel.extras.observeAsState(listOf())
     val similar by viewModel.similar.observeAsState(listOf())
+    val collections by viewModel.collections.observeAsState(listOf())
     val loading by viewModel.loading.observeAsState(LoadingState.Loading)
     val chosenStreams by viewModel.chosenStreams.observeAsState(null)
     val discovered by viewModel.discovered.collectAsState()
@@ -178,6 +186,7 @@ fun MovieDetails(
                     extras = extras,
                     trailers = trailers,
                     similar = similar,
+                    collections = collections,
                     onClickItem = { index, item ->
                         viewModel.navigateTo(item.destination())
                     },
@@ -329,6 +338,30 @@ fun MovieDetails(
                     onClickDiscover = { index, item ->
                         viewModel.navigateTo(item.destination)
                     },
+                    onChooseSubtitlesClick = {
+                        viewModel.streamChoiceService
+                            .chooseSource(movie.data, chosenStreams?.itemPlayback)
+                            ?.let { source ->
+                                chooseVersion =
+                                    chooseStream(
+                                        context = context,
+                                        streams = source.mediaStreams.orEmpty(),
+                                        type = MediaStreamType.SUBTITLE,
+                                        currentIndex = chosenStreams?.subtitleStream?.index,
+                                        onClick = { trackIndex ->
+                                            viewModel.saveTrackSelection(
+                                                movie,
+                                                chosenStreams?.itemPlayback,
+                                                trackIndex,
+                                                MediaStreamType.SUBTITLE,
+                                            )
+                                        },
+                                    )
+                            }
+                    },
+                    onCastAndCrewClick = {
+                        viewModel.navigateTo(Destination.CastAndCrew(movie.id, BaseItemKind.MOVIE))
+                    },
                     modifier = modifier,
                 )
             }
@@ -384,12 +417,9 @@ fun MovieDetails(
 }
 
 private const val HEADER_ROW = 0
-private const val PEOPLE_ROW = HEADER_ROW + 1
-private const val TRAILER_ROW = PEOPLE_ROW + 1
-private const val CHAPTER_ROW = TRAILER_ROW + 1
-private const val EXTRAS_ROW = CHAPTER_ROW + 1
-private const val SIMILAR_ROW = EXTRAS_ROW + 1
-private const val DISCOVER_ROW = SIMILAR_ROW + 1
+private const val CONTENT_ROW = HEADER_ROW + 1
+private const val EXTRAS_ROW = CONTENT_ROW + 1
+private const val DISCOVER_ROW = EXTRAS_ROW + 1
 
 @Composable
 fun MovieDetailsContent(
@@ -401,6 +431,7 @@ fun MovieDetailsContent(
     trailers: List<Trailer>,
     extras: List<ExtrasItem>,
     similar: List<BaseItem>,
+    collections: List<com.github.sysmoon.wholphin.ui.detail.CollectionRow>,
     discovered: List<DiscoverItem>,
     playOnClick: (Duration) -> Unit,
     trailerOnClick: (Trailer) -> Unit,
@@ -414,6 +445,8 @@ fun MovieDetailsContent(
     onLongClickSimilar: (Int, BaseItem) -> Unit,
     onClickExtra: (Int, ExtrasItem) -> Unit,
     onClickDiscover: (Int, DiscoverItem) -> Unit,
+    onChooseSubtitlesClick: () -> Unit,
+    onCastAndCrewClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -426,99 +459,143 @@ fun MovieDetailsContent(
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
 
     RequestOrRestoreFocus(focusRequesters.getOrNull(position))
+    LaunchedEffect(position) {
+        if (position == HEADER_ROW) {
+            focusRequesters[HEADER_ROW].tryRequestFocus()
+        }
+    }
 
-    Box(modifier = modifier) {
+    val contentPadding = PaddingValues(horizontal = 32.dp)
+    Column(modifier = modifier.fillMaxSize()) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(contentPadding)
+                    .bringIntoViewRequester(bringIntoViewRequester),
+        ) {
+            MovieDetailsHeader(
+                preferences = preferences,
+                movie = movie,
+                chosenStreams = chosenStreams,
+                bringIntoViewRequester = bringIntoViewRequester,
+                overviewOnClick = overviewOnClick,
+                showCastAndCrew = position == HEADER_ROW,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 32.dp, bottom = 16.dp),
+            )
+            AnimatedVisibility(visible = position == HEADER_ROW) {
+            DetailActionButtons(
+                playButtonLabel = context.getString(
+                    if (resumePosition > Duration.ZERO) R.string.resume else R.string.play,
+                ),
+                resumePosition = resumePosition,
+                onPlayClick = {
+                    position = HEADER_ROW
+                    playOnClick.invoke(it)
+                },
+                onChooseSubtitlesClick = onChooseSubtitlesClick,
+                favourite = dto.userData?.isFavorite ?: false,
+                onFavouriteClick = favoriteOnClick,
+                onMoreClick = moreOnClick,
+                onPlayFocusChanged = {
+                    if (it) {
+                        position = HEADER_ROW
+                        scope.launch(ExceptionHandler()) {
+                            bringIntoViewRequester.bringIntoView()
+                        }
+                    }
+                },
+                trailers = trailers,
+                onTrailerClick = trailerOnClick,
+                showCastAndCrew = people.isNotEmpty(),
+                onCastAndCrewClick = onCastAndCrewClick,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                        .focusRequester(focusRequesters[HEADER_ROW]),
+            )
+            }
+        }
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f, fill = true),
         ) {
-            item {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .bringIntoViewRequester(bringIntoViewRequester),
-                ) {
-                    MovieDetailsHeader(
-                        preferences = preferences,
-                        movie = movie,
-                        chosenStreams = chosenStreams,
-                        bringIntoViewRequester = bringIntoViewRequester,
-                        overviewOnClick = overviewOnClick,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 32.dp, bottom = 16.dp),
-                    )
-                    ExpandablePlayButtons(
-                        resumePosition = resumePosition,
-                        watched = dto.userData?.played ?: false,
-                        favorite = dto.userData?.isFavorite ?: false,
-                        playOnClick = {
-                            position = HEADER_ROW
-                            playOnClick.invoke(it)
+            if (similar.isNotEmpty()) {
+                item(key = "more_like_this") {
+                    ItemRow(
+                        title = context.getString(R.string.more_like_this),
+                        items = similar,
+                        onClickItem = { index, item ->
+                            onClickItem.invoke(index, item)
                         },
-                        moreOnClick = moreOnClick,
-                        watchOnClick = watchOnClick,
-                        favoriteOnClick = favoriteOnClick,
-                        buttonOnFocusChanged = {
-                            if (it.isFocused) {
-                                position = HEADER_ROW
-                                scope.launch(ExceptionHandler()) {
-                                    bringIntoViewRequester.bringIntoView()
-                                }
-                            }
+                        onLongClickItem = { index, item ->
+                            onLongClickSimilar.invoke(index, item)
                         },
-                        trailers = trailers,
-                        trailerOnClick = {
-                            position = TRAILER_ROW
-                            trailerOnClick.invoke(it)
+                        onFocusInRow = { position = CONTENT_ROW },
+                        cardContent = { index, item, mod, onClick, onLongClick ->
+                            SeasonCard(
+                                item = item,
+                                onClick = onClick,
+                                onLongClick = onLongClick,
+                                modifier =
+                                    mod.onPreviewKeyEvent { event ->
+                                        if (event.key == Key.DirectionUp && event.type == KeyEventType.KeyUp) {
+                                            position = HEADER_ROW
+                                            return@onPreviewKeyEvent true
+                                        }
+                                        false
+                                    },
+                                showImageOverlay = true,
+                                imageHeight = Cards.height2x3,
+                                imageWidth = Dp.Unspecified,
+                                showTitleAndSubtitle = false,
+                            )
                         },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp)
-                                .focusRequester(focusRequesters[HEADER_ROW]),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
-            if (people.isNotEmpty()) {
-                item {
-                    PersonRow(
-                        people = people,
-                        onClick = {
-                            position = PEOPLE_ROW
-                            onClickPerson.invoke(it)
-                        },
-                        onLongClick = { index, person ->
-                            position = PEOPLE_ROW
-                            onLongClickPerson.invoke(index, person)
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequesters[PEOPLE_ROW]),
-                    )
-                }
-            }
-            if (chapters.isNotEmpty()) {
-                item {
-                    ChapterRow(
-                        chapters = chapters,
-                        aspectRatio = movie.data.aspectRatioFloat ?: AspectRatios.WIDE,
-                        onClick = {
-                            position = CHAPTER_ROW
-                            playOnClick.invoke(it.position)
-                        },
-                        onLongClick = {},
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequesters[CHAPTER_ROW]),
-                    )
-                }
+            items(
+                collections,
+                key = { it.collectionName },
+            ) { collectionRow ->
+                ItemRow(
+                    title = context.getString(R.string.more_from_collection, collectionRow.collectionName),
+                    items = collectionRow.items,
+                    onClickItem = { index, item ->
+                        onClickItem.invoke(index, item)
+                    },
+                    onLongClickItem = { index, item ->
+                        onLongClickSimilar.invoke(index, item)
+                    },
+                    onFocusInRow = { position = CONTENT_ROW },
+                    cardContent = { index, item, mod, onClick, onLongClick ->
+                        SeasonCard(
+                            item = item,
+                            onClick = onClick,
+                            onLongClick = onLongClick,
+                            modifier =
+                                mod.onPreviewKeyEvent { event ->
+                                    if (event.key == Key.DirectionUp && event.type == KeyEventType.KeyUp) {
+                                        position = HEADER_ROW
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    false
+                                },
+                            showImageOverlay = true,
+                            imageHeight = Cards.height2x3,
+                            imageWidth = Dp.Unspecified,
+                            showTitleAndSubtitle = false,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             if (extras.isNotEmpty()) {
                 item {
@@ -532,46 +609,8 @@ fun MovieDetailsContent(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .focusRequester(focusRequesters[EXTRAS_ROW]),
-                    )
-                }
-            }
-            if (similar.isNotEmpty()) {
-                item {
-                    val imageHeight =
-                        remember(movie.type) {
-                            if (movie.type == BaseItemKind.MOVIE) {
-                                Cards.height2x3
-                            } else {
-                                Cards.heightEpisode
-                            }
-                        }
-                    ItemRow(
-                        title = stringResource(R.string.more_like_this),
-                        items = similar,
-                        onClickItem = { index, item ->
-                            position = SIMILAR_ROW
-                            onClickItem.invoke(index, item)
-                        },
-                        onLongClickItem = { index, similar ->
-                            position = SIMILAR_ROW
-                            onLongClickSimilar.invoke(index, similar)
-                        },
-                        cardContent = { index, item, mod, onClick, onLongClick ->
-                            SeasonCard(
-                                item = item,
-                                onClick = onClick,
-                                onLongClick = onLongClick,
-                                modifier = mod,
-                                showImageOverlay = true,
-                                imageHeight = imageHeight,
-                                imageWidth = Dp.Unspecified,
-                            )
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequesters[SIMILAR_ROW]),
+                                .focusRequester(focusRequesters[EXTRAS_ROW])
+                                .onFocusChanged { if (it.hasFocus) position = EXTRAS_ROW },
                     )
                 }
             }
@@ -588,7 +627,7 @@ fun MovieDetailsContent(
                             onClickDiscover.invoke(index, item)
                         },
                         onLongClickItem = { _, _ -> },
-                        onCardFocus = {},
+                        onCardFocus = { position = DISCOVER_ROW },
                         focusRequester = focusRequesters[DISCOVER_ROW],
                     )
                 }

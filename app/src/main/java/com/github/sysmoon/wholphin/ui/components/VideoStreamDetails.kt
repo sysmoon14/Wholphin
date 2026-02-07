@@ -9,10 +9,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.NonRestartableComposable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -31,12 +28,9 @@ import com.github.sysmoon.wholphin.preferences.AppThemeColors
 import com.github.sysmoon.wholphin.ui.FontAwesome
 import com.github.sysmoon.wholphin.ui.PreviewTvSpec
 import com.github.sysmoon.wholphin.ui.playback.audioStreamCount
-import com.github.sysmoon.wholphin.ui.playback.embeddedSubtitleCount
-import com.github.sysmoon.wholphin.ui.playback.externalSubtitlesCount
 import com.github.sysmoon.wholphin.ui.theme.WholphinTheme
 import com.github.sysmoon.wholphin.ui.util.StreamFormatting.concatWithSpace
 import com.github.sysmoon.wholphin.ui.util.StreamFormatting.formatAudioCodec
-import com.github.sysmoon.wholphin.ui.util.StreamFormatting.formatSubtitleCodec
 import com.github.sysmoon.wholphin.ui.util.StreamFormatting.formatVideoRange
 import com.github.sysmoon.wholphin.ui.util.StreamFormatting.resolutionString
 import com.github.sysmoon.wholphin.util.languageName
@@ -98,9 +92,6 @@ fun VideoStreamDetails(
                 count = numberOfVersions,
             )
         }
-        videoStream?.codec?.uppercase()?.let {
-            StreamLabel(it)
-        }
 
         val audioCount = remember(source) { source?.audioStreamCount ?: 0 }
         val audio =
@@ -121,37 +112,6 @@ fun VideoStreamDetails(
             icon = R.string.fa_volume_high,
             modifier = Modifier.widthIn(max = 200.dp),
         )
-
-        val subtitleCount =
-            remember(source) {
-                (source?.embeddedSubtitleCount ?: 0) + (source?.externalSubtitlesCount ?: 0)
-            }
-        var disabled by remember { mutableStateOf(false) }
-        val subtitle =
-            remember(subtitleCount, subtitleStream) {
-                if (subtitleCount > 0 && subtitleStream == null) {
-                    disabled = true
-                    context.getString(R.string.disabled)
-                } else if (subtitleCount == 0 || subtitleStream == null) {
-                    null
-                } else {
-                    disabled = false
-                    listOfNotNull(
-                        languageName(subtitleStream.language),
-                        "SDH".takeIf { subtitleStream.isHearingImpaired },
-                        formatSubtitleCodec(subtitleStream.codec),
-                    ).joinToString(" ")
-                }
-            }
-        subtitle?.let {
-            StreamLabel(
-                text = it,
-                count = subtitleCount,
-                icon = R.string.fa_closed_captioning,
-                modifier = Modifier.widthIn(max = 160.dp),
-                disabled = disabled,
-            )
-        }
     }
 }
 

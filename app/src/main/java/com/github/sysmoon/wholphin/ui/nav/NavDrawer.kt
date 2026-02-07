@@ -264,23 +264,26 @@ fun NavDrawer(
     }
 
     val homeTopRowFocusRequester = remember { FocusRequester() }
+    val showTopNavBar = destination.shouldShowTopNavBar()
 
     Column(modifier = modifier.fillMaxSize()) {
-        TopNavBar(
-            destination = destination,
-            preferences = preferences,
-            user = user,
-            server = server,
-            viewModel = viewModel,
-            onNavigateDown =
-                if (destination is Destination.Home) {
-                    {
-                        homeTopRowFocusRequester.tryRequestFocus("top_nav_to_home")
-                    }
-                } else {
-                    null
-                },
-        )
+        if (showTopNavBar) {
+            TopNavBar(
+                destination = destination,
+                preferences = preferences,
+                user = user,
+                server = server,
+                viewModel = viewModel,
+                onNavigateDown =
+                    if (destination is Destination.Home) {
+                        {
+                            homeTopRowFocusRequester.tryRequestFocus("top_nav_to_home")
+                        }
+                    } else {
+                        null
+                    },
+            )
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             DestinationContent(
                 destination = destination,

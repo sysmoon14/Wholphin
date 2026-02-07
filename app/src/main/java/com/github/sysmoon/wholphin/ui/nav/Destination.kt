@@ -121,3 +121,23 @@ sealed class Destination(
     @Serializable
     data object Debug : Destination(true)
 }
+
+/**
+ * True when the destination is a "main" tab (Home, Movies, Shows, Collections, Favourites, Search)
+ * where the top navbar should be shown. On all other pages the navbar is hidden and content shifts up.
+ */
+fun Destination.shouldShowTopNavBar(): Boolean =
+    when (this) {
+        is Destination.Home -> true
+        is Destination.Search -> true
+        is Destination.Favorites -> true
+        is Destination.FilteredCollection -> true
+        is Destination.ItemGrid -> true
+        is Destination.MediaItem ->
+            type in setOf(
+                BaseItemKind.COLLECTION_FOLDER,
+                BaseItemKind.FOLDER,
+                BaseItemKind.USER_VIEW,
+            )
+        else -> false
+    }

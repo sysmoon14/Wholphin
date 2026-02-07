@@ -3,6 +3,7 @@ package com.github.sysmoon.wholphin.ui.nav
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -20,6 +22,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -116,21 +120,29 @@ fun ApplicationContent(
             backdrop.imageUrl.isNotNullOrBlank() &&
             backdropStyle != BackdropStyle.BACKDROP_NONE
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                AsyncImage(
-                    model =
-                        ImageRequest
-                            .Builder(LocalContext.current)
-                            .data(backdrop.imageUrl)
-                            .transitionFactory(CrossFadeFactory(400.milliseconds))
-                            .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .alpha(BACKDROP_IMAGE_ALPHA),
-                )
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxSize().clipToBounds(),
+            ) {
+                val density = LocalDensity.current
+                // Shift image left so the visible portion shows more of the right side of the backdrop
+                val shiftPx = with(density) { maxWidth.toPx() * 0.25f }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AsyncImage(
+                        model =
+                            ImageRequest
+                                .Builder(LocalContext.current)
+                                .data(backdrop.imageUrl)
+                                .transitionFactory(CrossFadeFactory(400.milliseconds))
+                                .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { translationX = shiftPx }
+                                .alpha(BACKDROP_IMAGE_ALPHA),
+                    )
+                }
                 // Scrim for text readability: gradient from transparent to dark bottom
                 Box(
                     modifier =
@@ -148,6 +160,33 @@ fun ApplicationContent(
                                                 ),
                                             startY = 0f,
                                             endY = size.height,
+                                        ),
+                                )
+                            },
+                )
+                // Left edge gradient: in front of backdrop image, behind content (logo, text)
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .drawBehind {
+                                val gradientWidth = size.width * 0.65f
+                                drawRect(
+                                    brush =
+                                        Brush.horizontalGradient(
+                                            colors =
+                                                listOf(
+                                                    Color.Black,
+                                                    Color.Black,
+                                                    Color.Black,
+                                                    Color.Black.copy(alpha = 0.95f),
+                                                    Color.Black.copy(alpha = 0.9f),
+                                                    Color.Black.copy(alpha = 0.7f),
+                                                    Color.Black.copy(alpha = 0.45f),
+                                                    Color.Transparent,
+                                                ),
+                                            startX = 0f,
+                                            endX = gradientWidth,
                                         ),
                                 )
                             },

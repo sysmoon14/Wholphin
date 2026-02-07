@@ -17,7 +17,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import androidx.lifecycle.map
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.data.ChosenStreams
 import com.github.sysmoon.wholphin.data.model.BaseItem
@@ -37,16 +36,13 @@ import com.github.sysmoon.wholphin.ui.detail.PlaylistDialog
 import com.github.sysmoon.wholphin.ui.detail.PlaylistLoadingState
 import com.github.sysmoon.wholphin.ui.detail.buildMoreDialogItems
 import com.github.sysmoon.wholphin.ui.nav.Destination
-import com.github.sysmoon.wholphin.ui.rememberInt
 import com.github.sysmoon.wholphin.ui.seasonEpisode
 import com.github.sysmoon.wholphin.util.LoadingState
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
-import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.MediaType
-import org.jellyfin.sdk.model.api.PersonKind
 import org.jellyfin.sdk.model.extensions.ticks
 import org.jellyfin.sdk.model.serializer.UUIDSerializer
 import org.jellyfin.sdk.model.serializer.toUUID
@@ -90,16 +86,12 @@ fun SeriesOverview(
 ) {
     val context = LocalContext.current
     val firstItemFocusRequester = remember { FocusRequester() }
-    val episodeRowFocusRequester = remember { FocusRequester() }
-    val castCrewRowFocusRequester = remember { FocusRequester() }
-    val guestStarRowFocusRequester = remember { FocusRequester() }
 
     val loading by viewModel.loading.observeAsState(LoadingState.Loading)
 
     val series by viewModel.item.observeAsState(null)
     val seasons by viewModel.seasons.observeAsState(listOf())
     val episodes by viewModel.episodes.observeAsState(EpisodeList.Loading)
-    val peopleInEpisode by viewModel.peopleInEpisode.map { it.people }.observeAsState(listOf())
     val episodeList = (episodes as? EpisodeList.Success)?.episodes
 
     val position by viewModel.position.collectAsState(SeriesOverviewPosition(0, 0))
@@ -116,8 +108,6 @@ fun SeriesOverview(
     var chooseVersion by remember { mutableStateOf<DialogParams?>(null) }
     var showPlaylistDialog by remember { mutableStateOf<UUID?>(null) }
     val playlistState by playlistViewModel.playlistState.observeAsState(PlaylistLoadingState.Pending)
-
-    var rowFocused by rememberInt()
 
     LaunchedEffect(episodes) {
         episodes?.let { episodes ->
@@ -160,15 +150,7 @@ fun SeriesOverview(
         LoadingState.Success -> {
             series?.let { series ->
 
-                RequestOrRestoreFocus(
-                    when (rowFocused) {
-                        EPISODE_ROW -> episodeRowFocusRequester
-                        CAST_AND_CREW_ROW -> castCrewRowFocusRequester
-                        GUEST_STAR_ROW -> guestStarRowFocusRequester
-                        else -> episodeRowFocusRequester
-                    },
-                    "series_overview",
-                )
+                RequestOrRestoreFocus(firstItemFocusRequester, "series_overview")
                 LifecycleResumeEffect(destination.itemId) {
                     viewModel.onResumePage()
 
@@ -279,12 +261,8 @@ fun SeriesOverview(
                     seasons = seasons,
                     episodes = episodes,
                     chosenStreams = chosenStreams,
-                    peopleInEpisode = peopleInEpisode,
                     position = position,
                     firstItemFocusRequester = firstItemFocusRequester,
-                    episodeRowFocusRequester = episodeRowFocusRequester,
-                    castCrewRowFocusRequester = castCrewRowFocusRequester,
-                    guestStarRowFocusRequester = guestStarRowFocusRequester,
                     onChangeSeason = { index ->
                         if (index != position.seasonTabIndex) {
                             seasons.getOrNull(index)?.let { season ->
@@ -300,8 +278,26 @@ fun SeriesOverview(
                             it.copy(episodeRowIndex = episodeIndex)
                         }
                     },
+                    onSelectNextEpisode = {
+                        when (val e = episodes) {
+                            is EpisodeList.Success ->
+                                viewModel.position.update {
+                                    it.copy(
+                                        episodeRowIndex = (it.episodeRowIndex + 1)
+                                            .coerceAtMost(e.episodes.size - 1),
+                                    )
+                                }
+                            else -> { }
+                        }
+                    },
+                    onSelectPreviousEpisode = {
+                        viewModel.position.update {
+                            it.copy(
+                                episodeRowIndex = (it.episodeRowIndex - 1).coerceAtLeast(0),
+                            )
+                        }
+                    },
                     onClick = {
-                        rowFocused = EPISODE_ROW
                         val resumePosition =
                             it.data.userData
                                 ?.playbackPositionTicks
@@ -315,56 +311,6 @@ fun SeriesOverview(
                     },
                     onLongClick = { ep ->
                         moreDialog = buildMoreForEpisode(ep, chosenStreams, true)
-                    },
-                    playOnClick = { resume ->
-                        rowFocused = EPISODE_ROW
-                        episodeList?.getOrNull(position.episodeRowIndex)?.let {
-                            viewModel.release()
-                            viewModel.navigateTo(
-                                Destination.Playback(
-                                    it.id,
-                                    resume.inWholeMilliseconds,
-                                ),
-                            )
-                        }
-                    },
-                    watchOnClick = {
-                        episodeList?.getOrNull(position.episodeRowIndex)?.let {
-                            val played = it.data.userData?.played ?: false
-                            viewModel.setWatched(it.id, !played, position.episodeRowIndex)
-                        }
-                    },
-                    favoriteOnClick = {
-                        episodeList?.getOrNull(position.episodeRowIndex)?.let {
-                            val favorite = it.data.userData?.isFavorite ?: false
-                            viewModel.setFavorite(it.id, !favorite, position.episodeRowIndex)
-                        }
-                    },
-                    moreOnClick = {
-                        episodeList?.getOrNull(position.episodeRowIndex)?.let { ep ->
-                            moreDialog = buildMoreForEpisode(ep, chosenStreams, false)
-                        }
-                    },
-                    overviewOnClick = {
-                        episodeList?.getOrNull(position.episodeRowIndex)?.let {
-                            overviewDialog =
-                                ItemDetailsDialogInfo(
-                                    title = it.name ?: context.getString(R.string.unknown),
-                                    overview = it.data.overview,
-                                    genres = it.data.genres.orEmpty(),
-                                    files = it.data.mediaSources.orEmpty(),
-                                )
-                        }
-                    },
-                    personOnClick = {
-                        rowFocused =
-                            if (it.type == PersonKind.GUEST_STAR) GUEST_STAR_ROW else CAST_AND_CREW_ROW
-                        viewModel.navigateTo(
-                            Destination.MediaItem(
-                                it.id,
-                                BaseItemKind.PERSON,
-                            ),
-                        )
                     },
                     modifier = modifier,
                 )
@@ -420,7 +366,3 @@ fun SeriesOverview(
         )
     }
 }
-
-private const val EPISODE_ROW = 0
-private const val CAST_AND_CREW_ROW = EPISODE_ROW + 1
-private const val GUEST_STAR_ROW = CAST_AND_CREW_ROW + 1

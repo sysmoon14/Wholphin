@@ -120,6 +120,12 @@ sealed class Destination(
 
     @Serializable
     data object Debug : Destination(true)
+
+    @Serializable
+    data class CastAndCrew(
+        val itemId: UUID,
+        val type: BaseItemKind,
+    ) : Destination()
 }
 
 /**

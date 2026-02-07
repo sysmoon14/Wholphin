@@ -137,6 +137,16 @@ fun buildMoreDialogItems(
                 actions.onClickAddPlaylist.invoke(item.id)
             },
         )
+        if (item.data.people.orEmpty().isNotEmpty()) {
+            add(
+                DialogItem(
+                    text = R.string.cast_and_crew,
+                    iconStringRes = R.string.fa_user,
+                ) {
+                    actions.navigateTo(Destination.CastAndCrew(item.id, item.type))
+                },
+            )
+        }
         add(
             DialogItem(
                 text = if (watched) R.string.mark_unwatched else R.string.mark_watched,

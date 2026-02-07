@@ -1,7 +1,6 @@
 package com.github.sysmoon.wholphin.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -61,6 +60,8 @@ fun DetailInfoBlock(
     titleFallback: String? = null,
     subtitleLine: String? = null,
     showCastAndCrew: Boolean = true,
+    showMediaPills: Boolean = true,
+    contentStartPadding: Dp = 0.dp,
 ) {
     val dto = item.data
     val context = LocalContext.current
@@ -70,22 +71,19 @@ fun DetailInfoBlock(
 
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = modifier,
+        horizontalAlignment = Alignment.Start,
+        modifier = modifier.padding(start = contentStartPadding),
     ) {
         var logoError by remember(item) { mutableStateOf(false) }
         if (resolvedLogoUrl.isNotNullOrBlank() && !logoError) {
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                AsyncImage(
+            AsyncImage(
                     model = resolvedLogoUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterStart,
                     onError = { logoError = true },
                     modifier = Modifier.size(width = ItemLogoWidth, height = ItemLogoHeight),
                 )
-            }
         } else {
             val displayName = titleFallback ?: item.name ?: ""
             if (displayName.isNotBlank()) {
@@ -142,14 +140,21 @@ fun DetailInfoBlock(
             }
 
             dto.genres?.letNotEmpty {
-                GenreText(it, Modifier.padding(bottom = padding))
+                GenreText(
+                    it,
+                    Modifier.padding(bottom = padding),
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
-            VideoStreamDetails(
-                chosenStreams = chosenStreams,
-                numberOfVersions = item.data.mediaSourceCount ?: 0,
-                modifier = Modifier.padding(bottom = padding),
-            )
+            if (showMediaPills) {
+                VideoStreamDetails(
+                    chosenStreams = chosenStreams,
+                    numberOfVersions = item.data.mediaSourceCount ?: 0,
+                    modifier = Modifier.padding(bottom = padding),
+                )
+            }
 
             dto.taglines?.firstOrNull()?.let { tagline ->
                 Text(
@@ -166,6 +171,7 @@ fun DetailInfoBlock(
                     maxLines = 3,
                     onClick = null,
                     textBoxHeight = Dp.Unspecified,
+                    textStyle = MaterialTheme.typography.bodyMedium,
                 )
             }
 
@@ -180,8 +186,8 @@ fun DetailInfoBlock(
                 if (!castNames.isNullOrBlank()) {
                     Text(
                         text = context.getString(R.string.cast_label, castNames),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
@@ -194,8 +200,8 @@ fun DetailInfoBlock(
                 if (!writerNames.isNullOrBlank()) {
                     Text(
                         text = stringResource(R.string.written_by, writerNames),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

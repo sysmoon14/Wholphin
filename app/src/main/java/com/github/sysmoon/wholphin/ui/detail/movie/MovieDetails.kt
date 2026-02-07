@@ -359,6 +359,9 @@ fun MovieDetails(
                                     )
                             }
                     },
+                    onCastAndCrewClick = {
+                        viewModel.navigateTo(Destination.CastAndCrew(movie.id, BaseItemKind.MOVIE))
+                    },
                     modifier = modifier,
                 )
             }
@@ -443,6 +446,7 @@ fun MovieDetailsContent(
     onClickExtra: (Int, ExtrasItem) -> Unit,
     onClickDiscover: (Int, DiscoverItem) -> Unit,
     onChooseSubtitlesClick: () -> Unit,
+    onCastAndCrewClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -507,6 +511,8 @@ fun MovieDetailsContent(
                 },
                 trailers = trailers,
                 onTrailerClick = trailerOnClick,
+                showCastAndCrew = people.isNotEmpty(),
+                onCastAndCrewClick = onCastAndCrewClick,
                 modifier =
                     Modifier
                         .fillMaxWidth()

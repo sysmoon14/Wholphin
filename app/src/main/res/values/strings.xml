@@ -169,6 +169,7 @@
     <string name="updates">Updates</string>
     <string name="version">Version</string>
     <string name="seasons_count_format">%d seasons</string>
+    <string name="episode_count_format">%d Episodes</string>
     <string name="written_by">Writer(s): %1$s</string>
     <string name="video_scale">Video Scale</string>
     <string name="video">Video</string>
@@ -403,6 +404,7 @@
     <string name="show_details">Show details</string>
     <string name="image_type">Image type</string>
     <string name="cast_and_crew"><![CDATA[Cast & Crew]]></string>
+    <string name="no_cast_and_crew">No cast and crew</string>
     <string name="guest_stars">Guest stars</string>
     <string name="edge_size">Edge size</string>
     <string name="refresh_rate_switching">Refresh rate switching</string>

@@ -276,6 +276,9 @@ fun SeriesDetails(
                         )
                     },
                     onChooseSubtitlesClick = { },
+                    onCastAndCrewClick = {
+                        viewModel.navigateTo(Destination.CastAndCrew(item.id, BaseItemKind.SERIES))
+                    },
                     collections = collections,
                     moreActions =
                         MoreDialogActions(
@@ -376,6 +379,7 @@ fun SeriesDetailsContent(
     onClickDiscover: (Int, DiscoverItem) -> Unit,
     onMoreEpisodesClick: () -> Unit,
     onChooseSubtitlesClick: () -> Unit,
+    onCastAndCrewClick: () -> Unit = {},
     collections: List<com.github.sysmoon.wholphin.ui.detail.CollectionRow>,
     modifier: Modifier = Modifier,
 ) {
@@ -467,6 +471,8 @@ fun SeriesDetailsContent(
                     onMoreEpisodesClick = onMoreEpisodesClick,
                     trailers = trailers,
                     onTrailerClick = trailerOnClick,
+                    showCastAndCrew = people.isNotEmpty(),
+                    onCastAndCrewClick = onCastAndCrewClick,
                     modifier =
                         Modifier
                             .padding(start = 16.dp)
@@ -654,6 +660,8 @@ fun SeriesDetailsHeader(
         modifier = modifier,
         seasonCount = seasonCount,
         showCastAndCrew = showCastAndCrew,
+        showMediaPills = false,
+        contentStartPadding = 24.dp,
     )
 }
 

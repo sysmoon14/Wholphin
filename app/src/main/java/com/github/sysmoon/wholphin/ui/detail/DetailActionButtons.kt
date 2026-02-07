@@ -80,6 +80,8 @@ fun DetailActionButtons(
     onTrailerClick: (Trailer) -> Unit = {},
     watched: Boolean = false,
     onWatchClick: () -> Unit = {},
+    showCastAndCrew: Boolean = false,
+    onCastAndCrewClick: () -> Unit = {},
 ) {
     val firstFocus = remember { FocusRequester() }
     val scrollState = rememberScrollState()
@@ -124,6 +126,14 @@ fun DetailActionButtons(
             onClick = onChooseSubtitlesClick,
             modifier = Modifier.width(ButtonWidth),
         )
+        if (showCastAndCrew) {
+            DetailActionButton(
+                titleRes = R.string.cast_and_crew,
+                iconStringRes = R.string.fa_user,
+                onClick = onCastAndCrewClick,
+                modifier = Modifier.width(ButtonWidth),
+            )
+        }
         ExpandableFaButton(
             title = if (favourite) R.string.remove_favorite else R.string.add_favorite,
             iconStringRes = R.string.fa_heart,

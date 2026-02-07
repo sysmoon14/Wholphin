@@ -87,57 +87,75 @@ data class BaseItem(
 
     @Transient
     val ui =
-        BaseItemUi(
-            quickDetails =
-                buildAnnotatedString {
-                    val details =
-                        buildList {
-                            if (type == BaseItemKind.EPISODE) {
-                                data.seasonEpisode?.let(::add)
-                                data.premiereDate?.let { add(DateFormatter.format(it)) }
-                            } else if (type == BaseItemKind.SERIES) {
-                                data.seriesProductionYears?.let(::add)
-                            } else {
-                                data.productionYear?.let { add(it.toString()) }
-                            }
-                            // Show runtime if available and > 0 (for SERIES this may be average episode length)
-                            data.runTimeTicks
-                                ?.ticks
-                                ?.roundMinutes
-                                ?.takeIf { it.inWholeMinutes > 0 }
-                                ?.let { add(it.toString()) }
-                            data.timeRemaining
-                                ?.roundMinutes
-                                ?.let { add("$it left") }
-                        }
-                    details.forEachIndexed { index, string ->
-                        append(string)
-                        if (index != details.lastIndex) {
-                            dot()
-                        }
+        run {
+            val details =
+                buildList {
+                    if (type == BaseItemKind.EPISODE) {
+                        data.seasonEpisode?.let(::add)
+                        data.premiereDate?.let { add(DateFormatter.format(it)) }
+                    } else if (type == BaseItemKind.SERIES) {
+                        data.seriesProductionYears?.let(::add)
+                    } else {
+                        data.productionYear?.let { add(it.toString()) }
                     }
-                    // TODO time remaining
+                    data.runTimeTicks
+                        ?.ticks
+                        ?.roundMinutes
+                        ?.takeIf { it.inWholeMinutes > 0 }
+                        ?.let { add(it.toString()) }
+                    data.timeRemaining
+                        ?.roundMinutes
+                        ?.let { add("$it left") }
+                }
+            val detailsForEpisodeRow =
+                if (type == BaseItemKind.EPISODE) {
+                    val runtimeStr =
+                        data.runTimeTicks
+                            ?.ticks
+                            ?.roundMinutes
+                            ?.takeIf { it.inWholeMinutes > 0 }
+                            ?.toString()
+                    val timeRemainingStr = data.timeRemaining?.roundMinutes?.let { "$it left" }
+                    details.filter {
+                        it != data.seasonEpisode && it != runtimeStr && it != timeRemainingStr
+                    }
+                } else {
+                    null
+                }
+            BaseItemUi(
+                quickDetails = buildQuickDetailsAnnotated(details),
+                quickDetailsForEpisodeRow =
+                    detailsForEpisodeRow?.let { buildQuickDetailsAnnotated(it) },
+            )
+        }
 
-                    data.officialRating?.let {
-                        dot()
-                        append(it)
-                    }
-                    data.communityRating?.let {
-                        dot()
-                        append(String.format(Locale.getDefault(), "%.1f", it))
-                        appendInlineContent(id = "star")
-                    }
-                    data.criticRating?.let {
-                        dot()
-                        append("${it.toInt()}%")
-                        if (it >= 60f) {
-                            appendInlineContent(id = "fresh")
-                        } else {
-                            appendInlineContent(id = "rotten")
-                        }
-                    }
-                },
-        )
+    private fun buildQuickDetailsAnnotated(details: List<String>): AnnotatedString =
+        buildAnnotatedString {
+            details.forEachIndexed { index, string ->
+                append(string)
+                if (index != details.lastIndex) {
+                    dot()
+                }
+            }
+            data.officialRating?.let {
+                dot()
+                append(it)
+            }
+            data.communityRating?.let {
+                dot()
+                append(String.format(Locale.getDefault(), "%.1f", it))
+                appendInlineContent(id = "star")
+            }
+            data.criticRating?.let {
+                dot()
+                append("${it.toInt()}%")
+                if (it >= 60f) {
+                    appendInlineContent(id = "fresh")
+                } else {
+                    appendInlineContent(id = "rotten")
+                }
+            }
+        }
 
     private fun dateAsIndex(): Int? =
         data.premiereDate
@@ -194,4 +212,6 @@ val BaseItemDto.aspectRatioFloat: Float? get() = width?.let { w -> height?.let {
 @Immutable
 data class BaseItemUi(
     val quickDetails: AnnotatedString,
+    /** For episode list row: same as quickDetails but without season/episode (e.g. "S1 E1"). */
+    val quickDetailsForEpisodeRow: AnnotatedString? = null,
 )

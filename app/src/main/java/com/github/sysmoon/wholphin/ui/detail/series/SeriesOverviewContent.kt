@@ -1,73 +1,130 @@
 package com.github.sysmoon.wholphin.ui.detail.series
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
+import coil3.compose.AsyncImage
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.data.ChosenStreams
 import com.github.sysmoon.wholphin.data.model.BaseItem
-import com.github.sysmoon.wholphin.data.model.Person
 import com.github.sysmoon.wholphin.preferences.UserPreferences
-import com.github.sysmoon.wholphin.ui.AspectRatios
-import com.github.sysmoon.wholphin.ui.cards.BannerCard
-import com.github.sysmoon.wholphin.ui.cards.PersonRow
+import com.github.sysmoon.wholphin.ui.ItemLogoHeight
+import com.github.sysmoon.wholphin.ui.ItemLogoWidth
+import com.github.sysmoon.wholphin.ui.LocalImageUrlService
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
 import com.github.sysmoon.wholphin.ui.components.LoadingPage
-import com.github.sysmoon.wholphin.ui.components.TabRow
-import com.github.sysmoon.wholphin.ui.detail.DetailInfoBlock
-import com.github.sysmoon.wholphin.ui.formatDateTime
-import com.github.sysmoon.wholphin.ui.ifElse
-import com.github.sysmoon.wholphin.ui.logTab
-import com.github.sysmoon.wholphin.ui.playback.isPlayKeyUp
-import com.github.sysmoon.wholphin.ui.rememberInt
+import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
-import com.github.sysmoon.wholphin.ui.util.rememberDelayedNestedScroll
 import kotlinx.coroutines.launch
-import org.jellyfin.sdk.model.api.PersonKind
-import kotlin.time.Duration
+import org.jellyfin.sdk.model.api.ImageType
+
+private val SeasonColumnWidth = 280.dp
+private val SeasonEpisodeGap = 32.dp
+
+/** Height of one episode row slot (thumbnail + padding + spacing). Matches EpisodeListRow. */
+private val EpisodeRowSlotHeight: Dp = 12.dp + (260.dp * 9f / 16f) + 12.dp + 8.dp  // ~186.dp
+
+/** Thumbnail size in episode row - must match EpisodeListRow. */
+private val EpisodeThumbnailWidth = 260.dp
+private val EpisodeThumbnailHeight = EpisodeThumbnailWidth * 9f / 16f
+
+@Composable
+private fun SeriesOverviewHeader(
+    series: BaseItem,
+    seasons: List<BaseItem?>,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val imageUrlService = LocalImageUrlService.current
+    val resolvedLogoUrl = imageUrlService.rememberImageUrl(series, ImageType.LOGO)
+    var logoError by remember(series) { mutableStateOf(false) }
+
+    val metaParts =
+        buildList<String> {
+            series.data.productionYear?.let { add(it.toString()) }
+            add(context.getString(R.string.seasons_count_format, seasons.size))
+            series.data.status?.takeIf { it.isNotBlank() }?.let { add(it) }
+        }
+    val metaLine = metaParts.joinToString(" · ")
+
+    Column(
+        modifier = modifier.fillMaxWidth().padding(start = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        if (resolvedLogoUrl.isNotNullOrBlank() && !logoError) {
+            AsyncImage(
+                model = resolvedLogoUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                onError = { logoError = true },
+                modifier = Modifier.size(width = ItemLogoWidth, height = ItemLogoHeight),
+            )
+        }
+        if (metaLine.isNotBlank()) {
+            Text(
+                text = metaLine,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.widthIn(max = ItemLogoWidth),
+            )
+        }
+    }
+}
 
 @Composable
 fun SeriesOverviewContent(
@@ -76,287 +133,317 @@ fun SeriesOverviewContent(
     seasons: List<BaseItem?>,
     episodes: EpisodeList,
     chosenStreams: ChosenStreams?,
-    peopleInEpisode: List<Person>,
     position: SeriesOverviewPosition,
     firstItemFocusRequester: FocusRequester,
-    episodeRowFocusRequester: FocusRequester,
-    castCrewRowFocusRequester: FocusRequester,
-    guestStarRowFocusRequester: FocusRequester,
     onChangeSeason: (Int) -> Unit,
     onFocusEpisode: (Int) -> Unit,
+    onSelectNextEpisode: () -> Unit,
+    onSelectPreviousEpisode: () -> Unit,
     onClick: (BaseItem) -> Unit,
     onLongClick: (BaseItem) -> Unit,
-    playOnClick: (Duration) -> Unit,
-    watchOnClick: () -> Unit,
-    favoriteOnClick: () -> Unit,
-    moreOnClick: () -> Unit,
-    overviewOnClick: () -> Unit,
-    personOnClick: (Person) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    var selectedTabIndex by rememberSaveable(position) { mutableIntStateOf(position.seasonTabIndex) }
-    LaunchedEffect(selectedTabIndex) {
-        logTab("series_overview", selectedTabIndex)
-    }
-    val tabRowFocusRequester = remember { FocusRequester() }
-
-    val focusedEpisode =
-        (episodes as? EpisodeList.Success)?.episodes?.getOrNull(position.episodeRowIndex)
-    var pageHasFocus by remember { mutableStateOf(false) }
-    var cardRowHasFocus by remember { mutableStateOf(false) }
-    val dimming by animateFloatAsState(if (pageHasFocus && !cardRowHasFocus) .4f else 1f)
-
-    val scrollState = rememberScrollState()
-    val scrollConnection = rememberDelayedNestedScroll()
     var requestFocusAfterSeason by remember { mutableStateOf(false) }
 
     val seasonStr = stringResource(R.string.tv_season)
-    val tabs =
-        seasons.map { season ->
-            season?.name
-                ?: season?.data?.indexNumber?.let { "$seasonStr $it" }
-                ?: ""
-        }
-    val focusRequesters = remember(seasons) { List(seasons.size) { FocusRequester() } }
+    val seasonFocusRequesters = remember(seasons) { List(seasons.size) { FocusRequester() } }
 
     Box(
-        modifier =
-            modifier
-                .fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(16.dp)
+                    .padding(top = 32.dp, start = 16.dp, end = 16.dp, bottom = 0.dp)
                     .focusGroup()
-                    .nestedScroll(scrollConnection)
-                    .verticalScroll(scrollState)
-                    .onFocusChanged { pageHasFocus = it.hasFocus },
+                    .bringIntoViewRequester(bringIntoViewRequester),
+            horizontalArrangement = Arrangement.spacedBy(SeasonEpisodeGap),
         ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier =
                     Modifier
+                        .width(SeasonColumnWidth)
+                        .fillMaxHeight()
                         .focusGroup()
-                        .bringIntoViewRequester(bringIntoViewRequester),
+                        .then(
+                            seasonFocusRequesters.getOrNull(position.seasonTabIndex.coerceIn(0, seasons.size - 1))
+                                ?.let { Modifier.focusRestorer(it) }
+                                ?: Modifier,
+                        ),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                DetailInfoBlock(
-                    item = series,
-                    chosenStreams = chosenStreams,
-                    bringIntoViewRequester = bringIntoViewRequester,
-                    overviewOnClick = overviewOnClick,
+                SeriesOverviewHeader(
+                    series = series,
+                    seasons = seasons,
                     modifier = Modifier.fillMaxWidth(),
-                    seasonCount = seasons.size,
                 )
-                val paddingValues =
-                    if (preferences.appPreferences.interfacePreferences.showClock) {
-                        PaddingValues(start = 16.dp, end = 100.dp)
-                    } else {
-                        PaddingValues(start = 16.dp, end = 16.dp)
-                    }
-                TabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    tabs = tabs,
-                    onClick = {
-                        selectedTabIndex = it
-                        onChangeSeason.invoke(it)
-                        requestFocusAfterSeason = true
-                    },
-                    focusRequesters = focusRequesters,
-                    modifier =
-                        Modifier
-                            .focusRequester(tabRowFocusRequester)
-                            .padding(paddingValues)
-                            .fillMaxWidth(),
-                )
-                FocusedEpisodeHeader(
-                    preferences = preferences,
-                    ep = focusedEpisode,
-                    chosenStreams = chosenStreams,
-                    overviewOnClick = overviewOnClick,
-                    overviewOnFocus = {
-                        if (it.isFocused) {
-                            scope.launch {
-                                bringIntoViewRequester.bringIntoView()
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(.6f),
-                )
-
-//                key(position.seasonTabIndex) {
-                when (val eps = episodes) {
-                    EpisodeList.Loading -> {
-                        LoadingPage()
-                    }
-
-                    is EpisodeList.Error -> {
-                        ErrorMessage(eps.message, eps.exception)
-                    }
-
-                    is EpisodeList.Success -> {
-                        if (requestFocusAfterSeason) {
-                            // Changing seasons, so move focus once the new episodes are loaded
-                            LaunchedEffect(Unit) {
-                                firstItemFocusRequester.tryRequestFocus()
-                                requestFocusAfterSeason = false
-                            }
-                        }
-                        val state = rememberLazyListState(position.episodeRowIndex)
-                        var epPosition by rememberInt(position.episodeRowIndex)
-                        LazyRow(
-                            state = state,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp),
+                val seasonListState = rememberLazyListState()
+                val seasonLayoutInfo = seasonListState.layoutInfo
+                val lastVisibleSeasonIndex = seasonLayoutInfo.visibleItemsInfo.maxOfOrNull { it.index }
+                val moreSeasonsBelow =
+                    lastVisibleSeasonIndex != null &&
+                        lastVisibleSeasonIndex < seasons.size - 1
+                LazyColumn(
+                    state = seasonListState,
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentPadding = PaddingValues(top = 40.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    itemsIndexed(
+                        seasons,
+                        key = { index, _ -> index },
+                    ) { index, season ->
+                        val isSelected = index == position.seasonTabIndex
+                        val seasonInteractionSource = remember(index) { MutableInteractionSource() }
+                        val isDimmed = moreSeasonsBelow && index == lastVisibleSeasonIndex
+                        Button(
+                            onClick = {
+                                onChangeSeason(index)
+                                requestFocusAfterSeason = true
+                            },
                             modifier =
                                 Modifier
-                                    .focusRestorer(firstItemFocusRequester)
-//                                    .focusRequester(episodeRowFocusRequester)
-                                    .onFocusChanged {
-                                        cardRowHasFocus = it.hasFocus
+                                    .fillMaxWidth()
+                                    .then(
+                                        if (isDimmed) Modifier.alpha(0.5f)
+                                        else Modifier,
+                                    )
+                                    .then(
+                                        if (isSelected) seasonFocusRequesters.getOrNull(index)?.let { Modifier.focusRequester(it) } ?: Modifier
+                                        else Modifier,
+                                    )
+                                    .focusable(interactionSource = seasonInteractionSource)
+                                    .focusProperties {
+                                        right = firstItemFocusRequester
                                     },
+                            interactionSource = seasonInteractionSource,
+                            colors =
+                                ButtonDefaults.colors(
+                                    containerColor =
+                                        if (isSelected) {
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                        } else {
+                                            Color.Transparent
+                                        },
+                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    focusedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
                         ) {
-                            itemsIndexed(eps.episodes) { episodeIndex, episode ->
-                                val interactionSource = remember { MutableInteractionSource() }
-                                if (interactionSource.collectIsFocusedAsState().value) {
-                                    onFocusEpisode.invoke(episodeIndex)
-                                }
-                                val cornerText =
-                                    episode?.data?.indexNumber?.let { "E$it" }
-                                        ?: episode?.data?.premiereDate?.let(::formatDateTime)
-                                BannerCard(
-                                    name = episode?.name,
-                                    item = episode,
-                                    aspectRatio =
-                                        episode
-                                            ?.aspectRatio
-                                            ?.coerceAtLeast(AspectRatios.FOUR_THREE)
-                                            ?: (AspectRatios.WIDE),
-                                    cornerText = cornerText,
-                                    played = episode?.data?.userData?.played ?: false,
-                                    playPercent =
-                                        episode?.data?.userData?.playedPercentage
-                                            ?: 0.0,
-                                    onClick = {
-                                        epPosition = episodeIndex
-                                        if (episode != null) onClick.invoke(episode)
-                                    },
-                                    onLongClick = {
-                                        epPosition = episodeIndex
-                                        if (episode != null) onLongClick.invoke(episode)
-                                    },
-                                    modifier =
-                                        Modifier
-                                            .ifElse(
-                                                episodeIndex == position.episodeRowIndex,
-                                                Modifier
-                                                    .focusRequester(firstItemFocusRequester),
-                                            ).ifElse(
-                                                episodeIndex == epPosition,
-                                                Modifier.focusRequester(episodeRowFocusRequester),
-                                            ).ifElse(
-                                                episodeIndex != position.episodeRowIndex,
-                                                Modifier
-                                                    .background(
-                                                        Color.Black,
-                                                        shape = RoundedCornerShape(8.dp),
-                                                    ).alpha(dimming),
-                                            ).onFocusChanged {
-                                                if (it.isFocused) {
-                                                    scope.launch {
-                                                        bringIntoViewRequester.bringIntoView()
-                                                    }
-                                                }
-                                            }.onKeyEvent {
-                                                if (episode != null && isPlayKeyUp(it)) {
-                                                    onClick.invoke(episode)
-                                                    return@onKeyEvent true
-                                                }
-                                                return@onKeyEvent false
-                                            },
-                                    interactionSource = interactionSource,
-                                    cardHeight = 120.dp,
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = season?.name
+                                        ?: season?.data?.indexNumber?.let { "$seasonStr $it" }
+                                        ?: "$seasonStr ${index + 1}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                                val episodeCount = season?.data?.childCount ?: 0
+                                Text(
+                                    text = context.getString(R.string.episode_count_format, episodeCount),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
                     }
-//                    }
-                }
-
-                focusedEpisode?.let { ep ->
-                    FocusedEpisodeFooter(
-                        preferences = preferences,
-                        ep = ep,
-                        chosenStreams = chosenStreams,
-                        playOnClick = playOnClick,
-                        moreOnClick = moreOnClick,
-                        watchOnClick = {
-                            watchOnClick.invoke()
-                            episodeRowFocusRequester.tryRequestFocus()
-                        },
-                        favoriteOnClick = favoriteOnClick,
-                        buttonOnFocusChanged = {
-                            if (it.isFocused) {
-                                scope.launch {
-                                    bringIntoViewRequester.bringIntoView()
-                                }
-                            }
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(start = 16.dp),
-                    )
                 }
             }
 
-            val castAndCrew =
-                remember(peopleInEpisode) {
-                    peopleInEpisode.filterNot {
-                        it.type == PersonKind.GUEST_STAR
-                    }
-                }
-            val guestStars =
-                remember(peopleInEpisode) {
-                    peopleInEpisode.filter {
-                        it.type == PersonKind.GUEST_STAR
-                    }
-                }
+            EpisodeAreaInRow(
+                episodes = episodes,
+                position = position,
+                firstItemFocusRequester = firstItemFocusRequester,
+                requestFocusAfterSeason = requestFocusAfterSeason,
+                onRequestFocusConsumed = { requestFocusAfterSeason = false },
+                seasonFocusRequesters = seasonFocusRequesters,
+                scope = scope,
+                bringIntoViewRequester = bringIntoViewRequester,
+                chosenStreams = chosenStreams,
+                onFocusEpisode = onFocusEpisode,
+                onSelectNextEpisode = onSelectNextEpisode,
+                onSelectPreviousEpisode = onSelectPreviousEpisode,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+        }
+    }
+}
 
-            AnimatedVisibility(
-                visible = peopleInEpisode.isNotEmpty(),
-                enter = fadeIn(),
-                exit = fadeOut(),
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
+@Composable
+private fun RowScope.EpisodeAreaInRow(
+    episodes: EpisodeList,
+    position: SeriesOverviewPosition,
+    firstItemFocusRequester: FocusRequester,
+    requestFocusAfterSeason: Boolean,
+    onRequestFocusConsumed: () -> Unit,
+    seasonFocusRequesters: List<FocusRequester>,
+    scope: kotlinx.coroutines.CoroutineScope,
+    bringIntoViewRequester: BringIntoViewRequester,
+    chosenStreams: ChosenStreams?,
+    onFocusEpisode: (Int) -> Unit,
+    onSelectNextEpisode: () -> Unit,
+    onSelectPreviousEpisode: () -> Unit,
+    onClick: (BaseItem) -> Unit,
+    onLongClick: (BaseItem) -> Unit,
+) {
+    Box(
+        modifier = Modifier.weight(1f).fillMaxHeight(),
+    ) {
+        when (val eps = episodes) {
+            EpisodeList.Loading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    if (castAndCrew.isNotEmpty()) {
-                        PersonRow(
-                            title = R.string.cast_and_crew,
-                            people = castAndCrew,
-                            onClick = personOnClick,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .focusRequester(castCrewRowFocusRequester),
-                        )
+                    LoadingPage()
+                }
+            }
+            is EpisodeList.Error -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ErrorMessage(eps.message, eps.exception)
+                }
+            }
+            is EpisodeList.Success -> {
+                if (requestFocusAfterSeason) {
+                    LaunchedEffect(Unit) {
+                        firstItemFocusRequester.tryRequestFocus()
+                        onRequestFocusConsumed()
                     }
-                    if (guestStars.isNotEmpty()) {
-                        PersonRow(
-                            title = R.string.guest_stars,
-                            people = guestStars,
-                            onClick = personOnClick,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .focusRequester(guestStarRowFocusRequester),
-                        )
+                }
+                val lazyListState = rememberLazyListState(position.episodeRowIndex)
+                LaunchedEffect(position.episodeRowIndex) {
+                    if (position.episodeRowIndex in 0 until eps.episodes.size) {
+                        lazyListState.animateScrollToItem(position.episodeRowIndex, 0)
+                        // Ensure the selected item is exactly at the top (fixes last-item clamp)
+                        lazyListState.scroll {
+                            val info = lazyListState.layoutInfo
+                            val first = info.visibleItemsInfo.firstOrNull() ?: return@scroll
+                            if (first.index == position.episodeRowIndex && first.offset != 0) {
+                                scrollBy(-first.offset.toFloat())
+                            }
+                        }
+                        firstItemFocusRequester.tryRequestFocus()
+                    }
+                }
+                val slotFocusSource = remember { MutableInteractionSource() }
+                val slotFocused by slotFocusSource.collectIsFocusedAsState()
+                var ignoreNextSelectKeyUp by remember { mutableStateOf(false) }
+                val currentEpisode = eps.episodes.getOrNull(position.episodeRowIndex)
+                val selectedSeasonFocus =
+                    seasonFocusRequesters.getOrNull(
+                        position.seasonTabIndex.coerceIn(0, seasonFocusRequesters.size - 1),
+                    )
+
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    // Use full viewport height as bottom padding so the last item can scroll so its top reaches 0
+                    val bottomPaddingPx = maxHeight
+                    LazyColumn(
+                        state = lazyListState,
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(
+                            top = 0.dp,
+                            bottom = bottomPaddingPx,
+                            end = 16.dp,
+                        ),
+                    ) {
+                        itemsIndexed(eps.episodes) { _, episode ->
+                            EpisodeListRow(
+                                episode = episode,
+                                chosenStreams = chosenStreams,
+                                onClick = { if (episode != null) onClick(episode) },
+                                onLongClick = { if (episode != null) onLongClick(episode) },
+                                onFocusChanged = { },
+                                modifier = Modifier,
+                                isFocusable = false,
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier =
+                            Modifier
+                                .align(Alignment.TopStart)
+                                .fillMaxWidth()
+                                .height(EpisodeRowSlotHeight)
+                                .then(
+                                    if (selectedSeasonFocus != null) {
+                                        Modifier.focusProperties { left = selectedSeasonFocus }
+                                    } else Modifier,
+                                )
+                                .focusRequester(firstItemFocusRequester)
+                                .focusRestorer(firstItemFocusRequester)
+                                .focusable(interactionSource = slotFocusSource)
+                                .onFocusChanged {
+                                    if (it.isFocused) {
+                                        onFocusEpisode(position.episodeRowIndex)
+                                        scope.launch { bringIntoViewRequester.bringIntoView() }
+                                    }
+                                }
+                                .onPreviewKeyEvent { event ->
+                                    when (event.key) {
+                                        Key.DirectionDown -> {
+                                            if (event.type == KeyEventType.KeyUp) {
+                                                onSelectNextEpisode()
+                                            }
+                                            true
+                                        }
+                                        Key.DirectionUp -> {
+                                            if (event.type == KeyEventType.KeyUp) {
+                                                onSelectPreviousEpisode()
+                                            }
+                                            true
+                                        }
+                                        Key.MediaPlay, Key.MediaPlayPause,
+                                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter,
+                                        Key.ButtonSelect, Key.ButtonA -> {
+                                            if (event.type == KeyEventType.KeyUp) {
+                                                if (ignoreNextSelectKeyUp) {
+                                                    ignoreNextSelectKeyUp = false
+                                                    true
+                                                } else if (currentEpisode != null) {
+                                                    onClick(currentEpisode)
+                                                    true
+                                                } else false
+                                            } else false
+                                        }
+                                        else -> false
+                                    }
+                                }
+                                .combinedClickable(
+                                    onClick = { currentEpisode?.let { onClick(it) } },
+                                    onLongClick = {
+                                        currentEpisode?.let {
+                                            ignoreNextSelectKeyUp = true
+                                            onLongClick(it)
+                                        }
+                                    },
+                                ),
+                    ) {
+                        if (slotFocused) {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(12.dp)
+                                        .size(EpisodeThumbnailWidth, EpisodeThumbnailHeight)
+                                        .border(
+                                            width = 3.dp,
+                                            color = MaterialTheme.colorScheme.border,
+                                            shape = RoundedCornerShape(4.dp),
+                                        ),
+                            )
+                        }
                     }
                 }
             }

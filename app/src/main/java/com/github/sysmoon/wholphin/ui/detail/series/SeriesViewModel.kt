@@ -366,12 +366,15 @@ class SeriesViewModel
                         sortBy = listOf(ItemSortBy.INDEX_NUMBER),
                         sortOrder = listOf(SortOrder.ASCENDING),
                         fields =
-                            if (seriesPageType == SeriesPageType.DETAILS) {
-                                listOf(
-                                    ItemFields.PRIMARY_IMAGE_ASPECT_RATIO,
-                                )
-                            } else {
-                                null
+                            when (seriesPageType) {
+                                SeriesPageType.DETAILS ->
+                                    listOf(ItemFields.PRIMARY_IMAGE_ASPECT_RATIO)
+                                SeriesPageType.OVERVIEW ->
+                                    listOf(
+                                        ItemFields.PRIMARY_IMAGE_ASPECT_RATIO,
+                                        ItemFields.CHILD_COUNT,
+                                    )
+                                else -> null
                             },
                     )
                 val pager =

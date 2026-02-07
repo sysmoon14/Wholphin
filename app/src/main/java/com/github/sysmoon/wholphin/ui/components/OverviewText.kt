@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -32,6 +33,7 @@ fun OverviewText(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     textBoxHeight: Dp = maxLines * 20.dp,
     enabled: Boolean = true,
+    textStyle: TextStyle? = null,
 ) {
     val context = LocalContext.current
     val isClickable = onClick != null
@@ -71,7 +73,7 @@ fun OverviewText(
     ) {
         Text(
             text = overview,
-            style = MaterialTheme.typography.bodyMedium,
+            style = textStyle ?: MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,

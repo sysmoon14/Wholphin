@@ -27,33 +27,47 @@ import com.github.sysmoon.wholphin.ui.playSoundOnFocus
 fun OverviewText(
     overview: String,
     maxLines: Int,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     textBoxHeight: Dp = maxLines * 20.dp,
     enabled: Boolean = true,
 ) {
     val context = LocalContext.current
+    val isClickable = onClick != null
     val isFocused = interactionSource.collectIsFocusedAsState().value
     val bgColor =
-        if (isFocused) {
+        if (isClickable && isFocused) {
             MaterialTheme.colorScheme.onPrimary.copy(alpha = .4f)
         } else {
             Color.Unspecified
         }
+    val textModifier =
+        if (isClickable) {
+            Modifier.padding(8.dp).height(textBoxHeight)
+        } else {
+            Modifier.padding(bottom = 4.dp).height(textBoxHeight)
+        }
     Box(
         modifier =
             modifier
-                .background(bgColor, shape = RoundedCornerShape(8.dp))
-                .playSoundOnFocus(true)
-                .clickable(
-                    enabled = enabled,
-                    interactionSource = interactionSource,
-                    indication = LocalIndication.current,
-                ) {
-                    playOnClickSound(context)
-                    onClick.invoke()
-                },
+                .then(
+                    if (isClickable) {
+                        Modifier
+                            .background(bgColor, shape = RoundedCornerShape(8.dp))
+                            .playSoundOnFocus(true)
+                            .clickable(
+                                enabled = enabled,
+                                interactionSource = interactionSource,
+                                indication = LocalIndication.current,
+                            ) {
+                                playOnClickSound(context)
+                                onClick?.invoke()
+                            }
+                    } else {
+                        Modifier
+                    }
+                ),
     ) {
         Text(
             text = overview,
@@ -61,10 +75,7 @@ fun OverviewText(
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
-            modifier =
-                Modifier
-                    .padding(8.dp)
-                    .height(textBoxHeight),
+            modifier = textModifier,
         )
     }
 }

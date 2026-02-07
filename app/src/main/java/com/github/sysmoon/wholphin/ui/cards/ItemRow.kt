@@ -18,6 +18,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
@@ -41,6 +42,7 @@ fun <T> ItemRow(
     modifier: Modifier = Modifier,
     startPadding: Dp = 16.dp,
     cardSpacing: Dp = 16.dp,
+    onFocusInRow: () -> Unit = {},
 ) {
     val state = rememberLazyListState()
     val firstFocus = remember { FocusRequester() }
@@ -82,7 +84,7 @@ fun <T> ItemRow(
                 cardContent.invoke(
                     index,
                     item,
-                    cardModifier,
+                    cardModifier.onFocusChanged { if (it.hasFocus) onFocusInRow() },
                     {
                         position = index
                         if (item != null) onClickItem.invoke(index, item)

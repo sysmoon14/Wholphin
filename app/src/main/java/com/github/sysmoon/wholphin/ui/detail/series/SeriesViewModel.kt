@@ -24,6 +24,7 @@ import com.github.sysmoon.wholphin.services.ThemeSongPlayer
 import com.github.sysmoon.wholphin.services.TrailerService
 import com.github.sysmoon.wholphin.services.UserPreferencesService
 import com.github.sysmoon.wholphin.ui.SlimItemFields
+import com.github.sysmoon.wholphin.ui.detail.CollectionRow
 import com.github.sysmoon.wholphin.ui.detail.ItemViewModel
 import com.github.sysmoon.wholphin.ui.equalsNotNull
 import com.github.sysmoon.wholphin.ui.gt
@@ -57,8 +58,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
+import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
@@ -112,6 +115,9 @@ class SeriesViewModel
 
         val peopleInEpisode = MutableLiveData<PeopleInItem>(PeopleInItem())
         val discovered = MutableStateFlow<List<DiscoverItem>>(listOf())
+        /** Next-up episode for this series, used for "Play Season X Episode Y" button label. */
+        val nextUpEpisode = MutableLiveData<BaseItem?>(null)
+        val collections = MutableLiveData<List<CollectionRow>>(listOf())
 
         val position = MutableStateFlow(SeriesOverviewPosition(0, 0))
 
@@ -186,6 +192,32 @@ class SeriesViewModel
                 }
                 if (seriesPageType == SeriesPageType.DETAILS) {
                     viewModelScope.launchIO {
+                        val similar =
+                            api.libraryApi
+                                .getSimilarItems(
+                                    GetSimilarItemsRequest(
+                                        userId = serverRepository.currentUser.value?.id,
+                                        itemId = seriesId,
+                                        fields = SlimItemFields,
+                                        limit = 25,
+                                    ),
+                                ).content.items
+                                .map { BaseItem.from(it, api, true) }
+                        this@SeriesViewModel.similar.setValueOnMain(similar)
+                    }
+                    viewModelScope.launchIO {
+                        val nextUpResult = api.tvShowsApi.getNextUp(seriesId = seriesId).content.items.firstOrNull()
+                            ?: api.tvShowsApi.getEpisodes(seriesId, limit = 1).content.items.firstOrNull()
+                        nextUpResult?.let { dto ->
+                            try {
+                                val nextUp = BaseItem.from(dto, api, useSeriesForPrimary = true)
+                                this@SeriesViewModel.nextUpEpisode.setValueOnMain(nextUp)
+                            } catch (e: Exception) {
+                                Timber.w(e, "Failed to convert next-up episode to BaseItem")
+                            }
+                        }
+                    }
+                    viewModelScope.launchIO {
                         trailerService.getLocalTrailers(item).letNotEmpty { localTrailers ->
                             withContext(Dispatchers.Main) {
                                 this@SeriesViewModel.trailers.value = localTrailers + remoteTrailers
@@ -200,26 +232,106 @@ class SeriesViewModel
                         val extras = extrasService.getExtras(item.id)
                         this@SeriesViewModel.extras.setValueOnMain(extras)
                     }
-                    if (!similar.isInitialized) {
-                        viewModelScope.launchIO {
-                            val similar =
-                                api.libraryApi
-                                    .getSimilarItems(
-                                        GetSimilarItemsRequest(
-                                            userId = serverRepository.currentUser.value?.id,
-                                            itemId = seriesId,
-                                            fields = SlimItemFields,
-                                            limit = 25,
-                                        ),
-                                    ).content.items
-                                    .map { BaseItem.from(it, api, true) }
-                            this@SeriesViewModel.similar.setValueOnMain(similar)
-                        }
-                    }
                     viewModelScope.launchIO {
                         val results = seerrService.similar(item).orEmpty()
                         discovered.update { results }
                     }
+                    loadParentCollection(item)
+                }
+            }
+        }
+
+        private fun loadParentCollection(item: BaseItem) {
+            viewModelScope.launch(ExceptionHandler() + Dispatchers.IO) {
+                val userId = serverRepository.currentUser.value?.id ?: return@launch
+                try {
+                    // 1) Try parentId when item is directly under a Box Set
+                    val parentId = item.data.parentId
+                    if (parentId != null) {
+                        val parentDto = api.userLibraryApi.getItem(parentId).content
+                        if (parentDto.type == BaseItemKind.BOX_SET) {
+                            val request =
+                                GetItemsRequest(
+                                    userId = userId,
+                                    parentId = parentId,
+                                    excludeItemIds = listOf(item.id),
+                                    fields = SlimItemFields,
+                                    recursive = true,
+                                    enableUserData = true,
+                                    startIndex = 0,
+                                    limit = 20,
+                                )
+                            val items =
+                                api.itemsApi.getItems(request).content.items.mapNotNull { dto ->
+                                    try {
+                                        BaseItem.from(dto, api, true)
+                                    } catch (e: Exception) {
+                                        Timber.w(e, "Failed to parse collection item")
+                                        null
+                                    }
+                                }
+                                    .filter { it.type == BaseItemKind.MOVIE || it.type == BaseItemKind.SERIES }
+                            if (items.isNotEmpty()) {
+                                val name = parentDto.name ?: context.getString(com.github.sysmoon.wholphin.R.string.collection)
+                                this@SeriesViewModel.collections.setValueOnMain(
+                                    listOf(CollectionRow(name, items)),
+                                )
+                                return@launch
+                            }
+                        }
+                    }
+                    // 2) Fallback: find Box Sets that contain this item (e.g. when parentId is not set)
+                    val boxSetsRequest =
+                        GetItemsRequest(
+                            userId = userId,
+                            parentId = null,
+                            includeItemTypes = listOf(BaseItemKind.BOX_SET),
+                            fields = SlimItemFields,
+                            recursive = true,
+                            enableUserData = false,
+                            startIndex = 0,
+                            limit = 40,
+                        )
+                    val boxSetDtos = api.itemsApi.getItems(boxSetsRequest).content.items
+                    val collectionRows = mutableListOf<CollectionRow>()
+                    for (boxSetDto in boxSetDtos) {
+                        val boxSetId = boxSetDto.id
+                        val childRequest =
+                            GetItemsRequest(
+                                userId = userId,
+                                parentId = boxSetId,
+                                fields = SlimItemFields,
+                                recursive = true,
+                                enableUserData = true,
+                                startIndex = 0,
+                                limit = 100,
+                            )
+                        val children = api.itemsApi.getItems(childRequest).content.items
+                        val containsItem = children.any { it.id == item.id }
+                        if (containsItem) {
+                            val siblings =
+                                children
+                                    .filter { it.id != item.id }
+                                    .mapNotNull { dto ->
+                                        try {
+                                            BaseItem.from(dto, api, true)
+                                        } catch (e: Exception) {
+                                            Timber.w(e, "Failed to parse collection item")
+                                            null
+                                        }
+                                    }
+                                    .filter { it.type == BaseItemKind.MOVIE || it.type == BaseItemKind.SERIES }
+                            if (siblings.isNotEmpty()) {
+                                val name = boxSetDto.name ?: context.getString(com.github.sysmoon.wholphin.R.string.collection)
+                                collectionRows.add(CollectionRow(name, siblings))
+                            }
+                        }
+                    }
+                    if (collectionRows.isNotEmpty()) {
+                        this@SeriesViewModel.collections.setValueOnMain(collectionRows)
+                    }
+                } catch (e: Exception) {
+                    Timber.d(e, "Could not load parent collection for series ${item.id}")
                 }
             }
         }

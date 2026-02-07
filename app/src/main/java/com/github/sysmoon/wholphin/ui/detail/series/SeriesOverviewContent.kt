@@ -51,17 +51,13 @@ import com.github.sysmoon.wholphin.data.ChosenStreams
 import com.github.sysmoon.wholphin.data.model.BaseItem
 import com.github.sysmoon.wholphin.data.model.Person
 import com.github.sysmoon.wholphin.preferences.UserPreferences
-import coil3.compose.AsyncImage
 import com.github.sysmoon.wholphin.ui.AspectRatios
-import com.github.sysmoon.wholphin.ui.ItemLogoHeight
-import com.github.sysmoon.wholphin.ui.ItemLogoWidth
-import com.github.sysmoon.wholphin.ui.LocalImageUrlService
 import com.github.sysmoon.wholphin.ui.cards.BannerCard
 import com.github.sysmoon.wholphin.ui.cards.PersonRow
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
 import com.github.sysmoon.wholphin.ui.components.LoadingPage
-import com.github.sysmoon.wholphin.ui.components.SeriesName
 import com.github.sysmoon.wholphin.ui.components.TabRow
+import com.github.sysmoon.wholphin.ui.detail.DetailInfoBlock
 import com.github.sysmoon.wholphin.ui.formatDateTime
 import com.github.sysmoon.wholphin.ui.ifElse
 import com.github.sysmoon.wholphin.ui.logTab
@@ -70,8 +66,6 @@ import com.github.sysmoon.wholphin.ui.rememberInt
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.ui.util.rememberDelayedNestedScroll
 import kotlinx.coroutines.launch
-import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
-import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.PersonKind
 import kotlin.time.Duration
 
@@ -150,6 +144,14 @@ fun SeriesOverviewContent(
                         .focusGroup()
                         .bringIntoViewRequester(bringIntoViewRequester),
             ) {
+                DetailInfoBlock(
+                    item = series,
+                    chosenStreams = chosenStreams,
+                    bringIntoViewRequester = bringIntoViewRequester,
+                    overviewOnClick = overviewOnClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    seasonCount = seasons.size,
+                )
                 val paddingValues =
                     if (preferences.appPreferences.interfacePreferences.showClock) {
                         PaddingValues(start = 16.dp, end = 100.dp)
@@ -171,27 +173,6 @@ fun SeriesOverviewContent(
                             .padding(paddingValues)
                             .fillMaxWidth(),
                 )
-                run {
-                    val imageUrlService = LocalImageUrlService.current
-                    val logoUrl = imageUrlService.rememberImageUrl(series, ImageType.LOGO)
-                    var logoError by remember(series) { mutableStateOf(false) }
-                    if (logoUrl.isNotNullOrBlank() && !logoError) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.CenterStart,
-                        ) {
-                            AsyncImage(
-                                model = logoUrl,
-                                contentDescription = null,
-                                contentScale = ContentScale.Fit,
-                                onError = { logoError = true },
-                                modifier = Modifier.size(width = ItemLogoWidth, height = ItemLogoHeight),
-                            )
-                        }
-                    } else {
-                        SeriesName(series.name, Modifier)
-                    }
-                }
                 FocusedEpisodeHeader(
                     preferences = preferences,
                     ep = focusedEpisode,

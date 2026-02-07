@@ -42,6 +42,7 @@ fun SeasonCard(
     aspectRatio: Float = item?.aspectRatio ?: AspectRatios.TALL,
     overrideLine1: String? = null,
     overrideLine2: String? = null,
+    showTitleAndSubtitle: Boolean = true,
 ) {
     val imageUrlService = LocalImageUrlService.current
     val density = LocalDensity.current
@@ -99,6 +100,7 @@ fun SeasonCard(
         interactionSource = interactionSource,
         showImageOverlay = showImageOverlay,
         aspectRatio = aspectRatio,
+        showTitleAndSubtitle = showTitleAndSubtitle,
     )
 }
 
@@ -124,6 +126,7 @@ fun SeasonCard(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     showImageOverlay: Boolean = false,
     aspectRatio: Float = AspectRatios.TALL,
+    showTitleAndSubtitle: Boolean = true,
 ) {
     val focusState = rememberCardFocusState(interactionSource)
     val aspectRationToUse = aspectRatio.coerceAtLeast(AspectRatios.MIN)
@@ -167,26 +170,16 @@ fun SeasonCard(
                 )
             }
         }
-        Column(
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-            modifier =
-                Modifier
-                    .padding(bottom = focusState.spaceBelow)
-                    .fillMaxWidth(),
-        ) {
-            Text(
-                text = title ?: "",
-                maxLines = 1,
-                textAlign = TextAlign.Center,
+        if (showTitleAndSubtitle) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 modifier =
                     Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                        .enableMarquee(focusState.focusedAfterDelay),
-            )
-            if (subtitle != null) {
+                        .padding(bottom = focusState.spaceBelow)
+                        .fillMaxWidth(),
+            ) {
                 Text(
-                    text = subtitle,
+                    text = title ?: "",
                     maxLines = 1,
                     textAlign = TextAlign.Center,
                     modifier =
@@ -195,6 +188,18 @@ fun SeasonCard(
                             .padding(horizontal = 4.dp)
                             .enableMarquee(focusState.focusedAfterDelay),
                 )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp)
+                                .enableMarquee(focusState.focusedAfterDelay),
+                    )
+                }
             }
         }
     }

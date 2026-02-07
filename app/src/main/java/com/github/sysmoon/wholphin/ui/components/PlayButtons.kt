@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSizeIn
@@ -39,6 +40,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -233,7 +236,6 @@ fun ExpandableFaButton(
     iconColor: Color = Color.Unspecified,
     enabled: Boolean = true,
 ) {
-    val isFocused = interactionSource.collectIsFocusedAsState().value
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -245,27 +247,36 @@ fun ExpandableFaButton(
             ),
         contentPadding = DefaultButtonPadding,
         interactionSource = interactionSource,
+        colors =
+            ButtonDefaults.colors(
+                containerColor = Color.Transparent,
+                focusedContainerColor = MaterialTheme.colorScheme.primary,
+                focusedContentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(32.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start,
         ) {
-            Text(
-                text = stringResource(iconStringRes),
-                style = MaterialTheme.typography.titleSmall,
-                color = iconColor,
-                fontSize = 16.sp,
-                fontFamily = FontAwesome,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.Center),
-            )
-        }
-        AnimatedVisibility(isFocused) {
+            Box(
+                modifier = Modifier.size(32.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(iconStringRes),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = iconColor,
+                    fontSize = 16.sp,
+                    fontFamily = FontAwesome,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
             Text(
                 text = stringResource(title),
                 style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(end = 4.dp),
+                modifier = Modifier.padding(start = 8.dp),
             )
         }
     }

@@ -401,6 +401,18 @@ suspend fun <T> MutableLiveData<T>.setValueOnMain(value: T) =
         this@setValueOnMain.value = value
     }
 
+/**
+ * Sets LiveData value on Main only if [scope] is still active.
+ * Use from ViewModel coroutines to avoid updating UI after the screen has been left
+ * (prevents Compose AssertionError when composition is cancelled).
+ */
+suspend fun <T> MutableLiveData<T>.setValueOnMainIfActive(scope: CoroutineScope, value: T) =
+    withContext(Dispatchers.Main) {
+        if (scope.isActive) {
+            this@setValueOnMainIfActive.value = value
+        }
+    }
+
 fun equalsNotNull(
     a: Any?,
     b: Any?,

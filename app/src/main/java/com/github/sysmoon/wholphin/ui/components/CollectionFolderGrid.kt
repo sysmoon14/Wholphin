@@ -87,6 +87,7 @@ import com.github.sysmoon.wholphin.ui.nav.Destination
 import com.github.sysmoon.wholphin.ui.playback.scale
 import com.github.sysmoon.wholphin.ui.rememberInt
 import com.github.sysmoon.wholphin.ui.setValueOnMain
+import com.github.sysmoon.wholphin.ui.setValueOnMainIfActive
 import com.github.sysmoon.wholphin.ui.toServerString
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.util.ApiRequestPager
@@ -176,7 +177,8 @@ class CollectionFolderViewModel
                         serverRepository.currentUser.value?.let { user ->
                             libraryDisplayInfoDao.getItem(user, itemId)
                         }
-                    this@CollectionFolderViewModel.viewOptions.setValueOnMain(
+                    this@CollectionFolderViewModel.viewOptions.setValueOnMainIfActive(
+                        viewModelScope,
                         libraryDisplayInfo?.viewOptions ?: defaultViewOptions,
                     )
 
@@ -197,7 +199,7 @@ class CollectionFolderViewModel
                     loadResults(true, sortAndDirection, recursive, filterToUse, useSeriesForPrimary)
                 } catch (ex: Exception) {
                     Timber.e(ex, "Error during init")
-                    loading.setValueOnMain(DataLoadingState.Error(ex))
+                    loading.setValueOnMainIfActive(viewModelScope, DataLoadingState.Error(ex))
                 }
             }
         }
@@ -268,20 +270,24 @@ class CollectionFolderViewModel
         ) {
             viewModelScope.launch(Dispatchers.IO) {
                 withContext(Dispatchers.Main) {
-                    if (resetState) {
-                        loading.value = DataLoadingState.Loading
+                    if (viewModelScope.isActive) {
+                        if (resetState) {
+                            loading.value = DataLoadingState.Loading
+                        }
+                        backgroundLoading.value = LoadingState.Loading
+                        this@CollectionFolderViewModel.sortAndDirection.value = sortAndDirection
+                        this@CollectionFolderViewModel.filter.value = filter
                     }
-                    backgroundLoading.value = LoadingState.Loading
-                    this@CollectionFolderViewModel.sortAndDirection.value = sortAndDirection
-                    this@CollectionFolderViewModel.filter.value = filter
                 }
                 try {
                     val newPager =
                         createPager(sortAndDirection, recursive, filter, useSeriesForPrimary).init()
                     if (newPager.isNotEmpty()) newPager.getBlocking(0)
                     withContext(Dispatchers.Main) {
-                        loading.value = DataLoadingState.Success(newPager)
-                        backgroundLoading.value = LoadingState.Success
+                        if (viewModelScope.isActive) {
+                            loading.value = DataLoadingState.Success(newPager)
+                            backgroundLoading.value = LoadingState.Success
+                        }
                     }
                 } catch (ex: Exception) {
                     Timber.e(
@@ -291,7 +297,9 @@ class CollectionFolderViewModel
                         filter,
                     )
                     withContext(Dispatchers.Main) {
-                        loading.value = DataLoadingState.Error(ex)
+                        if (viewModelScope.isActive) {
+                            loading.value = DataLoadingState.Error(ex)
+                        }
                     }
                 }
             }

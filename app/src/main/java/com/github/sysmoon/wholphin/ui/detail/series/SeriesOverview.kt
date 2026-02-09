@@ -22,6 +22,7 @@ import com.github.sysmoon.wholphin.data.ChosenStreams
 import com.github.sysmoon.wholphin.data.model.BaseItem
 import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.ui.RequestOrRestoreFocus
+import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.ui.components.DialogParams
 import com.github.sysmoon.wholphin.ui.components.DialogPopup
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
@@ -105,6 +106,7 @@ fun SeriesOverview(
 
     var overviewDialog by remember { mutableStateOf<ItemDetailsDialogInfo?>(null) }
     var moreDialog by remember { mutableStateOf<DialogParams?>(null) }
+    var restoreEpisodeListFocusAfterDismiss by remember { mutableStateOf(false) }
     var chooseVersion by remember { mutableStateOf<DialogParams?>(null) }
     var showPlaylistDialog by remember { mutableStateOf<UUID?>(null) }
     val playlistState by playlistViewModel.playlistState.observeAsState(PlaylistLoadingState.Pending)
@@ -333,10 +335,19 @@ fun SeriesOverview(
             showDialog = true,
             title = params.title,
             dialogItems = params.items,
-            onDismissRequest = { moreDialog = null },
+            onDismissRequest = {
+                moreDialog = null
+                restoreEpisodeListFocusAfterDismiss = true
+            },
             dismissOnClick = true,
             waitToLoad = params.fromLongClick,
         )
+    }
+    LaunchedEffect(restoreEpisodeListFocusAfterDismiss) {
+        if (restoreEpisodeListFocusAfterDismiss) {
+            restoreEpisodeListFocusAfterDismiss = false
+            firstItemFocusRequester.tryRequestFocus()
+        }
     }
     chooseVersion?.let { params ->
         DialogPopup(

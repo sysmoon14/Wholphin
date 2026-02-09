@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,7 +58,6 @@ import com.github.sysmoon.wholphin.ui.FontAwesome
 import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
 import com.github.sysmoon.wholphin.ui.playback.SimpleMediaStream
 import com.github.sysmoon.wholphin.util.ExceptionHandler
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.MediaSourceInfo
 import org.jellyfin.sdk.model.api.MediaStream
@@ -173,7 +171,8 @@ data class DialogItem(
 /**
  * Show a dialog with a list of entries.
  *
- * @param waitToLoad items start as disabled for about ~1s, which is useful if the dialog spawned from a long press
+ * @param waitToLoad when true (e.g. dialog spawned from long press), the first select/click is
+ * consumed so the long-press release does not trigger the first menu item, regardless of hold duration.
  */
 @Composable
 fun DialogPopup(
@@ -186,20 +185,8 @@ fun DialogPopup(
     properties: DialogProperties = DialogProperties(),
     elevation: Dp = 3.dp,
 ) {
-    var waiting by remember { mutableStateOf(waitToLoad) }
+    var consumeNextSelect by remember(showDialog) { mutableStateOf(waitToLoad && showDialog) }
     if (showDialog) {
-        if (waitToLoad) {
-            LaunchedEffect(Unit) {
-                // This is a hack because a long click will propagate here and click the first list item
-                // So this disables the list items assuming the user will stop pressing when the dialog appears
-                // This is also bypassed in the code below if the user releases the enter/d-pad center button
-                waiting = true
-                delay(1000)
-                waiting = false
-            }
-        } else {
-            waiting = false
-        }
         Dialog(
             onDismissRequest = onDismissRequest,
             properties = properties,
@@ -207,10 +194,11 @@ fun DialogPopup(
             DialogPopupContent(
                 title = title,
                 dialogItems = dialogItems,
-                waiting = waiting,
                 onDismissRequest = onDismissRequest,
                 dismissOnClick = dismissOnClick,
                 elevation = elevation,
+                consumeNextSelect = consumeNextSelect,
+                onConsumeNextSelect = { consumeNextSelect = false },
                 modifier =
                     Modifier
                         .onPreviewKeyEvent { event ->
@@ -226,32 +214,16 @@ fun DialogPopup(
                                 event.nativeKeyEvent.action == KeyEvent.ACTION_UP &&
                                 isSelectKey
                             ) {
-                                if (waiting) {
+                                if (consumeNextSelect) {
                                     // Consume the key-up from the long press so it doesn't trigger the first item
-                                    waiting = false
+                                    consumeNextSelect = false
                                     true
                                 } else {
-                                    waiting = false
                                     false
                                 }
                             } else {
                                 false
                             }
-                        }
-                        .onKeyEvent { event ->
-                            val code = event.nativeKeyEvent.keyCode
-                            if (
-                                event.nativeKeyEvent.action == KeyEvent.ACTION_UP &&
-                                code in
-                                setOf(
-                                    KeyEvent.KEYCODE_ENTER,
-                                    KeyEvent.KEYCODE_DPAD_CENTER,
-                                    KeyEvent.KEYCODE_NUMPAD_ENTER,
-                                )
-                            ) {
-                                waiting = false
-                            }
-                            false
                         },
             )
         }
@@ -262,11 +234,12 @@ fun DialogPopup(
 fun DialogPopupContent(
     title: String,
     dialogItems: List<DialogItemEntry>,
-    waiting: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     dismissOnClick: Boolean = true,
     elevation: Dp = 3.dp,
+    consumeNextSelect: Boolean = false,
+    onConsumeNextSelect: () -> Unit = {},
 ) {
     val elevatedContainerColor =
         MaterialTheme.colorScheme.surfaceColorAtElevation(elevation)
@@ -297,12 +270,16 @@ fun DialogPopupContent(
                     is DialogItem -> {
                         ListItem(
                             selected = it.selected,
-                            enabled = !waiting && it.enabled,
+                            enabled = it.enabled,
                             onClick = {
-                                if (dismissOnClick) {
-                                    onDismissRequest.invoke()
+                                if (consumeNextSelect) {
+                                    onConsumeNextSelect()
+                                } else {
+                                    if (dismissOnClick) {
+                                        onDismissRequest.invoke()
+                                    }
+                                    it.onClick.invoke()
                                 }
-                                it.onClick.invoke()
                             },
                             headlineContent = it.headlineContent,
                             overlineContent = it.overlineContent,

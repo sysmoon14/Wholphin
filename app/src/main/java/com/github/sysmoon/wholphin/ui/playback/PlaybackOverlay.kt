@@ -193,7 +193,7 @@ fun PlaybackOverlay(
         val fullHeightPx = with(density) { maxHeight.toPx() }
         Box(
             Modifier.fillMaxSize(),
-            contentAlignment = Alignment.BottomCenter,
+            contentAlignment = Alignment.BottomStart,
         ) {
         // Scrim: fade via alpha
         if (controllerViewState.controlsVisible || progressValue < 1f) {
@@ -220,6 +220,8 @@ fun PlaybackOverlay(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier =
                     Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
                         .graphicsLayer { translationY = progressValue * fullHeightPx }
                         .padding(bottom = 8.dp)
                         .onGloballyPositioned {
@@ -571,6 +573,7 @@ fun Controller(
                     model = logoImageUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterStart,
                     modifier = Modifier.size(width = ItemLogoWidth, height = ItemLogoHeight),
                 )
             }

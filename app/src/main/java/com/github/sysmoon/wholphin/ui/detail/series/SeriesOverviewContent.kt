@@ -111,6 +111,7 @@ private fun SeriesOverviewHeader(
                 model = resolvedLogoUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
+                alignment = Alignment.CenterStart,
                 onError = { logoError = true },
                 modifier = Modifier.size(width = ItemLogoWidth, height = ItemLogoHeight),
             )

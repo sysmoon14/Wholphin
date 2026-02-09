@@ -59,10 +59,22 @@ class HomeViewModel
 
         init {
             datePlayedService.invalidateAll()
+            navigationManager.onReturnedToHome = {
+                if (::preferences.isInitialized) {
+                    viewModelScope.launch {
+                        refreshWhenReturnedToHome()
+                    }
+                }
+            }
         }
 
         fun init(preferences: UserPreferences): Job {
             val reload = loadingState.value != LoadingState.Success
+            return init(preferences, backgroundRefresh = !reload)
+        }
+
+        private fun init(preferences: UserPreferences, backgroundRefresh: Boolean): Job {
+            val reload = !backgroundRefresh && loadingState.value != LoadingState.Success
             if (reload) {
                 loadingState.value = LoadingState.Loading
             }
@@ -70,14 +82,13 @@ class HomeViewModel
             this.preferences = preferences
             val prefs = preferences.appPreferences.homePagePreferences
             val limit = prefs.maxItemsPerRow
-            return viewModelScope.launch(
-                Dispatchers.IO +
-                    LoadingExceptionHandler(
-                        loadingState,
-                        "Error loading home page",
-                    ),
-            ) {
-                Timber.d("init HomeViewModel")
+            val exceptionHandler =
+                LoadingExceptionHandler(
+                    if (backgroundRefresh) refreshState else loadingState,
+                    "Error loading home page",
+                )
+            return viewModelScope.launch(Dispatchers.IO + exceptionHandler) {
+                Timber.d("init HomeViewModel backgroundRefresh=$backgroundRefresh")
                 if (reload) {
                     backdropService.clearBackdrop()
                 }
@@ -105,10 +116,10 @@ class HomeViewModel
                         withContext(Dispatchers.Main) {
                             // Plugin rows replace the entire home screen
                             this@HomeViewModel.watchingRows.value = emptyList()
+                            this@HomeViewModel.latestRows.value = customRows
                             if (reload) {
-                                this@HomeViewModel.latestRows.value = customRows
+                                loadingState.value = LoadingState.Success
                             }
-                            loadingState.value = LoadingState.Success
                         }
                         refreshState.setValueOnMain(LoadingState.Success)
                     } else {
@@ -168,6 +179,16 @@ class HomeViewModel
                         refreshState.setValueOnMain(LoadingState.Success)
                     }
                 }
+            }
+        }
+
+        /**
+         * Refreshes Up Next / Continue Watching (and latest rows) when the user returns to the home screen.
+         * Called from [NavigationManager.onReturnedToHome]; runs as a background refresh (no full-screen loading).
+         */
+        private fun refreshWhenReturnedToHome() {
+            if (::preferences.isInitialized) {
+                init(preferences, backgroundRefresh = true)
             }
         }
 

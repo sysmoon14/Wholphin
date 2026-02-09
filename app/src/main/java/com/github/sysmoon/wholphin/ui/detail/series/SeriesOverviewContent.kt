@@ -45,6 +45,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import android.view.KeyEvent
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -142,6 +143,7 @@ fun SeriesOverviewContent(
     onSelectPreviousEpisode: () -> Unit,
     onClick: (BaseItem) -> Unit,
     onLongClick: (BaseItem) -> Unit,
+    onLongClickSeason: (BaseItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -201,14 +203,41 @@ fun SeriesOverviewContent(
                         val isSelected = index == position.seasonTabIndex
                         val seasonInteractionSource = remember(index) { MutableInteractionSource() }
                         val isDimmed = moreSeasonsBelow && index == lastVisibleSeasonIndex
+                        var ignoreNextSelectKeyUp by remember(index) { mutableStateOf(false) }
+                        val onSeasonClick = {
+                            onChangeSeason(index)
+                            requestFocusAfterSeason = true
+                        }
+                        val isSelectKey: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = {
+                            it.nativeKeyEvent.keyCode in
+                                setOf(
+                                    KeyEvent.KEYCODE_DPAD_CENTER,
+                                    KeyEvent.KEYCODE_ENTER,
+                                    KeyEvent.KEYCODE_NUMPAD_ENTER,
+                                )
+                        }
                         Button(
-                            onClick = {
-                                onChangeSeason(index)
-                                requestFocusAfterSeason = true
-                            },
+                            onClick = onSeasonClick,
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
+                                    .onPreviewKeyEvent { event ->
+                                        if (isSelectKey(event)) {
+                                            if (event.nativeKeyEvent.isLongPress) {
+                                                season?.let {
+                                                    ignoreNextSelectKeyUp = true
+                                                    onLongClickSeason(it)
+                                                }
+                                                true
+                                            } else if (
+                                                event.type == KeyEventType.KeyUp &&
+                                                ignoreNextSelectKeyUp
+                                            ) {
+                                                ignoreNextSelectKeyUp = false
+                                                true
+                                            } else false
+                                        } else false
+                                    }
                                     .then(
                                         if (isDimmed) Modifier.alpha(0.5f)
                                         else Modifier,
@@ -272,6 +301,7 @@ fun SeriesOverviewContent(
                 onSelectPreviousEpisode = onSelectPreviousEpisode,
                 onClick = onClick,
                 onLongClick = onLongClick,
+                onLongClickSeason = onLongClickSeason,
             )
         }
     }
@@ -293,6 +323,7 @@ private fun RowScope.EpisodeAreaInRow(
     onSelectPreviousEpisode: () -> Unit,
     onClick: (BaseItem) -> Unit,
     onLongClick: (BaseItem) -> Unit,
+    onLongClickSeason: (BaseItem) -> Unit,
 ) {
     Box(
         modifier = Modifier.weight(1f).fillMaxHeight(),

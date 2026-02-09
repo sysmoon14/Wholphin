@@ -29,6 +29,12 @@ data class MoreDialogActions(
     var onClickAddPlaylist: (UUID) -> Unit,
 )
 
+data class SeasonDialogActions(
+    val onClickPlay: (Boolean) -> Unit,
+    val onClickAddPlaylist: (UUID) -> Unit,
+    val onClickWatch: (Boolean) -> Unit,
+)
+
 enum class ClearChosenStreams {
     NONE,
     ITEM_AND_SERIES,
@@ -323,6 +329,48 @@ fun buildMoreDialogItemsForHome(
                 },
             )
         }
+    }
+
+fun buildMoreDialogItemsForSeason(
+    context: Context,
+    season: BaseItem,
+    watched: Boolean,
+    actions: SeasonDialogActions,
+): List<DialogItem> =
+    buildList {
+        add(
+            DialogItem(
+                context.getString(R.string.play),
+                Icons.Default.PlayArrow,
+                iconColor = Color.Green.copy(alpha = .8f),
+            ) {
+                actions.onClickPlay.invoke(false)
+            },
+        )
+        add(
+            DialogItem(
+                text = R.string.add_to_playlist,
+                iconStringRes = R.string.fa_list_ul,
+            ) {
+                actions.onClickAddPlaylist.invoke(season.id)
+            },
+        )
+        add(
+            DialogItem(
+                text = if (watched) R.string.mark_unwatched else R.string.mark_watched,
+                iconStringRes = if (watched) R.string.fa_eye else R.string.fa_eye_slash,
+            ) {
+                actions.onClickWatch.invoke(!watched)
+            },
+        )
+        add(
+            DialogItem(
+                context.getString(R.string.shuffle),
+                R.string.fa_shuffle,
+            ) {
+                actions.onClickPlay.invoke(true)
+            },
+        )
     }
 
 fun buildMoreDialogItemsForPerson(

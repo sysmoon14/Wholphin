@@ -17,6 +17,12 @@ class NavigationManager
         var backStack: MutableList<NavKey> = mutableListOf()
 
         /**
+         * Invoked when the user returns to the home screen (e.g. via Back or Go to Home).
+         * Used to refresh Up Next / Continue Watching so the row is up to date after playback.
+         */
+        var onReturnedToHome: (() -> Unit)? = null
+
+        /**
          * Go to the specified [com.github.sysmoon.wholphin.ui.nav.Destination]
          */
         fun navigateTo(destination: Destination) {
@@ -37,25 +43,38 @@ class NavigationManager
          * Go to the previous page
          */
         fun goBack() {
-            synchronized(this) {
-                if (backStack.size > 1) {
+            val hadMultiple = synchronized(this) {
+                val size = backStack.size
+                if (size > 1) {
                     backStack.removeLastOrNull()
+                    true
+                } else {
+                    false
                 }
             }
             log()
+            if (hadMultiple && backStack.lastOrNull() is Destination.Home) {
+                onReturnedToHome?.invoke()
+            }
         }
 
         /**
          * Go all the way back to the home page
          */
         fun goToHome() {
-            while (backStack.size > 1) {
-                backStack.removeLastOrNull()
-            }
-            if (backStack[0] !is Destination.Home) {
-                backStack[0] = Destination.Home()
+            val hadMultiple = backStack.size > 1
+            synchronized(this) {
+                while (backStack.size > 1) {
+                    backStack.removeLastOrNull()
+                }
+                if (backStack[0] !is Destination.Home) {
+                    backStack[0] = Destination.Home()
+                }
             }
             log()
+            if (hadMultiple) {
+                onReturnedToHome?.invoke()
+            }
         }
 
         /**

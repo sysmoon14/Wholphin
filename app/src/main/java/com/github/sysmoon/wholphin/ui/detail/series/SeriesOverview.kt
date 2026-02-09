@@ -35,7 +35,9 @@ import com.github.sysmoon.wholphin.ui.data.ItemDetailsDialogInfo
 import com.github.sysmoon.wholphin.ui.detail.MoreDialogActions
 import com.github.sysmoon.wholphin.ui.detail.PlaylistDialog
 import com.github.sysmoon.wholphin.ui.detail.PlaylistLoadingState
+import com.github.sysmoon.wholphin.ui.detail.SeasonDialogActions
 import com.github.sysmoon.wholphin.ui.detail.buildMoreDialogItems
+import com.github.sysmoon.wholphin.ui.detail.buildMoreDialogItemsForSeason
 import com.github.sysmoon.wholphin.ui.nav.Destination
 import com.github.sysmoon.wholphin.ui.seasonEpisode
 import com.github.sysmoon.wholphin.util.LoadingState
@@ -313,6 +315,37 @@ fun SeriesOverview(
                     },
                     onLongClick = { ep ->
                         moreDialog = buildMoreForEpisode(ep, chosenStreams, true)
+                    },
+                    onLongClickSeason = { season ->
+                        moreDialog =
+                            DialogParams(
+                                fromLongClick = true,
+                                title = season.name ?: context.getString(R.string.tv_season),
+                                items =
+                                    buildMoreDialogItemsForSeason(
+                                        context = context,
+                                        season = season,
+                                        watched = season.data.userData?.played ?: false,
+                                        actions =
+                                            SeasonDialogActions(
+                                                onClickPlay = { shuffle ->
+                                                    viewModel.navigateTo(
+                                                        Destination.PlaybackList(
+                                                            itemId = season.id,
+                                                            shuffle = shuffle,
+                                                        ),
+                                                    )
+                                                },
+                                                onClickAddPlaylist = {
+                                                    playlistViewModel.loadPlaylists(MediaType.VIDEO)
+                                                    showPlaylistDialog = it
+                                                },
+                                                onClickWatch = { played ->
+                                                    viewModel.setSeasonWatched(season.id, played)
+                                                },
+                                            ),
+                                    ),
+                            )
                     },
                     modifier = modifier,
                 )

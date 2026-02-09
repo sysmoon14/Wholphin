@@ -469,6 +469,8 @@ fun SeriesDetailsContent(
                     },
                     showMoreEpisodes = true,
                     onMoreEpisodesClick = onMoreEpisodesClick,
+                    showShuffle = true,
+                    onShuffleClick = { playOnClick(true) },
                     trailers = trailers,
                     onTrailerClick = trailerOnClick,
                     showCastAndCrew = people.isNotEmpty(),

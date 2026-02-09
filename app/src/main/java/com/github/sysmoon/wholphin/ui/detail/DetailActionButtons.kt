@@ -61,7 +61,7 @@ private val ButtonWidth = 220.dp
 
 /**
  * Vertical scrollable list of action buttons for detail screens (movie/series).
- * Order: Play/Resume, More Episodes (TV only), Choose Subtitles, Favourites, Trailer(s), More.
+ * Order: Play/Resume, More Episodes (TV only), Shuffle (Series only), Choose Subtitles, Favourites, Trailer(s), More.
  */
 @Composable
 fun DetailActionButtons(
@@ -76,6 +76,8 @@ fun DetailActionButtons(
     onPlayFocusChanged: (Boolean) -> Unit = {},
     showMoreEpisodes: Boolean = false,
     onMoreEpisodesClick: () -> Unit = {},
+    showShuffle: Boolean = false,
+    onShuffleClick: () -> Unit = {},
     trailers: List<Trailer>? = null,
     onTrailerClick: (Trailer) -> Unit = {},
     watched: Boolean = false,
@@ -117,6 +119,14 @@ fun DetailActionButtons(
                 titleRes = R.string.more_episodes,
                 iconStringRes = R.string.fa_list_ul,
                 onClick = onMoreEpisodesClick,
+                modifier = Modifier.width(ButtonWidth),
+            )
+        }
+        if (showShuffle) {
+            DetailActionButton(
+                titleRes = R.string.shuffle,
+                iconStringRes = R.string.fa_shuffle,
+                onClick = onShuffleClick,
                 modifier = Modifier.width(ButtonWidth),
             )
         }

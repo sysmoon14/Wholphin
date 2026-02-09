@@ -43,6 +43,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.isActive
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.github.sysmoon.wholphin.R
@@ -827,7 +828,8 @@ fun CollectionFolderGridContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    if (showTitle) {
+                    val collectionsLabel = stringResource(R.string.collections)
+                    if (showTitle && title != collectionsLabel) {
                         Text(
                             text = title,
                             style = MaterialTheme.typography.displayMedium,

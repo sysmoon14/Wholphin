@@ -42,14 +42,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.data.model.Trailer
 import com.github.sysmoon.wholphin.ui.FontAwesome
-import com.github.sysmoon.wholphin.ui.components.ExpandableFaButton
-import com.github.sysmoon.wholphin.ui.components.TrailerButton
+import com.github.sysmoon.wholphin.ui.components.TrailerDialog
 import kotlin.time.Duration
 
 private val MinButtonHeight = 36.dp
@@ -144,24 +144,24 @@ fun DetailActionButtons(
                 modifier = Modifier.width(ButtonWidth),
             )
         }
-        ExpandableFaButton(
-            title = if (favourite) R.string.remove_favorite else R.string.add_favorite,
+        DetailActionButton(
+            titleRes = if (favourite) R.string.remove_favorite else R.string.add_favorite,
             iconStringRes = R.string.fa_heart,
             onClick = onFavouriteClick,
-            iconColor = if (favourite) Color.Red else Color.Unspecified,
             modifier = Modifier.width(ButtonWidth),
+            iconColor = if (favourite) Color.Red else Color.Unspecified,
         )
         trailers?.let { list ->
             if (list.isNotEmpty()) {
-                TrailerButton(
+                DetailActionTrailerButton(
                     trailers = list,
                     trailerOnClick = onTrailerClick,
                     modifier = Modifier.width(ButtonWidth),
                 )
             }
         }
-        ExpandableFaButton(
-            title = R.string.more,
+        DetailActionButton(
+            titleRes = R.string.more,
             iconStringRes = R.string.fa_ellipsis_vertical,
             onClick = onMoreClick,
             modifier =
@@ -243,6 +243,7 @@ private fun DetailActionButton(
     @StringRes iconStringRes: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    iconColor: Color = Color.Unspecified,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Button(
@@ -275,6 +276,7 @@ private fun DetailActionButton(
                     fontSize = 12.sp,
                     fontFamily = FontAwesome,
                     textAlign = TextAlign.Center,
+                    color = if (iconColor != Color.Unspecified) iconColor else LocalContentColor.current,
                 )
             }
             Text(
@@ -286,5 +288,40 @@ private fun DetailActionButton(
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun DetailActionTrailerButton(
+    trailers: List<Trailer>,
+    trailerOnClick: (Trailer) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    val titleRes =
+        when {
+            trailers.isEmpty() -> R.string.no_trailers
+            trailers.size == 1 -> R.string.play_trailer
+            else -> R.string.trailers
+        }
+    DetailActionButton(
+        titleRes = titleRes,
+        iconStringRes = R.string.fa_film,
+        onClick = {
+            if (trailers.size == 1) {
+                trailerOnClick(trailers.first())
+            } else {
+                showDialog = true
+            }
+        },
+        modifier = modifier,
+        iconColor = Color.Unspecified,
+    )
+    if (showDialog) {
+        TrailerDialog(
+            onDismissRequest = { showDialog = false },
+            trailers = trailers,
+            onClick = trailerOnClick,
+        )
     }
 }

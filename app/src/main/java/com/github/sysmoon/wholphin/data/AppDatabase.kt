@@ -17,6 +17,7 @@ import com.github.sysmoon.wholphin.data.model.NavDrawerPinnedItem
 import com.github.sysmoon.wholphin.data.model.PlaybackLanguageChoice
 import com.github.sysmoon.wholphin.data.model.SeerrServer
 import com.github.sysmoon.wholphin.data.model.SeerrUser
+import com.github.sysmoon.wholphin.data.model.UserPreferencesEntity
 import com.github.sysmoon.wholphin.ui.components.ViewOptions
 import kotlinx.serialization.json.Json
 import org.jellyfin.sdk.model.api.ItemSortBy
@@ -36,8 +37,9 @@ import java.util.UUID
         ItemTrackModification::class,
         SeerrServer::class,
         SeerrUser::class,
+        UserPreferencesEntity::class,
     ],
-    version = 21,
+    version = 22,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(3, 4),
@@ -65,6 +67,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playbackLanguageChoiceDao(): PlaybackLanguageChoiceDao
 
     abstract fun seerrServerDao(): SeerrServerDao
+
+    abstract fun userPreferencesDao(): UserPreferencesDao
 }
 
 class Converters {
@@ -224,6 +228,26 @@ object Migrations {
                 db.execSQL(
                     """
                     CREATE INDEX IF NOT EXISTS `index_seerr_users_serverId` ON `seerr_users` (`serverId`)
+                    """.trimIndent(),
+                )
+            }
+        }
+
+    val Migrate21to22 =
+        object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `user_preferences` (
+                        `userId` INTEGER NOT NULL PRIMARY KEY,
+                        `preferencesBlob` BLOB NOT NULL,
+                        FOREIGN KEY(`userId`) REFERENCES `users`(`rowId`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS `index_user_preferences_userId` ON `user_preferences` (`userId`)
                     """.trimIndent(),
                 )
             }

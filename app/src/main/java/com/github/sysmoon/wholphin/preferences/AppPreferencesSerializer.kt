@@ -2,6 +2,7 @@ package com.github.sysmoon.wholphin.preferences
 
 import androidx.compose.ui.graphics.toArgb
 import androidx.datastore.core.CorruptionException
+import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import com.github.sysmoon.wholphin.ui.preferences.subtitle.SubtitleSettings
 import com.google.protobuf.InvalidProtocolBufferException
@@ -92,10 +93,8 @@ class AppPreferencesSerializer
                                 navDrawerSwitchOnFocus =
                                     AppPreference.NavDrawerSwitchOnFocus.defaultValue
                                 showClock = AppPreference.ShowClock.defaultValue
-                                enableCustomHomeRows = AppPreference.CustomHomeRows.defaultValue
-                                customHomeRowsUseNativeContinueNext =
-                                    AppPreference.CustomHomeRowsUseNativeContinueNext.defaultValue
                                 backdropStyle = AppPreference.BackdropStylePref.defaultValue
+                                homeUsesPluginRows = false
 
                                 combinedSearchResults =
                                     AppPreference.CombinedSearchResults.defaultValue
@@ -199,4 +198,11 @@ fun SubtitlePreferences.Builder.resetSubtitles() {
     backgroundStyle = SubtitleSettings.BackgroundStylePref.defaultValue
     margin = SubtitleSettings.Margin.defaultValue.toInt()
     edgeThickness = SubtitleSettings.EdgeThickness.defaultValue.toInt()
+}
+
+/** Resets subtitle preferences in the device DataStore (e.g. for app upgrade). */
+suspend fun resetSubtitleSettings(dataStore: DataStore<AppPreferences>) {
+    dataStore.updateData {
+        it.updateSubtitlePreferences { resetSubtitles() }
+    }
 }

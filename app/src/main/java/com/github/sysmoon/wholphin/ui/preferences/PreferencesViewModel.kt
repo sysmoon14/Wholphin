@@ -13,8 +13,10 @@ import com.github.sysmoon.wholphin.data.isPinned
 import com.github.sysmoon.wholphin.data.model.JellyfinUser
 import com.github.sysmoon.wholphin.data.model.NavDrawerPinnedItem
 import com.github.sysmoon.wholphin.data.model.NavPinType
+import com.github.sysmoon.wholphin.preferences.AppPreference
 import com.github.sysmoon.wholphin.preferences.AppPreferences
 import com.github.sysmoon.wholphin.preferences.resetSubtitles
+import com.github.sysmoon.wholphin.preferences.UserPreferencesRepository
 import com.github.sysmoon.wholphin.preferences.updateSubtitlePreferences
 import com.github.sysmoon.wholphin.services.BackdropService
 import com.github.sysmoon.wholphin.services.NavigationManager
@@ -27,7 +29,9 @@ import com.github.sysmoon.wholphin.util.ExceptionHandler
 import com.github.sysmoon.wholphin.util.RememberTabManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.model.ClientInfo
 import org.jellyfin.sdk.model.DeviceInfo
@@ -49,12 +53,61 @@ class PreferencesViewModel
         private val seerrServerRepository: SeerrServerRepository,
         private val deviceInfo: DeviceInfo,
         private val clientInfo: ClientInfo,
+        private val userPreferencesRepository: UserPreferencesRepository,
     ) : ViewModel(),
         RememberTabManager by rememberTabManager {
         private lateinit var allNavDrawerItems: List<NavDrawerItem>
         val navDrawerPins = MutableLiveData<Map<NavDrawerItem, Boolean>>(mapOf())
 
         val currentUser get() = serverRepository.currentUser
+
+        /**
+         * Merged preferences (device + per-user UI/UX) for the current user.
+         * When no user is selected, falls back to device prefs.
+         */
+        val preferencesFlow: Flow<AppPreferences> =
+            serverRepository.currentUser.asFlow().flatMapLatest { user ->
+                if (user != null) {
+                    userPreferencesRepository.getMergedPreferences(user.rowId)
+                } else {
+                    preferenceDataStore.data
+                }
+            }
+
+        /**
+         * Persists the given merged preferences as the current user's per-user preferences.
+         * Use when a sub-screen (e.g. Live TV options dialog) applies multiple changes at once.
+         */
+        fun updateUserPreferencesFromMerged(newMerged: AppPreferences) {
+            viewModelScope.launchIO(ExceptionHandler()) {
+                val user = serverRepository.currentUser.value ?: return@launchIO
+                userPreferencesRepository.updateUserPreferences(user.rowId, newMerged) { _ -> newMerged }
+            }
+        }
+
+        /**
+         * Updates a preference: writes to per-user store if UI/UX, else to device store.
+         */
+        fun updatePreference(
+            pref: AppPreference<AppPreferences, Any?>,
+            newValue: Any?,
+            currentMerged: AppPreferences,
+        ) {
+            viewModelScope.launchIO(ExceptionHandler()) {
+                val user = serverRepository.currentUser.value
+                if (user != null && !AppPreference.isDeviceOnlyPreference(pref)) {
+                    userPreferencesRepository.updateUserPreferences(user.rowId, currentMerged) { prefs ->
+                        @Suppress("UNCHECKED_CAST")
+                        (pref.setter as (AppPreferences, Any?) -> AppPreferences)(prefs, newValue)
+                    }
+                } else {
+                    preferenceDataStore.updateData { prefs ->
+                        @Suppress("UNCHECKED_CAST")
+                        (pref.setter as (AppPreferences, Any?) -> AppPreferences)(prefs, newValue)
+                    }
+                }
+            }
+        }
 
         val seerrEnabled =
             seerrServerRepository.currentUser.combine(currentUser.asFlow()) { seerrUser, jellyfinUser ->
@@ -110,7 +163,11 @@ class PreferencesViewModel
 
         fun resetSubtitleSettings() {
             viewModelScope.launchIO {
-                resetSubtitleSettings(preferenceDataStore)
+                val user = serverRepository.currentUser.value ?: return@launchIO
+                val current = userPreferencesRepository.getMergedPreferencesOnce(user.rowId)
+                userPreferencesRepository.updateUserPreferences(user.rowId, current) {
+                    it.updateSubtitlePreferences { resetSubtitles() }
+                }
             }
         }
 
@@ -123,13 +180,4 @@ class PreferencesViewModel
             }
         }
 
-        companion object {
-            suspend fun resetSubtitleSettings(appPreferences: DataStore<AppPreferences>) {
-                appPreferences.updateData {
-                    it.updateSubtitlePreferences {
-                        resetSubtitles()
-                    }
-                }
-            }
-        }
     }

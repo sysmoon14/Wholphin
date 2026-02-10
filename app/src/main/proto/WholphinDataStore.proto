@@ -143,6 +143,7 @@ enum BackdropStyle{
 }
 
 message InterfacePreferences {
+  reserved 10, 11;
   ThemeSongVolume play_theme_songs = 1;
   bool remember_selected_tab = 2;
   map<string, int32> remembered_tabs = 3;
@@ -152,13 +153,40 @@ message InterfacePreferences {
   SubtitlePreferences subtitles_preferences = 7;
   LiveTvPreferences live_tv_preferences = 8;
   BackdropStyle backdrop_style = 9;
-  bool enable_custom_home_rows = 10;
-  bool custom_home_rows_use_native_continue_next = 11;
   bool combined_search_results = 12;
+  bool home_uses_plugin_rows = 13;
 }
 
 message AdvancedPreferences {
   int64 image_disk_cache_size_bytes = 1;
+}
+
+// Per-user UI/UX preferences (stored per profile, e.g. in Room).
+// Device-level fields (max_bitrate, overrides, player_backend, etc.) stay in AppPreferences.
+message UserPlaybackUIPreferences {
+  int64 skip_forward_ms = 1;
+  int64 skip_back_ms = 2;
+  int64 controller_timeout_ms = 3;
+  int32 seek_bar_steps = 4;
+  bool show_debug_info = 5;
+  bool auto_play_next = 6;
+  int64 auto_play_next_delay_seconds = 7;
+  int64 skip_back_on_resume_seconds = 8;
+  SkipSegmentBehavior skip_intros = 9;
+  SkipSegmentBehavior skip_outros = 10;
+  SkipSegmentBehavior skip_commercials = 11;
+  SkipSegmentBehavior skip_recaps = 12;
+  SkipSegmentBehavior skip_previews = 13;
+  int64 pass_out_protection_ms = 14;
+  PrefContentScale global_content_scale = 15;
+  ShowNextUpWhen show_next_up_when = 16;
+  bool one_click_pause = 17;
+}
+
+message UserPreferencesProto {
+  InterfacePreferences interface_preferences = 1;
+  HomePagePreferences home_page_preferences = 2;
+  UserPlaybackUIPreferences playback_ui = 3;
 }
 
 message AppPreferences {

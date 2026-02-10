@@ -147,7 +147,11 @@ fun HomePage(
 ) {
     val context = LocalContext.current
     var firstLoad by rememberSaveable { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
+    val homeAffectingPrefs =
+        preferences.appPreferences.homePagePreferences.run {
+            listOf(maxItemsPerRow, enableRewatchingNextUp, combineContinueNext)
+        }
+    LaunchedEffect(homeAffectingPrefs) {
         viewModel.init(preferences).join()
         firstLoad = false
     }

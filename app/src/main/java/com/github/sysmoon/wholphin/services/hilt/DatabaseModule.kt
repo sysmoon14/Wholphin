@@ -14,6 +14,7 @@ import com.github.sysmoon.wholphin.data.Migrations
 import com.github.sysmoon.wholphin.data.PlaybackLanguageChoiceDao
 import com.github.sysmoon.wholphin.data.SeerrServerDao
 import com.github.sysmoon.wholphin.data.ServerPreferencesDao
+import com.github.sysmoon.wholphin.data.UserPreferencesDao
 import com.github.sysmoon.wholphin.preferences.AppPreferences
 import com.github.sysmoon.wholphin.preferences.AppPreferencesSerializer
 import dagger.Module
@@ -39,6 +40,7 @@ object DatabaseModule {
             ).addMigrations(
                 Migrations.Migrate2to3,
                 Migrations.Migrate20to21,
+                Migrations.Migrate21to22,
             )
             .build()
 
@@ -65,6 +67,10 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun seerrServerDao(db: AppDatabase): SeerrServerDao = db.seerrServerDao()
+
+    @Provides
+    @Singleton
+    fun userPreferencesDao(db: AppDatabase): UserPreferencesDao = db.userPreferencesDao()
 
     @Provides
     @Singleton

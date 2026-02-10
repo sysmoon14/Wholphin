@@ -47,7 +47,7 @@ fun SubtitleStylePage(
     val density = LocalDensity.current
     var preferences by remember { mutableStateOf(initialPreferences) }
     LaunchedEffect(Unit) {
-        viewModel.preferenceDataStore.data.collect {
+        viewModel.preferencesFlow.collect {
             preferences = it
         }
     }

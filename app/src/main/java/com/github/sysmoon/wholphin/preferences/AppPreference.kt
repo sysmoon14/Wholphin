@@ -611,7 +611,7 @@ sealed interface AppPreference<Pref, T> {
 
         val UserPinnedNavDrawerItems =
             AppClickablePreference<AppPreferences>(
-                title = R.string.nav_drawer_pins,
+                title = R.string.customize_nav_bar,
                 summary = R.string.nav_drawer_pins_summary,
                 getter = { },
                 setter = { prefs, _ -> prefs },
@@ -677,30 +677,6 @@ sealed interface AppPreference<Pref, T> {
                 getter = { it.interfacePreferences.showClock },
                 setter = { prefs, value ->
                     prefs.updateInterfacePreferences { showClock = value }
-                },
-                summaryOn = R.string.enabled,
-                summaryOff = R.string.disabled,
-            )
-
-        val CustomHomeRows =
-            AppSwitchPreference<AppPreferences>(
-                title = R.string.custom_home_rows,
-                defaultValue = false,
-                getter = { it.interfacePreferences.enableCustomHomeRows },
-                setter = { prefs, value ->
-                    prefs.updateInterfacePreferences { enableCustomHomeRows = value }
-                },
-                summaryOn = R.string.enabled,
-                summaryOff = R.string.disabled,
-            )
-
-        val CustomHomeRowsUseNativeContinueNext =
-            AppSwitchPreference<AppPreferences>(
-                title = R.string.custom_home_rows_use_native_continue_next,
-                defaultValue = false,
-                getter = { it.interfacePreferences.customHomeRowsUseNativeContinueNext },
-                setter = { prefs, value ->
-                    prefs.updateInterfacePreferences { customHomeRowsUseNativeContinueNext = value }
                 },
                 summaryOn = R.string.enabled,
                 summaryOff = R.string.disabled,
@@ -935,42 +911,102 @@ sealed interface AppPreference<Pref, T> {
 
         val SeerrIntegration =
             AppClickablePreference<AppPreferences>(
-                title = R.string.seerr_integration,
+                title = R.string.seerr_login,
                 getter = { },
                 setter = { prefs, _ -> prefs },
             )
+
+        val LiveTvOptions =
+            AppClickablePreference<AppPreferences>(
+                title = R.string.live_tv,
+                summary = R.string.view_options,
+                getter = { },
+                setter = { prefs, _ -> prefs },
+            )
+
+        /** Preferences that are stored device-wide only. All others are per-user (UI/UX). */
+        val deviceOnlyPreferences: Set<AppPreference<AppPreferences, *>> =
+            setOf(
+                SignInAuto,
+                AutoCheckForUpdates,
+                UpdateUrl,
+                SendCrashReports,
+                DebugLogging,
+                ImageDiskCacheSize,
+                ClearImageCache,
+                OssLicenseInfo,
+                SendAppLogs,
+                PlayerBackendPref,
+                ExoPlayerSettings,
+                MpvSettings,
+                FfmpegPreference,
+                DownMixStereo,
+                Ac3Supported,
+                DirectPlayAss,
+                DirectPlayPgs,
+                DirectPlayDoviProfile7,
+                DecodeAv1,
+                MaxBitrate,
+                RefreshRateSwitching,
+                ResolutionSwitching,
+                MpvHardwareDecoding,
+                MpvGpuNext,
+                MpvConfFile,
+                Update,
+                InstalledVersion,
+                SeerrIntegration,
+                AdvancedSettings,
+            )
+
+        fun isDeviceOnlyPreference(pref: AppPreference<AppPreferences, *>): Boolean =
+            pref in deviceOnlyPreferences
     }
 }
 
 val basicPreferences =
     listOf(
         PreferenceGroup(
-            title = R.string.ui_interface,
+            title = R.string.sign_in,
             preferences =
                 listOf(
                     AppPreference.SignInAuto,
+                    AppPreference.RequireProfilePin,
+                    AppPreference.SeerrIntegration,
+                ),
+        ),
+        PreferenceGroup(
+            title = R.string.home_and_library,
+            preferences =
+                listOf(
                     AppPreference.HomePageItems,
+                    AppPreference.UserPinnedNavDrawerItems,
                 ),
             conditionalPreferences =
                 listOf(
-                    // When Custom Home Rows is enabled, the server/plugin controls the row composition,
-                    // so the local "Combine Continue Watching & Next Up" setting has no effect.
                     ConditionalPreferences(
-                        condition = { !it.interfacePreferences.enableCustomHomeRows },
+                        condition = { !it.interfacePreferences.homeUsesPluginRows },
                         preferences = listOf(AppPreference.CombineContinueNext),
                     ),
-                    // Remaining interface preferences should always appear after the home-row options
                     ConditionalPreferences(
                         condition = { true },
                         preferences =
                             listOf(
                                 AppPreference.RewatchNextUp,
-                                AppPreference.PlayThemeMusic,
-                                AppPreference.RememberSelectedTab,
-                                AppPreference.SubtitleStyle,
-                                AppPreference.ThemeColors,
+                                AppPreference.BackdropStylePref,
                             ),
                     ),
+                ),
+        ),
+        PreferenceGroup(
+            title = R.string.appearance,
+            preferences =
+                listOf(
+                    AppPreference.PlayThemeMusic,
+                    AppPreference.RememberSelectedTab,
+                    AppPreference.ThemeColors,
+                    AppPreference.ShowClock,
+                    AppPreference.CombinedSearchResults,
+                    AppPreference.LiveTvOptions,
                 ),
         ),
         PreferenceGroup(
@@ -980,43 +1016,39 @@ val basicPreferences =
                     AppPreference.SkipForward,
                     AppPreference.SkipBack,
                     AppPreference.SkipBackOnResume,
+                    AppPreference.SubtitleStyle,
                 ),
         ),
         PreferenceGroup(
-            title = R.string.next_up,
+            title = R.string.next_up_and_skip,
             preferences =
                 listOf(
                     AppPreference.ShowNextUpTiming,
                     AppPreference.AutoPlayNextUp,
                     AppPreference.AutoPlayNextDelay,
                     AppPreference.PassOutProtection,
+                    AppPreference.SkipIntros,
+                    AppPreference.SkipOutros,
+                    AppPreference.SkipCommercials,
+                    AppPreference.SkipPreviews,
+                    AppPreference.SkipRecaps,
                 ),
         ),
         PreferenceGroup(
-            title = R.string.profile_specific_settings,
-            preferences =
-                listOf(
-                    AppPreference.RequireProfilePin,
-                    AppPreference.UserPinnedNavDrawerItems,
-                ),
-        ),
-        PreferenceGroup(
-            title = R.string.about,
+            title = R.string.about_and_updates,
             preferences =
                 buildList {
                     add(AppPreference.InstalledVersion)
                     if (UpdateChecker.ACTIVE) {
                         add(AppPreference.Update)
+                        add(AppPreference.AutoCheckForUpdates)
+                        add(AppPreference.UpdateUrl)
                     }
                 },
         ),
         PreferenceGroup(
             title = R.string.more,
-            preferences =
-                listOf(
-                    AppPreference.SeerrIntegration,
-                    AppPreference.AdvancedSettings,
-                ),
+            preferences = listOf(AppPreference.AdvancedSettings),
         ),
     )
 
@@ -1060,68 +1092,17 @@ val advancedPreferences =
     buildList {
         add(
             PreferenceGroup(
-                title = R.string.ui_interface,
-                preferences =
-                    listOf(
-                        AppPreference.ShowClock,
-                        // Temporarily disabled, see https://github.com/damontecres/Wholphin/pull/127#issuecomment-3478058418
-//                    AppPreference.NavDrawerSwitchOnFocus,
-                        AppPreference.CustomHomeRows,
-                    ),
-                conditionalPreferences =
-                    listOf(
-                        ConditionalPreferences(
-                            condition = { it.interfacePreferences.enableCustomHomeRows },
-                            preferences =
-                                listOf(
-                                    AppPreference.CustomHomeRowsUseNativeContinueNext,
-                                ),
-                        ),
-                        // Always-on preferences that should appear after the custom-home-row options
-                        ConditionalPreferences(
-                            condition = { true },
-                            preferences =
-                                listOf(
-                                    AppPreference.ControllerTimeout,
-                                    AppPreference.BackdropStylePref,
-                                ),
-                        ),
-                    ),
-            ),
-        )
-        add(
-            PreferenceGroup(
                 title = R.string.playback,
                 preferences =
                     listOf(
+                        AppPreference.ControllerTimeout,
+                        AppPreference.SeekBarSteps,
                         AppPreference.OneClickPause,
                         AppPreference.GlobalContentScale,
                         AppPreference.MaxBitrate,
                         AppPreference.RefreshRateSwitching,
                         AppPreference.ResolutionSwitching,
                         AppPreference.PlaybackDebugInfo,
-                    ),
-            ),
-        )
-        add(
-            PreferenceGroup(
-                title = R.string.skip,
-                preferences =
-                    listOf(
-                        AppPreference.SkipIntros,
-                        AppPreference.SkipOutros,
-                        AppPreference.SkipCommercials,
-                        AppPreference.SkipPreviews,
-                        AppPreference.SkipRecaps,
-                    ),
-            ),
-        )
-        add(
-            PreferenceGroup(
-                title = R.string.search,
-                preferences =
-                    listOf(
-                        AppPreference.CombinedSearchResults,
                     ),
             ),
         )
@@ -1149,21 +1130,9 @@ val advancedPreferences =
                     ),
             ),
         )
-        if (UpdateChecker.ACTIVE) {
-            add(
-                PreferenceGroup(
-                    title = R.string.updates,
-                    preferences =
-                        listOf(
-                            AppPreference.AutoCheckForUpdates,
-                            AppPreference.UpdateUrl,
-                        ),
-                ),
-            )
-        }
         add(
             PreferenceGroup(
-                title = R.string.more,
+                title = R.string.support_and_storage,
                 preferences =
                     listOf(
                         AppPreference.SendAppLogs,

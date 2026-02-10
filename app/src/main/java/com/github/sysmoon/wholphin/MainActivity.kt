@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.datastore.core.DataStore
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
@@ -40,6 +41,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import com.github.sysmoon.wholphin.data.ServerRepository
 import com.github.sysmoon.wholphin.preferences.AppPreference
+import com.github.sysmoon.wholphin.preferences.UserPreferencesRepository
 import com.github.sysmoon.wholphin.preferences.AppPreferences
 import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.services.AppUpgradeHandler
@@ -72,7 +74,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
@@ -187,7 +191,7 @@ class MainActivity : AppCompatActivity() {
         viewModel.appStart(overrideUserId, overrideServerId)
         
         setContent {
-            val appPreferences by userPreferencesDataStore.data.collectAsState(null)
+            val appPreferences by viewModel.appPreferencesFlow.collectAsState(initial = null)
             appPreferences?.let { appPreferences ->
                 LaunchedEffect(appPreferences.signInAutomatically) {
                     signInAuto = appPreferences.signInAutomatically
@@ -317,7 +321,7 @@ class MainActivity : AppCompatActivity() {
                                                             }
                                                         }
                                                     }
-                                                    val appPreferences by userPreferencesDataStore.data.collectAsState(
+                                                    val appPreferences by viewModel.appPreferencesFlow.collectAsState(
                                                         appPreferences,
                                                     )
                                                     val preferences =
@@ -783,10 +787,24 @@ class MainActivityViewModel
     constructor(
         private val preferences: DataStore<AppPreferences>,
         val serverRepository: ServerRepository,
+        private val userPreferencesRepository: UserPreferencesRepository,
         private val navigationManager: SetupNavigationManager,
         private val deviceProfileService: DeviceProfileService,
         private val backdropService: BackdropService,
     ) : ViewModel() {
+
+        /**
+         * Merged app preferences: device prefs when no user, device + per-user when logged in.
+         * Observing this ensures theme, home layout, etc. update when changed in settings.
+         */
+        val appPreferencesFlow: Flow<AppPreferences> =
+            serverRepository.currentUser.asFlow().flatMapLatest { user ->
+                if (user != null) {
+                    userPreferencesRepository.getMergedPreferences(user.rowId)
+                } else {
+                    preferences.data
+                }
+            }
 
         var pendingRequestedDestination: Destination? = null
         var lastProcessedItemId: UUID? = null

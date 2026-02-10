@@ -19,7 +19,7 @@ import com.github.sysmoon.wholphin.preferences.updateMpvOptions
 import com.github.sysmoon.wholphin.preferences.updatePlaybackOverrides
 import com.github.sysmoon.wholphin.preferences.updatePlaybackPreferences
 import com.github.sysmoon.wholphin.preferences.updateSubtitlePreferences
-import com.github.sysmoon.wholphin.ui.preferences.PreferencesViewModel
+import com.github.sysmoon.wholphin.preferences.resetSubtitleSettings
 import com.github.sysmoon.wholphin.ui.preferences.subtitle.SubtitleSettings
 import com.github.sysmoon.wholphin.ui.showToast
 import com.github.sysmoon.wholphin.util.Version
@@ -134,7 +134,7 @@ suspend fun upgradeApp(
         }
     }
     if (previous.isEqualOrBefore(Version.fromString("0.2.7-1-g0"))) {
-        PreferencesViewModel.resetSubtitleSettings(appPreferences)
+        resetSubtitleSettings(appPreferences)
     }
     if (previous.isEqualOrBefore(Version.fromString("0.3.2-4-g0"))) {
         appPreferences.updateData {

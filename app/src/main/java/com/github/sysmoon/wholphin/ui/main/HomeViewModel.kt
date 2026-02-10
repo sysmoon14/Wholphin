@@ -5,10 +5,13 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.sysmoon.wholphin.R
+import androidx.datastore.core.DataStore
 import com.github.sysmoon.wholphin.data.NavDrawerItemRepository
 import com.github.sysmoon.wholphin.data.ServerRepository
 import com.github.sysmoon.wholphin.data.model.BaseItem
+import com.github.sysmoon.wholphin.preferences.AppPreferences
 import com.github.sysmoon.wholphin.preferences.UserPreferences
+import com.github.sysmoon.wholphin.preferences.updateInterfacePreferences
 import com.github.sysmoon.wholphin.services.BackdropService
 import com.github.sysmoon.wholphin.services.DatePlayedService
 import com.github.sysmoon.wholphin.services.FavoriteWatchManager
@@ -49,6 +52,7 @@ class HomeViewModel
         private val latestNextUpService: LatestNextUpService,
         private val backdropService: BackdropService,
         private val homeScreenSectionsService: HomeScreenSectionsService,
+        private val appPreferencesDataStore: DataStore<AppPreferences>,
     ) : ViewModel() {
         val loadingState = MutableLiveData<LoadingState>(LoadingState.Pending)
         val refreshState = MutableLiveData<LoadingState>(LoadingState.Pending)
@@ -94,25 +98,20 @@ class HomeViewModel
                 }
 
                 serverRepository.currentUserDto.value?.let { userDto ->
-                    // Try to fetch custom sections from the plugin first (if enabled)
-                    val enableCustomHomeRows = preferences.appPreferences.interfacePreferences.enableCustomHomeRows
-                    Timber.d("HomeViewModel: Custom home rows enabled=$enableCustomHomeRows")
-                    
+                    // Try custom sections from companion plugin; if none, use default home rows
                     val customRows =
-                        if (enableCustomHomeRows) {
-                            homeScreenSectionsService.getCustomRows(
-                                userId = userDto.id,
-                                itemsPerRow = limit,
-                                enableRewatchingNextUp = prefs.enableRewatchingNextUp,
-                            )
-                        } else {
-                            null
-                        }
-                    
+                        homeScreenSectionsService.getCustomRows(
+                            userId = userDto.id,
+                            itemsPerRow = limit,
+                            enableRewatchingNextUp = prefs.enableRewatchingNextUp,
+                        )
+
                     if (customRows != null) {
                         // Plugin rows are available, use them
                         Timber.i("HomeViewModel: Using custom home rows from plugin (%s rows)", customRows.size)
-
+                        appPreferencesDataStore.updateData {
+                            it.updateInterfacePreferences { homeUsesPluginRows = true }
+                        }
                         withContext(Dispatchers.Main) {
                             // Plugin rows replace the entire home screen
                             this@HomeViewModel.watchingRows.value = emptyList()
@@ -124,6 +123,9 @@ class HomeViewModel
                         refreshState.setValueOnMain(LoadingState.Success)
                     } else {
                         // Plugin not available, use default behavior
+                        appPreferencesDataStore.updateData {
+                            it.updateInterfacePreferences { homeUsesPluginRows = false }
+                        }
                         Timber.d("HomeViewModel: Plugin not available, using default home screen sections")
                         val includedIds =
                             navDrawerItemRepository

@@ -17,11 +17,16 @@ import com.github.sysmoon.wholphin.preferences.AppPreference
 import com.github.sysmoon.wholphin.preferences.AppPreferences
 import com.github.sysmoon.wholphin.preferences.resetSubtitles
 import com.github.sysmoon.wholphin.preferences.UserPreferencesRepository
+import com.github.sysmoon.wholphin.preferences.updateInterfacePreferences
 import com.github.sysmoon.wholphin.preferences.updateSubtitlePreferences
 import com.github.sysmoon.wholphin.services.BackdropService
 import com.github.sysmoon.wholphin.services.NavigationManager
+import com.github.sysmoon.wholphin.services.PluginSettingsApplicator
+import com.github.sysmoon.wholphin.services.PluginSettingsKeyToPreference
+import com.github.sysmoon.wholphin.services.PluginSettingsService
 import com.github.sysmoon.wholphin.services.SeerrServerRepository
 import com.github.sysmoon.wholphin.ui.detail.DebugViewModel.Companion.sendAppLogs
+import timber.log.Timber
 import com.github.sysmoon.wholphin.ui.launchIO
 import com.github.sysmoon.wholphin.ui.nav.NavDrawerItem
 import com.github.sysmoon.wholphin.ui.setValueOnMain
@@ -30,6 +35,8 @@ import com.github.sysmoon.wholphin.util.RememberTabManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import org.jellyfin.sdk.api.client.ApiClient
@@ -54,10 +61,16 @@ class PreferencesViewModel
         private val deviceInfo: DeviceInfo,
         private val clientInfo: ClientInfo,
         private val userPreferencesRepository: UserPreferencesRepository,
+        private val pluginSettingsService: PluginSettingsService,
+        private val pluginSettingsApplicator: PluginSettingsApplicator,
     ) : ViewModel(),
         RememberTabManager by rememberTabManager {
         private lateinit var allNavDrawerItems: List<NavDrawerItem>
         val navDrawerPins = MutableLiveData<Map<NavDrawerItem, Boolean>>(mapOf())
+
+        private val _pluginControlledPrefs = MutableStateFlow<Set<AppPreference<AppPreferences, *>>>(emptySet())
+        /** Preferences that are controlled by the Wholphin Companion plugin; show these tiles as disabled. */
+        val pluginControlledPrefs: StateFlow<Set<AppPreference<AppPreferences, *>>> = _pluginControlledPrefs
 
         val currentUser get() = serverRepository.currentUser
 
@@ -87,23 +100,59 @@ class PreferencesViewModel
 
         /**
          * Updates a preference: writes to per-user store if UI/UX, else to device store.
+         * When [pluginControlledPrefs] contains [pref] and user has override on, records the pref as overridden so server won't overwrite it.
          */
         fun updatePreference(
             pref: AppPreference<AppPreferences, Any?>,
             newValue: Any?,
             currentMerged: AppPreferences,
+            pluginControlledPrefs: Set<AppPreference<AppPreferences, *>>,
         ) {
             viewModelScope.launchIO(ExceptionHandler()) {
                 val user = serverRepository.currentUser.value
                 if (user != null && !AppPreference.isDeviceOnlyPreference(pref)) {
                     userPreferencesRepository.updateUserPreferences(user.rowId, currentMerged) { prefs ->
-                        @Suppress("UNCHECKED_CAST")
-                        (pref.setter as (AppPreferences, Any?) -> AppPreferences)(prefs, newValue)
+                        var updated =
+                            @Suppress("UNCHECKED_CAST")
+                            (pref.setter as (AppPreferences, Any?) -> AppPreferences)(prefs, newValue)
+                        if (pref in pluginControlledPrefs && prefs.interfacePreferences.overrideServerSettings) {
+                            val pluginKey = PluginSettingsKeyToPreference.pluginKeyForPreference(pref)
+                            if (pluginKey != null) {
+                                val current = updated.interfacePreferences.overriddenPluginKeysList.toMutableSet()
+                                current.add(pluginKey)
+                                updated =
+                                    updated.updateInterfacePreferences {
+                                        clearOverriddenPluginKeys()
+                                        addAllOverriddenPluginKeys(current)
+                                    }
+                            }
+                        }
+                        updated
                     }
                 } else {
                     preferenceDataStore.updateData { prefs ->
                         @Suppress("UNCHECKED_CAST")
                         (pref.setter as (AppPreferences, Any?) -> AppPreferences)(prefs, newValue)
+                    }
+                }
+            }
+        }
+
+        /** Sets the "Override server settings" toggle (persisted per user). When turning off, clears overridden keys and re-applies server settings so values revert. */
+        fun setOverrideServerSettings(enabled: Boolean) {
+            viewModelScope.launchIO(ExceptionHandler()) {
+                val user = serverRepository.currentUser.value ?: return@launchIO
+                val current = userPreferencesRepository.getMergedPreferencesOnce(user.rowId)
+                userPreferencesRepository.updateUserPreferences(user.rowId, current) { prefs ->
+                    prefs.updateInterfacePreferences {
+                        overrideServerSettings = enabled
+                        if (!enabled) clearOverriddenPluginKeys()
+                    }
+                }
+                if (!enabled) {
+                    val settings = pluginSettingsService.fetchSettings(user.id)
+                    if (settings != null) {
+                        pluginSettingsApplicator.apply(settings, user)
                     }
                 }
             }
@@ -121,6 +170,16 @@ class PreferencesViewModel
                     val pins = serverPreferencesDao.getNavDrawerPinnedItems(user)
                     val navDrawerPins = allNavDrawerItems.associateWith { pins.isPinned(it.id) }
                     this@PreferencesViewModel.navDrawerPins.setValueOnMain(navDrawerPins)
+                    // Refresh plugin settings when opening preferences; update which tiles are greyed out
+                    val settings = pluginSettingsService.fetchSettings(user.id)
+                    if (settings != null) {
+                        val controlled = pluginSettingsApplicator.apply(settings, user)
+                        _pluginControlledPrefs.value = controlled
+                        Timber.d("PreferencesViewModel: Plugin settings applied, pluginControlledPrefs size=%s", controlled.size)
+                    } else {
+                        _pluginControlledPrefs.value = emptySet()
+                        Timber.d("PreferencesViewModel: No plugin settings (null response), pluginControlledPrefs cleared")
+                    }
                 }
             }
         }
@@ -133,20 +192,21 @@ class PreferencesViewModel
                             addAll(allNavDrawerItems)
                             removeAll(newSelectedItems)
                         }
-                    val enabledItems = newSelectedItems.toSet()
                     val toSave =
-                        disabledItems.map {
+                        newSelectedItems.mapIndexed { index, item ->
                             NavDrawerPinnedItem(
-                                user.rowId,
-                                it.id,
-                                NavPinType.UNPINNED,
+                                userId = user.rowId,
+                                itemId = item.id,
+                                type = NavPinType.PINNED,
+                                position = index,
                             )
                         } +
-                            enabledItems.map {
+                            disabledItems.mapIndexed { index, item ->
                                 NavDrawerPinnedItem(
-                                    user.rowId,
-                                    it.id,
-                                    NavPinType.PINNED,
+                                    userId = user.rowId,
+                                    itemId = item.id,
+                                    type = NavPinType.UNPINNED,
+                                    position = newSelectedItems.size + index,
                                 )
                             }
                     serverPreferencesDao.saveNavDrawerPinnedItems(*toSave.toTypedArray())

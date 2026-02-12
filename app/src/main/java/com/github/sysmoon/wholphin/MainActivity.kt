@@ -56,6 +56,7 @@ import com.github.sysmoon.wholphin.services.ServerEventListener
 import com.github.sysmoon.wholphin.services.SetupDestination
 import com.github.sysmoon.wholphin.services.SetupNavigationManager
 import com.github.sysmoon.wholphin.services.UpdateChecker
+import com.github.sysmoon.wholphin.services.PluginSettingsUserSwitchListener
 import com.github.sysmoon.wholphin.services.UserSwitchListener
 import com.github.sysmoon.wholphin.services.hilt.AuthOkHttpClient
 import com.github.sysmoon.wholphin.services.tvprovider.TvProviderSchedulerService
@@ -123,6 +124,9 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var userSwitchListener: UserSwitchListener
+
+    @Inject
+    lateinit var pluginSettingsUserSwitchListener: PluginSettingsUserSwitchListener
 
     @Inject
     lateinit var tvProviderSchedulerService: TvProviderSchedulerService
@@ -321,11 +325,10 @@ class MainActivity : AppCompatActivity() {
                                                             }
                                                         }
                                                     }
-                                                    val appPreferences by viewModel.appPreferencesFlow.collectAsState(
-                                                        appPreferences,
-                                                    )
+                                                    // Use outer appPreferences only so one flow collection drives the whole tree;
+                                                    // when user changes the flow emits and this recomposes with correct prefs.
                                                     val preferences =
-                                                        remember(appPreferences) {
+                                                        remember(current.user.id, appPreferences) {
                                                             UserPreferences(appPreferences)
                                                         }
                                                     var showContent by remember {
@@ -795,7 +798,9 @@ class MainActivityViewModel
 
         /**
          * Merged app preferences: device prefs when no user, device + per-user when logged in.
-         * Observing this ensures theme, home layout, etc. update when changed in settings.
+         * We emit from the new user's merged prefs immediately on user change so the UI (e.g.
+         * settings cog) updates without waiting. PluginSettingsUserSwitchListener applies plugin
+         * settings in the background; when it updates Room this flow will emit again.
          */
         val appPreferencesFlow: Flow<AppPreferences> =
             serverRepository.currentUser.asFlow().flatMapLatest { user ->

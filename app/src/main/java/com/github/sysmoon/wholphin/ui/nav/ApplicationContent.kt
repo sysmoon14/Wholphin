@@ -284,6 +284,7 @@ fun ApplicationContent(
                             destination = key,
                             preferences = preferences,
                             onClearBackdrop = viewModel::clearBackdrop,
+                            onNavigateBack = { navigationManager.goBack() },
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else if (user != null && server != null) {
@@ -293,6 +294,7 @@ fun ApplicationContent(
                             user = user,
                             server = server,
                             onClearBackdrop = viewModel::clearBackdrop,
+                            onNavigateBack = { navigationManager.goBack() },
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {

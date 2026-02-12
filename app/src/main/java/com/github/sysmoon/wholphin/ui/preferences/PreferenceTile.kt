@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -50,6 +51,7 @@ val PreferenceTileSize = 160.dp
  * Square tile for one preference. Booleans show a Switch; others show label, optional [valueSummary], and open a popup on click.
  * [nextFocus], [previousFocus], [upFocus], [downFocus] define D-pad navigation order.
  * [icon] is optional and shown above the title.
+ * When [enabled] is false, the tile is greyed out and not clickable (e.g. plugin-controlled settings).
  */
 @Composable
 fun PreferenceTile(
@@ -71,6 +73,7 @@ fun PreferenceTile(
     onFocus: (Int, Int) -> Unit,
     onTileClick: () -> Unit,
     onToggle: (() -> Unit)?,
+    enabled: Boolean = true,
 ) {
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -88,7 +91,7 @@ fun PreferenceTile(
     val background =
         if (focused) MaterialTheme.colorScheme.inverseSurface
         else MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
-    val contentColor = contentColorFor(background)
+    val contentColor = contentColorFor(background).let { if (enabled) it else it.copy(alpha = 0.5f) }
     val shape = RoundedCornerShape(12.dp)
     val borderWidth = if (focused) 3.dp else 1.dp
     val borderColor = if (focused) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
@@ -98,8 +101,9 @@ fun PreferenceTile(
             modifier
                 .size(PreferenceTileSize)
                 .padding(4.dp)
+                .then(if (!enabled) Modifier.graphicsLayer { alpha = 0.6f } else Modifier)
                 .focusRequester(focusRequester)
-                .focusable(interactionSource = interactionSource)
+                .focusable(enabled = enabled, interactionSource = interactionSource)
                 .onFocusChanged { focusState ->
                     focusedByFocusChange = focusState.isFocused
                 }
@@ -109,8 +113,8 @@ fun PreferenceTile(
                     down = downFocus ?: FocusRequester.Default
                     up = upFocus ?: FocusRequester.Default
                 }
-                .handleDPadKeyEvents(onCenter = onTileClick)
-                .clickable(onClick = onTileClick)
+                .handleDPadKeyEvents(onCenter = { if (enabled) onTileClick() })
+                .clickable(enabled = enabled, onClick = onTileClick)
                 .background(background, shape = shape)
                 .border(borderWidth, borderColor, shape),
         contentAlignment = Alignment.TopCenter,
@@ -150,8 +154,9 @@ fun PreferenceTile(
                 if (onToggle != null) {
                     Switch(
                         checked = value as? Boolean ?: false,
-                        onCheckedChange = { onToggle() },
+                        onCheckedChange = { if (enabled) onToggle() },
                         colors = SwitchColors(),
+                        enabled = enabled,
                     )
                 } else if (!valueSummary.isNullOrBlank()) {
                     Text(

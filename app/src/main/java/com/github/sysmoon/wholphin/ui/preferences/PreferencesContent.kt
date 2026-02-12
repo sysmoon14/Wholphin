@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -179,7 +181,6 @@ private fun preferenceTileIcon(pref: AppPreference<AppPreferences, *>): ImageVec
         AppPreference.Update,
         AppPreference.AutoCheckForUpdates,
         AppPreference.UpdateUrl -> Icons.Default.Update
-        AppPreference.AdvancedSettings -> Icons.Default.Settings
         AppPreference.OneClickPause -> Icons.Default.Pause
         AppPreference.GlobalContentScale -> Icons.Default.Crop
         AppPreference.MaxBitrate -> Icons.Default.Public
@@ -218,6 +219,7 @@ fun PreferencesContent(
     var showLiveTvDialog by remember { mutableStateOf(false) }
 
     val navDrawerPins by viewModel.navDrawerPins.observeAsState(mapOf())
+    val pluginControlledPrefs by viewModel.pluginControlledPrefs.collectAsState(initial = emptySet())
     var cacheUsage by remember { mutableStateOf(CacheUsage(0, 0, 0)) }
     val seerrIntegrationEnabled by viewModel.seerrEnabled.collectAsState(false)
     var seerrDialogMode by remember { mutableStateOf<SeerrDialogMode>(SeerrDialogMode.None) }
@@ -268,12 +270,15 @@ fun PreferencesContent(
             PreferenceScreenOption.MPV -> R.string.mpv_options
         }
 
-    val groupPreferenceCounts = remember(prefList, preferences) {
+    val showOverrideRow = preferenceScreenOption == PreferenceScreenOption.BASIC && preferences.interfacePreferences.allowSettingsOverride
+    val groupPreferenceCounts = remember(prefList, preferences, pluginControlledPrefs, showOverrideRow) {
         prefList.map { group ->
-            group.preferences.size +
-                group.conditionalPreferences
-                    .filter { it.condition(preferences) }
-                    .sumOf { it.preferences.size }
+            val prefs =
+                group.preferences +
+                    group.conditionalPreferences
+                        .filter { it.condition(preferences) }
+                        .flatMap { it.preferences }
+            prefs.count { pref -> pref !in pluginControlledPrefs || preferences.interfacePreferences.overrideServerSettings }
         }
     }
     val allFocusRequesters = remember(groupPreferenceCounts) {
@@ -314,6 +319,7 @@ fun PreferencesContent(
                 preferences.autoCheckForUpdates &&
                 updateAvailable
         val updateBannerFocusRequester = remember { FocusRequester() }
+        val overrideRowFocusRequester = remember { FocusRequester() }
         LaunchedEffect(allFocusRequesters.size) {
             allFocusRequesters.firstOrNull()?.firstOrNull()?.tryRequestFocus()
         }
@@ -336,69 +342,133 @@ fun PreferencesContent(
                             .padding(vertical = 8.dp),
                 )
             }
-            if (showUpdateBanner) {
-                item {
-                    val updateInteractionSource = remember { MutableInteractionSource() }
-                    val updateFocused by updateInteractionSource.collectIsFocusedAsState()
-                    LaunchedEffect(Unit) {
-                        if (focusedIndex.first == 0 && focusedIndex.second == 0) {
-                            updateBannerFocusRequester.tryRequestFocus()
-                        }
-                    }
-                    LaunchedEffect(updateFocused) {
-                        if (updateFocused) focusedIndex = Pair(-1, -1)
-                    }
-                    val updateBg =
-                        if (updateFocused) MaterialTheme.colorScheme.inverseSurface
-                        else MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
-                    val updateContentColor = contentColorFor(updateBg)
-                    val updateShape = RoundedCornerShape(8.dp)
-                    val updateBorderWidth = if (updateFocused) 3.dp else 1.dp
-                    val updateBorderColor =
-                        if (updateFocused) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start,
-                        verticalAlignment = Alignment.CenterVertically,
+            if (showUpdateBanner || showOverrideRow) {
+                item(key = "update_and_override_banner") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentWidth(Alignment.Start),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Row(
-                            modifier =
-                                Modifier
-                                    .focusRequester(updateBannerFocusRequester)
-                                    .focusable(interactionSource = updateInteractionSource)
-                                    .onFocusChanged { if (it.isFocused) focusedIndex = Pair(-1, -1) }
+                        if (showUpdateBanner) {
+                            val updateInteractionSource = remember { MutableInteractionSource() }
+                            val updateFocused by updateInteractionSource.collectIsFocusedAsState()
+                            LaunchedEffect(Unit) {
+                                if (focusedIndex.first == 0 && focusedIndex.second == 0) {
+                                    updateBannerFocusRequester.tryRequestFocus()
+                                }
+                            }
+                            LaunchedEffect(updateFocused) {
+                                if (updateFocused) focusedIndex = Pair(-1, -1)
+                            }
+                            val updateBg =
+                                if (updateFocused) MaterialTheme.colorScheme.inverseSurface
+                                else MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+                            val updateContentColor = contentColorFor(updateBg)
+                            val updateShape = RoundedCornerShape(8.dp)
+                            val updateBorderWidth = if (updateFocused) 3.dp else 1.dp
+                            val updateBorderColor =
+                                if (updateFocused) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Start,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(
+                                    modifier =
+                                        Modifier
+                                            .wrapContentWidth()
+                                            .focusRequester(updateBannerFocusRequester)
+                                            .focusable(interactionSource = updateInteractionSource)
+                                            .onFocusChanged { if (it.isFocused) focusedIndex = Pair(-1, -1) }
+                                            .focusProperties {
+                                                down =
+                                                    if (showOverrideRow) overrideRowFocusRequester
+                                                    else allFocusRequesters.firstOrNull()?.firstOrNull()
+                                                        ?: FocusRequester.Default
+                                            }
+                                            .handleDPadKeyEvents(
+                                                onCenter = {
+                                                    if (movementSounds) playOnClickSound(context)
+                                                    viewModel.navigationManager.navigateTo(Destination.UpdateApp)
+                                                },
+                                            )
+                                            .clickable {
+                                                if (movementSounds) playOnClickSound(context)
+                                                viewModel.navigationManager.navigateTo(Destination.UpdateApp)
+                                            }
+                                            .background(updateBg, shape = updateShape)
+                                            .border(updateBorderWidth, updateBorderColor, updateShape)
+                                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                                            .playSoundOnFocus(movementSounds),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.install_update),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = updateContentColor,
+                                    )
+                                    release?.version?.let { ver ->
+                                        Text(
+                                            text = " · ${ver}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = updateContentColor,
+                                            modifier = Modifier.padding(start = 6.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (showOverrideRow) {
+                            val overrideInteractionSource = remember { MutableInteractionSource() }
+                            val overrideFocused by overrideInteractionSource.collectIsFocusedAsState()
+                            val overrideShape = RoundedCornerShape(8.dp)
+                            val overrideBg =
+                                if (overrideFocused) MaterialTheme.colorScheme.inverseSurface
+                                else MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+                            val overrideContentColor = contentColorFor(overrideBg)
+                            val overrideBorderWidth = if (overrideFocused) 3.dp else 1.dp
+                            val overrideBorderColor =
+                                if (overrideFocused) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            Row(
+                                modifier = Modifier
+                                    .wrapContentWidth()
+                                    .focusRequester(overrideRowFocusRequester)
+                                    .focusable(interactionSource = overrideInteractionSource)
                                     .focusProperties {
-                                        down =
-                                            allFocusRequesters.firstOrNull()?.firstOrNull()
-                                                ?: FocusRequester.Default
+                                        up = if (showUpdateBanner) updateBannerFocusRequester else FocusRequester.Default
+                                        down = allFocusRequesters.firstOrNull()?.firstOrNull() ?: FocusRequester.Default
                                     }
                                     .handleDPadKeyEvents(
                                         onCenter = {
                                             if (movementSounds) playOnClickSound(context)
-                                            viewModel.navigationManager.navigateTo(Destination.UpdateApp)
+                                            viewModel.setOverrideServerSettings(!preferences.interfacePreferences.overrideServerSettings)
                                         },
                                     )
-                                    .clickable {
-                                        if (movementSounds) playOnClickSound(context)
-                                        viewModel.navigationManager.navigateTo(Destination.UpdateApp)
-                                    }
-                                    .background(updateBg, shape = updateShape)
-                                    .border(updateBorderWidth, updateBorderColor, updateShape)
-                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    .background(overrideBg, shape = overrideShape)
+                                    .border(overrideBorderWidth, overrideBorderColor, overrideShape)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
                                     .playSoundOnFocus(movementSounds),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.install_update),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = updateContentColor,
-                            )
-                            release?.version?.let { ver ->
-                                Text(
-                                    text = " · ${ver}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = updateContentColor,
-                                    modifier = Modifier.padding(start = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(modifier = Modifier.widthIn(max = 320.dp)) {
+                                    Text(
+                                        text = stringResource(R.string.override_server_settings),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = overrideContentColor,
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.override_server_settings_summary),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = overrideContentColor.copy(alpha = 0.85f),
+                                        modifier = Modifier.padding(top = 2.dp),
+                                    )
+                                }
+                                androidx.tv.material3.Switch(
+                                    checked = preferences.interfacePreferences.overrideServerSettings,
+                                    onCheckedChange = { viewModel.setOverrideServerSettings(it) },
+                                    colors = SwitchColors(),
                                 )
                             }
                         }
@@ -412,6 +482,11 @@ fun PreferencesContent(
                             .filter { it.condition.invoke(preferences) }
                             .map { it.preferences }
                             .flatten()
+                val visiblePreferences =
+                    groupPreferences.filter { pref ->
+                        pref !in pluginControlledPrefs || preferences.interfacePreferences.overrideServerSettings
+                    }
+                if (visiblePreferences.isEmpty()) return@forEachIndexed
                 item(key = "group_$groupIndex") {
                     Column(
                         modifier =
@@ -433,25 +508,26 @@ fun PreferencesContent(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             val requesters = allFocusRequesters.getOrNull(groupIndex).orEmpty()
-                            groupPreferences.forEachIndexed { prefIndex, pref ->
+                            visiblePreferences.forEachIndexed { prefIndex, pref ->
                                 val prefValue = pref.getter.invoke(preferences)
                                 val tileRequester = requesters.getOrNull(prefIndex)
                                 val nextRequester = requesters.getOrNull(prefIndex + 1)
                                 val previousRequester = requesters.getOrNull(prefIndex - 1)
                                 val downRequester =
                                     allFocusRequesters.getOrNull(groupIndex + 1)?.let { nextRow ->
-                                        nextRow.getOrNull(
-                                            prefIndex.coerceIn(0, nextRow.size - 1),
-                                        )
+                                        if (nextRow.isEmpty()) null
+                                        else nextRow.getOrNull(prefIndex.coerceIn(0, nextRow.size - 1))
                                     }
                                 val upRequester =
-                                    if (groupIndex == 0 && showUpdateBanner) updateBannerFocusRequester
-                                    else
-                                        allFocusRequesters.getOrNull(groupIndex - 1)?.let { prevRow ->
-                                            prevRow.getOrNull(
-                                                prefIndex.coerceIn(0, prevRow.size - 1),
-                                            )
-                                        }
+                                    when {
+                                        groupIndex == 0 && showOverrideRow -> overrideRowFocusRequester
+                                        groupIndex == 0 && showUpdateBanner -> updateBannerFocusRequester
+                                        else ->
+                                            allFocusRequesters.getOrNull(groupIndex - 1)?.let { prevRow ->
+                                                if (prevRow.isEmpty()) null
+                                                else prevRow.getOrNull(prefIndex.coerceIn(0, prevRow.size - 1))
+                                            }
+                                    }
                                 val (onToggle, onTileClick) = when (pref) {
                                     AppPreference.RequireProfilePin ->
                                         null to { showPinFlow = true }
@@ -465,6 +541,7 @@ fun PreferencesContent(
                                                         pref as AppPreference<AppPreferences, Any?>,
                                                         newVal,
                                                         preferences,
+                                                        pluginControlledPrefs,
                                                     )
                                                     preferences = pref.setter(preferences, newVal)
                                                 }
@@ -546,6 +623,7 @@ fun PreferencesContent(
                                     onFocus = onFocus,
                                     onTileClick = onTileClick,
                                     onToggle = onToggle,
+                                    enabled = true,
                                 )
                             }
                         }
@@ -561,6 +639,7 @@ fun PreferencesContent(
                 viewModel = viewModel,
                 context = context,
                 navDrawerPins = navDrawerPins,
+                pluginControlledPrefs = pluginControlledPrefs,
                 onDismiss = { popupPreference = null },
             )
         }
@@ -634,6 +713,7 @@ private fun PreferencePopupContent(
     viewModel: PreferencesViewModel,
     context: Context,
     navDrawerPins: Map<NavDrawerItem, Boolean>,
+    pluginControlledPrefs: Set<AppPreference<AppPreferences, *>>,
     onDismiss: () -> Unit,
 ) {
     val value = pref.getter.invoke(preferences)
@@ -674,6 +754,7 @@ private fun PreferencePopupContent(
                                             choicePref as AppPreference<AppPreferences, Any?>,
                                             newVal,
                                             preferences,
+                                            pluginControlledPrefs,
                                         )
                                         setPreferences(choicePref.setter(preferences, newVal))
                                     }
@@ -719,6 +800,7 @@ private fun PreferencePopupContent(
                                     sliderPref as AppPreference<AppPreferences, Any?>,
                                     newVal,
                                     preferences,
+                                    pluginControlledPrefs,
                                 )
                                 setPreferences(sliderPref.setter(preferences, newVal))
                             },
@@ -746,6 +828,7 @@ private fun PreferencePopupContent(
                                     pref as AppPreference<AppPreferences, Any?>,
                                     newVal,
                                     preferences,
+                                    pluginControlledPrefs,
                                 )
                                 setPreferences(pref.setter(preferences, newVal))
                                 onDismiss()
@@ -826,6 +909,7 @@ private fun PreferencePopupContent(
                                         pref as AppPreference<AppPreferences, Any?>,
                                         currentList,
                                         preferences,
+                                        pluginControlledPrefs,
                                     )
                                     setPreferences(pref.setter(preferences, currentList))
                                 },

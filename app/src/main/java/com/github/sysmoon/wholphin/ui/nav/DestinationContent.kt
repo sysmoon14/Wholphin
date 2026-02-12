@@ -50,6 +50,7 @@ fun DestinationContent(
     onClearBackdrop: () -> Unit,
     modifier: Modifier = Modifier,
     homeTopRowFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    onNavigateBack: (() -> Unit)? = null,
 ) {
     if (destination.fullScreen) {
         LaunchedEffect(Unit) { onClearBackdrop.invoke() }
@@ -74,11 +75,19 @@ fun DestinationContent(
         }
 
         is Destination.Settings -> {
-            PreferencesPage(
-                preferences.appPreferences,
-                destination.screen,
-                modifier,
-            )
+            val hideSettingsCog = preferences.appPreferences.interfacePreferences.hideSettingsCog
+            LaunchedEffect(hideSettingsCog) {
+                if (hideSettingsCog) {
+                    onNavigateBack?.invoke()
+                }
+            }
+            if (!hideSettingsCog) {
+                PreferencesPage(
+                    preferences.appPreferences,
+                    destination.screen,
+                    modifier,
+                )
+            }
         }
 
         is Destination.SeriesOverview -> {

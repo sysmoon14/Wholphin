@@ -134,13 +134,7 @@ class NavDrawerViewModel
                     this@NavDrawerViewModel.libraries.value = libraries
                 }
                 val asDestinations =
-                    (
-                        libraries +
-                            listOf(
-                                NavDrawerItem.More,
-                                NavDrawerItem.Discover,
-                            ) + moreLibraries
-                    ).map {
+                    (libraries + listOf(NavDrawerItem.Discover)).map {
                         if (it is ServerNavDrawerItem) {
                             it.destination
                         } else if (it is NavDrawerItem.Favorites) {
@@ -248,6 +242,7 @@ fun NavDrawer(
     user: JellyfinUser,
     server: JellyfinServer,
     onClearBackdrop: () -> Unit,
+    onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: NavDrawerViewModel =
         hiltViewModel(
@@ -289,6 +284,7 @@ fun NavDrawer(
                 destination = destination,
                 preferences = preferences,
                 onClearBackdrop = onClearBackdrop,
+                onNavigateBack = onNavigateBack,
                 modifier = Modifier.fillMaxSize(),
                 homeTopRowFocusRequester = homeTopRowFocusRequester,
             )

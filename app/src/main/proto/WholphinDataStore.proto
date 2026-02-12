@@ -155,6 +155,14 @@ message InterfacePreferences {
   BackdropStyle backdrop_style = 9;
   bool combined_search_results = 12;
   bool home_uses_plugin_rows = 13;
+  // Server-provided: hide settings icon and block access to settings page
+  bool hide_settings_cog = 14;
+  // Server-provided: when true, show "Override server settings" toggle on settings page
+  bool allow_settings_override = 15;
+  // User's choice: when true, server-controlled tiles are editable and local values take priority
+  bool override_server_settings = 16;
+  // Plugin keys the user has overridden while override_server_settings was on (persisted)
+  repeated string overridden_plugin_keys = 17;
 }
 
 message AdvancedPreferences {

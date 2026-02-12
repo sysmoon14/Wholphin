@@ -11,8 +11,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -95,7 +99,7 @@ class HomeScreenSectionsService
                     val rows =
                         effectiveLayoutRows.mapNotNull { row ->
                             try {
-                                buildRow(row, userId, itemsPerRow, enableRewatchingNextUp)
+                                buildRow(row, userId, itemsPerRow, enableRewatchingNextUp, isHideWatchedItems(row))
                             } catch (ex: Exception) {
                                 Timber.e(ex, "Error building row for type=%s", row.type)
                                 val title = resolveRowTitle(row)
@@ -190,14 +194,76 @@ class HomeScreenSectionsService
             return try {
                 val config = json.decodeFromString(WholphinConfig.serializer(), jsonString)
                 val rows = config.layout.flatMap { it.rows }
-                if (rows.isEmpty()) {
-                    Timber.w("HomeScreenSectionsService: Layout response contained no rows")
-                }
-                rows
+                if (rows.isNotEmpty()) return rows
+                Timber.d("HomeScreenSectionsService: PascalCase parse returned no rows, trying camelCase")
+                parseLayoutResponseCamelCase(jsonString)
             } catch (ex: Exception) {
-                Timber.e(ex, "HomeScreenSectionsService: Error parsing layout response")
+                Timber.d(ex, "HomeScreenSectionsService: PascalCase parse failed, trying camelCase")
+                parseLayoutResponseCamelCase(jsonString)
+            }
+        }
+
+        /** Fallback when plugin returns camelCase (layout, type, title, rows) per integration doc. */
+        private fun parseLayoutResponseCamelCase(jsonString: String): List<WholphinRow>? {
+            return try {
+                val root = json.parseToJsonElement(jsonString).jsonObject
+                val layoutEl = root["layout"] ?: root["Layout"] ?: return null
+                val sections = layoutEl.jsonArray
+                val rows = mutableListOf<WholphinRow>()
+                for (sectionEl in sections) {
+                    val section = sectionEl.jsonObject
+                    val type = (section["type"] ?: section["Type"])?.jsonPrimitive?.contentOrNull
+                    val title = (section["title"] ?: section["Title"])?.jsonPrimitive?.contentOrNull
+                    val rowsEl = section["rows"] ?: section["Rows"] ?: continue
+                    val rowArray = rowsEl.jsonArray
+                    for (rowEl in rowArray) {
+                        val rowObj = rowEl.jsonObject
+                        val rowType = (rowObj["type"] ?: rowObj["Type"])?.jsonPrimitive?.contentOrNull
+                        val label = (rowObj["label"] ?: rowObj["Label"])?.jsonPrimitive?.contentOrNull
+                        val pluginId = (rowObj["pluginId"] ?: rowObj["PluginId"])?.jsonPrimitive?.contentOrNull
+                        val hideWatchedItems =
+                            (rowObj["HideWatchedItems"] ?: rowObj["hideWatchedItems"])?.let { el ->
+                                when (el) {
+                                    is kotlinx.serialization.json.JsonPrimitive -> when (el.contentOrNull) {
+                                        "true" -> true
+                                        "false" -> false
+                                        else -> null
+                                    }
+                                    else -> null
+                                }
+                            }
+                        val endpointParams = (rowObj["endpointParams"] ?: rowObj["EndpointParams"])?.jsonObject
+                        rows.add(
+                            WholphinRow(
+                                type = rowType,
+                                label = label,
+                                pluginId = pluginId,
+                                hideWatchedItems = hideWatchedItems,
+                                endpointParams = endpointParams,
+                            ),
+                        )
+                    }
+                }
+                if (rows.isEmpty()) {
+                    Timber.w("HomeScreenSectionsService: camelCase parse produced no rows")
+                    null
+                } else {
+                    rows
+                }
+            } catch (ex: Exception) {
+                Timber.e(ex, "HomeScreenSectionsService: Error parsing layout response (camelCase)")
                 null
             }
+        }
+
+        /** Reads HideWatchedItems from row (top-level or inside EndpointParams). */
+        private fun isHideWatchedItems(row: WholphinRow): Boolean {
+            if (row.hideWatchedItems == true) return true
+            val params = row.endpointParams ?: return false
+            val v =
+                params["HideWatchedItems"]?.jsonPrimitive?.contentOrNull
+                    ?: params["hideWatchedItems"]?.jsonPrimitive?.contentOrNull
+            return v == "true"
         }
 
         private suspend fun buildRow(
@@ -205,10 +271,11 @@ class HomeScreenSectionsService
             userId: UUID,
             itemsPerRow: Int,
             enableRewatchingNextUp: Boolean,
+            hideWatchedItems: Boolean = false,
         ): HomeRowLoadingState? {
             return when (row.type?.lowercase()) {
-                "system" -> buildSystemRow(row, userId, itemsPerRow, enableRewatchingNextUp)
-                "collection" -> buildCollectionRow(row, userId, itemsPerRow)
+                "system" -> buildSystemRow(row, userId, itemsPerRow, enableRewatchingNextUp, hideWatchedItems)
+                "collection" -> buildCollectionRow(row, userId, itemsPerRow, hideWatchedItems)
                 else -> {
                     Timber.w("HomeScreenSectionsService: Unsupported row type=%s", row.type)
                     null
@@ -221,6 +288,7 @@ class HomeScreenSectionsService
             userId: UUID,
             itemsPerRow: Int,
             enableRewatchingNextUp: Boolean,
+            hideWatchedItems: Boolean = false,
         ): HomeRowLoadingState? {
             val nativeRow = row.endpointParams?.get("NativeRow")?.jsonPrimitive?.contentOrNull
             if (nativeRow.isNullOrBlank()) {
@@ -263,6 +331,7 @@ class HomeScreenSectionsService
                             sortBy = ItemSortBy.DATE_CREATED,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
+                            excludeWatched = hideWatchedItems,
                         )
                     "RecentlyAddedShows" ->
                         getItemsByType(
@@ -271,6 +340,7 @@ class HomeScreenSectionsService
                             sortBy = ItemSortBy.DATE_CREATED,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
+                            excludeWatched = hideWatchedItems,
                         )
                     "LatestMovies" ->
                         getItemsByType(
@@ -279,6 +349,7 @@ class HomeScreenSectionsService
                             sortBy = ItemSortBy.PREMIERE_DATE,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
+                            excludeWatched = hideWatchedItems,
                         )
                     "LatestShows" ->
                         getItemsByType(
@@ -287,6 +358,7 @@ class HomeScreenSectionsService
                             sortBy = ItemSortBy.PREMIERE_DATE,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
+                            excludeWatched = hideWatchedItems,
                         )
                     "BecauseYouWatched" -> {
                         val baseItemId =
@@ -297,12 +369,14 @@ class HomeScreenSectionsService
                                 userId = userId,
                                 itemId = baseItemId,
                                 limit = itemsPerRow,
+                                excludeWatched = hideWatchedItems,
                             )
                         } else {
                             getSuggestions(
                                 userId = userId,
                                 includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
                                 limit = itemsPerRow,
+                                excludeWatched = hideWatchedItems,
                             )
                         }
                     }
@@ -326,6 +400,7 @@ class HomeScreenSectionsService
             row: WholphinRow,
             userId: UUID,
             itemsPerRow: Int,
+            hideWatchedItems: Boolean = false,
         ): HomeRowLoadingState? {
             val collectionId = parseAnyIdToUuidOrNull(row.pluginId)
             if (collectionId == null) {
@@ -343,6 +418,7 @@ class HomeScreenSectionsService
                     limit = itemsPerRow,
                     parentId = collectionId,
                     excludeItemIds = listOf(collectionId),
+                    excludeWatched = hideWatchedItems,
                 )
 
             val (boxSetName, viewAllItem) = fetchBoxSetViewAll(collectionId)
@@ -382,6 +458,7 @@ class HomeScreenSectionsService
             limit: Int,
             parentId: UUID,
             excludeItemIds: List<UUID>? = null,
+            excludeWatched: Boolean = false,
         ): List<BaseItem> {
             val request =
                 GetItemsRequest(
@@ -391,6 +468,7 @@ class HomeScreenSectionsService
                     fields = SlimItemFields,
                     recursive = true,
                     enableUserData = true,
+                    isPlayed = if (excludeWatched) false else null,
                     startIndex = 0,
                     limit = limit,
                 )
@@ -414,6 +492,7 @@ class HomeScreenSectionsService
             parentId: UUID? = null,
             excludeItemIds: List<UUID>? = null,
             recursive: Boolean = parentId == null,
+            excludeWatched: Boolean = false,
         ): List<BaseItem> {
             val request =
                 GetItemsRequest(
@@ -424,6 +503,7 @@ class HomeScreenSectionsService
                     fields = SlimItemFields,
                     recursive = recursive,
                     enableUserData = true,
+                    isPlayed = if (excludeWatched) false else null,
                     sortBy = listOf(sortBy),
                     sortOrder = listOf(sortOrder),
                     startIndex = 0,
@@ -444,31 +524,39 @@ class HomeScreenSectionsService
             userId: UUID,
             includeItemTypes: List<BaseItemKind>,
             limit: Int,
+            excludeWatched: Boolean = false,
         ): List<BaseItem> {
             val request =
                 GetSuggestionsRequest(
                     userId = userId,
                     type = includeItemTypes,
                     startIndex = 0,
-                    limit = limit,
+                    limit = if (excludeWatched) limit * 2 else limit,
                     enableTotalRecordCount = false,
                 )
             val result = api.suggestionsApi.getSuggestions(request).content.items
-            return result.mapNotNull { dto ->
-                try {
-                    BaseItem.from(dto, api, true)
-                } catch (ex: Exception) {
-                    Timber.e(ex, "Error creating BaseItem from suggestion dto")
-                    null
+            var items =
+                result.mapNotNull { dto ->
+                    try {
+                        BaseItem.from(dto, api, true)
+                    } catch (ex: Exception) {
+                        Timber.e(ex, "Error creating BaseItem from suggestion dto")
+                        null
+                    }
                 }
+            if (excludeWatched) {
+                items = items.filter { !it.played }.take(limit)
             }
+            return items
         }
 
         private suspend fun getSimilarItems(
             userId: UUID,
             itemId: UUID,
             limit: Int,
+            excludeWatched: Boolean = false,
         ): List<BaseItem> {
+            val requestLimit = if (excludeWatched) limit * 2 else limit
             val result =
                 api.libraryApi
                     .getSimilarItems(
@@ -476,17 +564,22 @@ class HomeScreenSectionsService
                             userId = userId,
                             itemId = itemId,
                             fields = SlimItemFields,
-                            limit = limit,
+                            limit = requestLimit,
                         ),
                     ).content.items
-            return result.mapNotNull { dto ->
-                try {
-                    BaseItem.from(dto, api, true)
-                } catch (ex: Exception) {
-                    Timber.e(ex, "Error creating BaseItem from similar item dto")
-                    null
+            var items =
+                result.mapNotNull { dto ->
+                    try {
+                        BaseItem.from(dto, api, true)
+                    } catch (ex: Exception) {
+                        Timber.e(ex, "Error creating BaseItem from similar item dto")
+                        null
+                    }
                 }
+            if (excludeWatched) {
+                items = items.filter { !it.played }.take(limit)
             }
+            return items
         }
 
         private suspend fun getPlayedItems(
@@ -646,6 +739,8 @@ private data class WholphinRow(
     val label: String? = null,
     @kotlinx.serialization.SerialName("PluginId")
     val pluginId: String? = null,
+    @kotlinx.serialization.SerialName("HideWatchedItems")
+    val hideWatchedItems: Boolean? = null,
     @kotlinx.serialization.SerialName("EndpointParams")
     val endpointParams: JsonObject? = null,
 )

@@ -39,7 +39,7 @@ import java.util.UUID
         SeerrUser::class,
         UserPreferencesEntity::class,
     ],
-    version = 22,
+    version = 23,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(3, 4),
@@ -249,6 +249,15 @@ object Migrations {
                     """
                     CREATE UNIQUE INDEX IF NOT EXISTS `index_user_preferences_userId` ON `user_preferences` (`userId`)
                     """.trimIndent(),
+                )
+            }
+        }
+
+    val Migrate22to23 =
+        object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE NavDrawerPinnedItem ADD COLUMN position INTEGER NOT NULL DEFAULT 0",
                 )
             }
         }

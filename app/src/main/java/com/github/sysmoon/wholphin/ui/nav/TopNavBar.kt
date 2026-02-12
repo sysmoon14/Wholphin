@@ -104,19 +104,16 @@ fun TopNavBar(
     val librariesList = libraries ?: emptyList()
     val moreLibrariesList = moreLibraries ?: emptyList()
 
-    // VM selectedIndex: -2=Search, -1=Home, 0..libraries.size-1=libraries, libraries.size=More, libraries.size+1=Discover, libraries.size+2..=moreLibraries
+    // Unpinned items are not shown; only Search, Home, and pinned libraries (no "More").
+    // VM selectedIndex: -2=Search, -1=Home, 0..libraries.size-1=libraries, libraries.size=Discover
     val allNavItems: List<Pair<Int, NavDrawerItem>> = buildList {
         add(-2 to NavDrawerItem.Search)
         add(-1 to NavDrawerItem.Home)
         librariesList.forEachIndexed { index, item -> add(index to item) }
-        if (showMore) {
-            moreLibrariesList.forEachIndexed { index, item -> add(librariesList.size + 2 + index to item) }
-        } else if (moreLibrariesList.isNotEmpty()) {
-            add(librariesList.size to NavDrawerItem.More)
-        }
     }
+    val hideSettingsCog = preferences.appPreferences.interfacePreferences.hideSettingsCog
     val defaultKey = allNavItems.firstOrNull()?.first ?: NavProfileKey
-    val allKeys = allNavItems.map { it.first } + listOf(NavProfileKey, NavSettingsKey)
+    val allKeys = allNavItems.map { it.first } + listOf(NavProfileKey) + if (hideSettingsCog) emptyList() else listOf(NavSettingsKey)
     allKeys.forEach { focusRequesterFor(it) }
     LaunchedEffect(navHasFocus, selectedIndex) {
         if (navHasFocus) {
@@ -418,32 +415,34 @@ fun TopNavBar(
                 }
             }
 
-            // Settings (pinned right)
-            TopNavSettingsButton(
-                onClick = {
-                    viewModel.navigationManager.navigateTo(
-                        Destination.Settings(PreferenceScreenOption.BASIC),
-                    )
-                },
-                modifier =
-                    downKeyModifier
-                        .focusRequester(focusRequesterFor(NavSettingsKey))
-                        .onFocusChanged {
-                            if (it.isFocused) {
-                                focusedIndex = NavSettingsKey
-                            }
-                        }.onGloballyPositioned { coords ->
-                            val position = coords.positionInRoot()
-                            itemMetrics[NavSettingsKey] =
-                                NavItemMetrics(
-                                    x = position.x - navBoxPosition.x,
-                                    y = position.y - navBoxPosition.y,
-                                    width = coords.size.width.toFloat(),
-                                    height = coords.size.height.toFloat(),
-                                    shape = NavBarPillShape,
-                                )
-                        },
-            )
+            // Settings (pinned right) – hidden when server sets hide_settings_cog
+            if (!hideSettingsCog) {
+                TopNavSettingsButton(
+                    onClick = {
+                        viewModel.navigationManager.navigateTo(
+                            Destination.Settings(PreferenceScreenOption.BASIC),
+                        )
+                    },
+                    modifier =
+                        downKeyModifier
+                            .focusRequester(focusRequesterFor(NavSettingsKey))
+                            .onFocusChanged {
+                                if (it.isFocused) {
+                                    focusedIndex = NavSettingsKey
+                                }
+                            }.onGloballyPositioned { coords ->
+                                val position = coords.positionInRoot()
+                                itemMetrics[NavSettingsKey] =
+                                    NavItemMetrics(
+                                        x = position.x - navBoxPosition.x,
+                                        y = position.y - navBoxPosition.y,
+                                        width = coords.size.width.toFloat(),
+                                        height = coords.size.height.toFloat(),
+                                        shape = NavBarPillShape,
+                                    )
+                            },
+                )
+            }
         }
         if (navHasFocus && focusMetrics != null) {
             Box(

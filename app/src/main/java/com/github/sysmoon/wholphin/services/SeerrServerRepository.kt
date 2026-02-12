@@ -54,6 +54,15 @@ class SeerrServerRepository
          */
         val active: Flow<Boolean> = current.map { it != null && seerrApi.active }
 
+        /**
+         * Seerr API base URL must include /api/v1 (OpenAPI spec). Normalize so requests
+         * go to e.g. /api/v1/auth/jellyfin not /auth/jellyfin (which returns 404).
+         */
+        private fun ensureSeerrBaseUrl(url: String): String {
+            val u = url.trimEnd('/')
+            return if (u.endsWith("/api/v1")) u else "$u/api/v1"
+        }
+
         fun clear() {
             _current.update { null }
             seerrApi.update("", null)
@@ -74,10 +83,11 @@ class SeerrServerRepository
             url: String,
             apiKey: String,
         ) {
-            var server = seerrServerDao.getServer(url)
+            val baseUrl = ensureSeerrBaseUrl(url)
+            var server = seerrServerDao.getServer(baseUrl)
             if (server == null) {
-                seerrServerDao.addServer(SeerrServer(url = url))
-                server = seerrServerDao.getServer(url)
+                seerrServerDao.addServer(SeerrServer(url = baseUrl))
+                server = seerrServerDao.getServer(baseUrl)
             }
             server?.server?.let { server ->
                 serverRepository.currentUser.value?.let { jellyfinUser ->
@@ -106,10 +116,11 @@ class SeerrServerRepository
             username: String,
             password: String,
         ) {
-            var server = seerrServerDao.getServer(url)
+            val baseUrl = ensureSeerrBaseUrl(url)
+            var server = seerrServerDao.getServer(baseUrl)
             if (server == null) {
-                seerrServerDao.addServer(SeerrServer(url = url))
-                server = seerrServerDao.getServer(url)
+                seerrServerDao.addServer(SeerrServer(url = baseUrl))
+                server = seerrServerDao.getServer(baseUrl)
             }
             server?.server?.let { server ->
                 serverRepository.currentUser.value?.let { jellyfinUser ->

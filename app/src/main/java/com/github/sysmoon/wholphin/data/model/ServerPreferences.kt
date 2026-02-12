@@ -24,4 +24,5 @@ data class NavDrawerPinnedItem(
     val userId: Int,
     val itemId: String,
     val type: NavPinType,
+    val position: Int = 0,
 )

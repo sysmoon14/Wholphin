@@ -18,6 +18,8 @@ import com.github.sysmoon.wholphin.services.FavoriteWatchManager
 import com.github.sysmoon.wholphin.services.HomeScreenSectionsService
 import com.github.sysmoon.wholphin.services.LatestNextUpService
 import com.github.sysmoon.wholphin.services.NavigationManager
+import com.github.sysmoon.wholphin.services.PluginSettingsApplicator
+import com.github.sysmoon.wholphin.services.PluginSettingsService
 import com.github.sysmoon.wholphin.ui.launchIO
 import com.github.sysmoon.wholphin.ui.nav.ServerNavDrawerItem
 import com.github.sysmoon.wholphin.ui.setValueOnMain
@@ -53,6 +55,8 @@ class HomeViewModel
         private val backdropService: BackdropService,
         private val homeScreenSectionsService: HomeScreenSectionsService,
         private val appPreferencesDataStore: DataStore<AppPreferences>,
+        private val pluginSettingsService: PluginSettingsService,
+        private val pluginSettingsApplicator: PluginSettingsApplicator,
     ) : ViewModel() {
         val loadingState = MutableLiveData<LoadingState>(LoadingState.Pending)
         val refreshState = MutableLiveData<LoadingState>(LoadingState.Pending)
@@ -98,6 +102,13 @@ class HomeViewModel
                 }
 
                 serverRepository.currentUserDto.value?.let { userDto ->
+                    // Fetch and apply plugin settings (global + user prefs, Seerr, nav drawer)
+                    serverRepository.currentUser.value?.let { jellyfinUser ->
+                        val settings = pluginSettingsService.fetchSettings(userDto.id)
+                        if (settings != null) {
+                            pluginSettingsApplicator.apply(settings, jellyfinUser)
+                        }
+                    }
                     // Try custom sections from companion plugin; if none, use default home rows
                     val customRows =
                         homeScreenSectionsService.getCustomRows(

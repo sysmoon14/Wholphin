@@ -11,7 +11,7 @@ import com.github.sysmoon.wholphin.data.model.NavDrawerPinnedItem
 interface ServerPreferencesDao {
     fun getNavDrawerPinnedItems(user: JellyfinUser): List<NavDrawerPinnedItem> = getNavDrawerPinnedItems(user.rowId)
 
-    @Query("SELECT * from NavDrawerPinnedItem WHERE userId=:userId")
+    @Query("SELECT * FROM NavDrawerPinnedItem WHERE userId = :userId ORDER BY position ASC")
     fun getNavDrawerPinnedItems(userId: Int): List<NavDrawerPinnedItem>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

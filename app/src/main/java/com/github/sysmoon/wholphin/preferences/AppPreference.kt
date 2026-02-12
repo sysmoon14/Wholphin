@@ -505,12 +505,6 @@ sealed interface AppPreference<Pref, T> {
                 destination = Destination.License,
             )
 
-        val AdvancedSettings =
-            AppDestinationPreference<AppPreferences>(
-                title = R.string.advanced_settings,
-                destination = Destination.Settings(PreferenceScreenOption.ADVANCED),
-            )
-
         val SkipIntros =
             AppChoicePreference<AppPreferences, SkipSegmentBehavior>(
                 title = R.string.skip_intro_behavior,
@@ -955,7 +949,6 @@ sealed interface AppPreference<Pref, T> {
                 Update,
                 InstalledVersion,
                 SeerrIntegration,
-                AdvancedSettings,
             )
 
         fun isDeviceOnlyPreference(pref: AppPreference<AppPreferences, *>): Boolean =
@@ -1045,10 +1038,6 @@ val basicPreferences =
                         add(AppPreference.UpdateUrl)
                     }
                 },
-        ),
-        PreferenceGroup(
-            title = R.string.more,
-            preferences = listOf(AppPreference.AdvancedSettings),
         ),
     )
 

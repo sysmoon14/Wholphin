@@ -41,6 +41,7 @@ object DatabaseModule {
                 Migrations.Migrate2to3,
                 Migrations.Migrate20to21,
                 Migrations.Migrate21to22,
+                Migrations.Migrate22to23,
             )
             .build()
 

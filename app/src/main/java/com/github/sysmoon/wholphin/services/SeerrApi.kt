@@ -20,10 +20,17 @@ class SeerrApi(
 
     val active: Boolean get() = api.baseUrl.isNotNullOrBlank()
 
+    /**
+     * Seerr API requires base URL to include /api/v1. Normalize so requests hit
+     * e.g. /api/v1/auth/jellyfin instead of /auth/jellyfin (404).
+     */
     fun update(
         baseUrl: String,
         apiKey: String?,
     ) {
-        api = SeerrApiClient(baseUrl, apiKey, okHttpClient)
+        val normalized = baseUrl.trimEnd('/').let { u ->
+            if (u.endsWith("/api/v1")) u else "$u/api/v1"
+        }
+        api = SeerrApiClient(normalized, apiKey, okHttpClient)
     }
 }

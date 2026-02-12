@@ -76,6 +76,10 @@ class NavDrawerItemRepository
             return builtins + libraries
         }
 
+        /**
+         * Returns only pinned items in the order stored (plugin order or user's pin order).
+         * Unpinned items are not shown in the nav at all (no "More").
+         */
         suspend fun getFilteredNavDrawerItems(items: List<NavDrawerItem>): List<NavDrawerItem> {
             val user = serverRepository.currentUser.value
             val navDrawerPins =
@@ -83,14 +87,11 @@ class NavDrawerItemRepository
                     ?.let {
                         serverPreferencesDao.getNavDrawerPinnedItems(it)
                     }.orEmpty()
-            val filtered = items.filter { navDrawerPins.isPinned(it.id) }
-            if (items.size != filtered.size) {
-                // Some were filtered out, check if should include More
-                if (navDrawerPins.isPinned(NavDrawerItem.More.id)) {
-                    return filtered + listOf(NavDrawerItem.More)
-                }
-            }
-            return filtered
+            val pinnedIdsInOrder =
+                navDrawerPins
+                    .filter { it.type == NavPinType.PINNED }
+                    .map { it.itemId }
+            return pinnedIdsInOrder.mapNotNull { id -> items.find { it.id == id } }
         }
     }
 

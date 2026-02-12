@@ -1,7 +1,11 @@
 package com.github.sysmoon.wholphin.services
 
+import android.os.SystemClock
 import androidx.navigation3.runtime.NavKey
 import com.github.sysmoon.wholphin.ui.nav.Destination
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.acra.ACRA
 import timber.log.Timber
 import javax.inject.Inject
@@ -16,6 +20,10 @@ class NavigationManager
     constructor() {
         var backStack: MutableList<NavKey> = mutableListOf()
 
+        /** Current destination for reactive UI (e.g. fixed top nav that doesn't animate). */
+        private val _currentDestination = MutableStateFlow<Destination?>(null)
+        val currentDestination: StateFlow<Destination?> = _currentDestination.asStateFlow()
+
         /**
          * Invoked when the user returns to the home screen (e.g. via Back or Go to Home).
          * Used to refresh Up Next / Continue Watching so the row is up to date after playback.
@@ -23,9 +31,58 @@ class NavigationManager
         var onReturnedToHome: (() -> Unit)? = null
 
         /**
+         * Direction of the last top-nav bar navigation for slide transitions.
+         * 1 = moved right (e.g. Home → Movies), -1 = moved left, 0 = not from top nav (use default transition).
+         */
+        var lastTopNavDirection: Int = 0
+
+        /**
+         * Set the direction for the next transition when navigating from the top nav bar.
+         * @param fromIndex nav bar index we're leaving (e.g. -1 for Home)
+         * @param toIndex nav bar index we're going to
+         */
+        fun setLastTopNavDirection(fromIndex: Int, toIndex: Int) {
+            lastTopNavDirection = (toIndex - fromIndex).coerceIn(-1, 1)
+        }
+
+        /** Call after assigning [backStack] so [currentDestination] is in sync (e.g. initial load). */
+        fun syncCurrentDestinationFromBackStack() {
+            _currentDestination.value = backStack.lastOrNull() as? Destination
+        }
+
+        /**
+         * After a top-nav switch, content should skip requesting initial focus until this time (uptimeMillis).
+         * Set via [setSkipContentFocusFor]; content reads and skips focus if now < value.
+         */
+        private val _skipContentFocusUntilMillis = MutableStateFlow(0L)
+        val skipContentFocusUntilMillis: StateFlow<Long> = _skipContentFocusUntilMillis.asStateFlow()
+
+        /** Call when navigating from the top nav so content doesn't steal focus for [durationMs]. */
+        fun setSkipContentFocusFor(durationMs: Long) {
+            _skipContentFocusUntilMillis.value = SystemClock.uptimeMillis() + durationMs
+            _openedViaTopNavSwitch = true
+        }
+
+        /**
+         * True when the current destination was reached by switching tabs in the top nav.
+         * Consumed once per destination so content can keep focus in nav and never steal it.
+         */
+        private var _openedViaTopNavSwitch = false
+        fun consumeOpenedViaTopNavSwitch(): Boolean =
+            _openedViaTopNavSwitch.also { _openedViaTopNavSwitch = false }
+
+        /**
+         * Called by TopNavBar to register a callback that moves focus to the selected nav item.
+         * ApplicationContent invokes this when the destination changes so focus stays in the nav
+         * instead of flickering into content.
+         */
+        var onRequestTopNavFocus: (() -> Unit)? = null
+
+        /**
          * Go to the specified [com.github.sysmoon.wholphin.ui.nav.Destination]
          */
         fun navigateTo(destination: Destination) {
+            lastTopNavDirection = 0
             backStack.add(destination)
             log()
         }
@@ -103,8 +160,10 @@ class NavigationManager
         }
 
         private fun log() {
-            val dest = backStack.lastOrNull().toString()
+            val last = backStack.lastOrNull()
+            val dest = last.toString()
             Timber.i("Current Destination: %s", dest)
             ACRA.errorReporter.putCustomData("destination", dest)
+            _currentDestination.value = last as? Destination
         }
     }

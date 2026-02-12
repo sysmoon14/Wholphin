@@ -16,6 +16,8 @@ fun CollectionFolderTv(
     preferences: UserPreferences,
     destination: Destination.MediaItem,
     modifier: Modifier = Modifier,
+    skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
+    wasOpenedViaTopNavSwitch: Boolean = false,
     preferencesViewModel: PreferencesViewModel = hiltViewModel(),
 ) {
     val recommendedTopRowFocusRequester = remember { FocusRequester() }
@@ -26,6 +28,8 @@ fun CollectionFolderTv(
         topRowFocusRequester = recommendedTopRowFocusRequester,
         resetPositionOnEnter = true,
         consumeDownToTopRow = true,
+        skipContentFocusUntilMillis = skipContentFocusUntilMillis,
+        wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
         modifier = modifier.fillMaxSize(),
     )
 }

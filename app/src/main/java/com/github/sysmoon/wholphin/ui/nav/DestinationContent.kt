@@ -36,6 +36,7 @@ import com.github.sysmoon.wholphin.ui.main.SearchPage
 import com.github.sysmoon.wholphin.ui.playback.PlaybackPage
 import com.github.sysmoon.wholphin.ui.preferences.PreferencesPage
 import com.github.sysmoon.wholphin.ui.setup.InstallUpdatePage
+import kotlinx.coroutines.flow.StateFlow
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CollectionType
 import timber.log.Timber
@@ -50,6 +51,8 @@ fun DestinationContent(
     onClearBackdrop: () -> Unit,
     modifier: Modifier = Modifier,
     homeTopRowFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    skipContentFocusUntilMillis: StateFlow<Long>? = null,
+    wasOpenedViaTopNavSwitch: Boolean = false,
     onNavigateBack: (() -> Unit)? = null,
 ) {
     if (destination.fullScreen) {
@@ -61,6 +64,8 @@ fun DestinationContent(
                 preferences = preferences,
                 modifier = modifier,
                 topRowFocusRequester = homeTopRowFocusRequester,
+                skipContentFocusUntilMillis = skipContentFocusUntilMillis,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
             )
         }
 
@@ -166,6 +171,8 @@ fun DestinationContent(
                         usePostersOverride = null,
                         recursiveOverride = null,
                         modifier = modifier,
+                        skipContentFocusUntilMillis = skipContentFocusUntilMillis,
+                        wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                     )
                 }
 
@@ -178,6 +185,8 @@ fun DestinationContent(
                         usePostersOverride = true,
                         recursiveOverride = null,
                         modifier = modifier,
+                        skipContentFocusUntilMillis = skipContentFocusUntilMillis,
+                        wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                     )
                 }
 
@@ -190,6 +199,8 @@ fun DestinationContent(
                         usePostersOverride = null,
                         recursiveOverride = true,
                         modifier = modifier,
+                        skipContentFocusUntilMillis = skipContentFocusUntilMillis,
+                        wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                     )
                 }
 
@@ -328,6 +339,8 @@ fun CollectionFolder(
     usePostersOverride: Boolean?,
     recursiveOverride: Boolean?,
     modifier: Modifier = Modifier,
+    skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
+    wasOpenedViaTopNavSwitch: Boolean = false,
 ) {
     when (collectionType) {
         CollectionType.TVSHOWS -> {
@@ -335,6 +348,8 @@ fun CollectionFolder(
                 preferences,
                 destination,
                 modifier,
+                skipContentFocusUntilMillis,
+                wasOpenedViaTopNavSwitch,
             )
         }
 
@@ -343,6 +358,8 @@ fun CollectionFolder(
                 preferences,
                 destination,
                 modifier,
+                skipContentFocusUntilMillis,
+                wasOpenedViaTopNavSwitch,
             )
         }
 

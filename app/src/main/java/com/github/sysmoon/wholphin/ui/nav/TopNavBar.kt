@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +61,7 @@ import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.input.key.Key
@@ -70,6 +70,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.delay
 
 /**
  * Top navigation bar (Netflix-style): profile left, word nav items in center, settings right.
@@ -115,6 +116,19 @@ fun TopNavBar(
     val defaultKey = allNavItems.firstOrNull()?.first ?: NavProfileKey
     val allKeys = allNavItems.map { it.first } + listOf(NavProfileKey) + if (hideSettingsCog) emptyList() else listOf(NavSettingsKey)
     allKeys.forEach { focusRequesterFor(it) }
+    // Let ApplicationContent reclaim focus to the nav when destination changes (avoids content flicker).
+    // Only reclaim when focus is still on the current tab; if user has moved to another tab (e.g. Movies -> Shows
+    // while content is loading), don't pull focus back or they get stuck and can't complete the switch.
+    DisposableEffect(selectedIndex) {
+        if (allNavItems.any { it.first == selectedIndex }) {
+            viewModel.navigationManager.onRequestTopNavFocus = {
+                if (focusedIndex == selectedIndex) {
+                    focusRequesterFor(selectedIndex).tryRequestFocus("app_content_reclaim")
+                }
+            }
+        }
+        onDispose { viewModel.navigationManager.onRequestTopNavFocus = null }
+    }
     LaunchedEffect(navHasFocus, selectedIndex) {
         if (navHasFocus) {
             val targetKey =
@@ -125,6 +139,48 @@ fun TopNavBar(
                 }
             focusedIndex = targetKey
             focusRequesterFor(targetKey).tryRequestFocus("top_nav_enter")
+        }
+    }
+    // After a top-nav switch, keep focus in the nav. Content below often requests focus when it
+    // composes or when data loads, so we request after the transition then reclaim once more.
+    LaunchedEffect(selectedIndex) {
+        if (!allNavItems.any { it.first == selectedIndex }) return@LaunchedEffect
+        val requester = focusRequesterFor(selectedIndex)
+        delay(450)
+        focusedIndex = selectedIndex
+        requester.tryRequestFocus("top_nav_after_transition")
+        delay(450)
+        requester.tryRequestFocus("top_nav_reclaim")
+    }
+    // Auto-navigate when focus moves to a different core nav item (no OK press needed).
+    // Short delay so quick left/right to cross the bar doesn't trigger every tab.
+    // Excludes profile and settings, which still require OK.
+    LaunchedEffect(focusedIndex, selectedIndex) {
+        val key = focusedIndex ?: return@LaunchedEffect
+        if (key == NavProfileKey || key == NavSettingsKey) return@LaunchedEffect
+        if (key == selectedIndex) return@LaunchedEffect
+        delay(250)
+        val item = allNavItems.find { it.first == key }?.second ?: return@LaunchedEffect
+        viewModel.navigationManager.setLastTopNavDirection(selectedIndex, key)
+        viewModel.navigationManager.setSkipContentFocusFor(800)
+        viewModel.setIndex(key)
+        when (item) {
+            NavDrawerItem.Search ->
+                viewModel.navigationManager.navigateToFromDrawer(Destination.Search)
+            NavDrawerItem.Favorites ->
+                viewModel.navigationManager.navigateToFromDrawer(Destination.Favorites)
+            NavDrawerItem.Discover ->
+                viewModel.navigationManager.navigateToFromDrawer(Destination.Discover)
+            is ServerNavDrawerItem ->
+                viewModel.navigationManager.navigateToFromDrawer(item.destination)
+            NavDrawerItem.Home -> {
+                if (destination is Destination.Home) {
+                    viewModel.navigationManager.reloadHome()
+                } else {
+                    viewModel.navigationManager.goToHome()
+                }
+            }
+            else -> { /* More handled separately; not in top bar */ }
         }
     }
     val downKeyModifier =
@@ -199,46 +255,10 @@ fun TopNavBar(
             with(density) {
                 (selectedMetrics?.height ?: 0f).toDp()
             }
-        val focusOffsetX =
-            with(density) {
-                val pad =
-                    if (focusedIndex == NavProfileKey) {
-                        4.dp.toPx()
-                    } else {
-                        0f
-                    }
-                ((focusMetrics?.x ?: 0f) - pad).toDp()
-            }
-        val focusOffsetY =
-            with(density) {
-                val pad =
-                    if (focusedIndex == NavProfileKey) {
-                        4.dp.toPx()
-                    } else {
-                        0f
-                    }
-                ((focusMetrics?.y ?: 0f) - pad).toDp()
-            }
-        val focusWidth =
-            with(density) {
-                val pad =
-                    if (focusedIndex == NavProfileKey) {
-                        4.dp.toPx()
-                    } else {
-                        0f
-                    }
-                ((focusMetrics?.width ?: 0f) + pad * 2f).toDp()
-            }
-        val focusHeight =
-            with(density) {
-                val pad =
-                    if (focusedIndex == NavProfileKey) {
-                        4.dp.toPx()
-                    } else {
-                        0f
-                    }
-                ((focusMetrics?.height ?: 0f) + pad * 2f).toDp()
-            }
+        val focusOffsetX = with(density) { (focusMetrics?.x ?: 0f).toDp() }
+        val focusOffsetY = with(density) { (focusMetrics?.y ?: 0f).toDp() }
+        val focusWidth = with(density) { (focusMetrics?.width ?: 0f).toDp() }
+        val focusHeight = with(density) { (focusMetrics?.height ?: 0f).toDp() }
         val selectedIndicatorOffsetX by animateDpAsState(
             targetValue = selectedOffsetX,
             label = "nav_selected_offset_x",
@@ -255,22 +275,10 @@ fun TopNavBar(
             targetValue = selectedHeight,
             label = "nav_selected_height",
         )
-        val focusIndicatorOffsetX by animateDpAsState(
-            targetValue = focusOffsetX,
-            label = "nav_focus_offset_x",
-        )
-        val focusIndicatorOffsetY by animateDpAsState(
-            targetValue = focusOffsetY,
-            label = "nav_focus_offset_y",
-        )
-        val focusIndicatorWidth by animateDpAsState(
-            targetValue = focusWidth,
-            label = "nav_focus_width",
-        )
-        val focusIndicatorHeight by animateDpAsState(
-            targetValue = focusHeight,
-            label = "nav_focus_height",
-        )
+        val focusIndicatorOffsetX by animateDpAsState(targetValue = focusOffsetX, label = "nav_focus_x")
+        val focusIndicatorOffsetY by animateDpAsState(targetValue = focusOffsetY, label = "nav_focus_y")
+        val focusIndicatorWidth by animateDpAsState(targetValue = focusWidth, label = "nav_focus_w")
+        val focusIndicatorHeight by animateDpAsState(targetValue = focusHeight, label = "nav_focus_h")
         if (selectedMetrics != null) {
             Box(
                 modifier =
@@ -280,6 +288,18 @@ fun TopNavBar(
                         .background(
                             color = Color(0xFF505050),
                             shape = selectedMetrics.shape,
+                        ),
+            )
+        }
+        if (navHasFocus && focusMetrics != null) {
+            Box(
+                modifier =
+                    Modifier
+                        .offset(x = focusIndicatorOffsetX, y = focusIndicatorOffsetY)
+                        .size(focusIndicatorWidth, focusIndicatorHeight)
+                        .background(
+                            color = NavBarFocusedBackground,
+                            shape = focusMetrics.shape,
                         ),
             )
         }
@@ -362,6 +382,8 @@ fun TopNavBar(
                                     TopNavSearchIconButton(
                                         selected = selectedIndex == -2,
                                         onClick = {
+                                            viewModel.navigationManager.setLastTopNavDirection(selectedIndex, -2)
+                                            viewModel.navigationManager.setSkipContentFocusFor(800)
                                             viewModel.setIndex(-2)
                                             viewModel.navigationManager.navigateToFromDrawer(Destination.Search)
                                         },
@@ -384,18 +406,26 @@ fun TopNavBar(
                                         onClick = {
                                             when (item) {
                                                 NavDrawerItem.Favorites -> {
+                                                    viewModel.navigationManager.setLastTopNavDirection(selectedIndex, index)
+                                                    viewModel.navigationManager.setSkipContentFocusFor(800)
                                                     viewModel.setIndex(index)
                                                     viewModel.navigationManager.navigateToFromDrawer(Destination.Favorites)
                                                 }
                                                 NavDrawerItem.Discover -> {
+                                                    viewModel.navigationManager.setLastTopNavDirection(selectedIndex, index)
+                                                    viewModel.navigationManager.setSkipContentFocusFor(800)
                                                     viewModel.setIndex(index)
                                                     viewModel.navigationManager.navigateToFromDrawer(Destination.Discover)
                                                 }
                                                 is ServerNavDrawerItem -> {
+                                                    viewModel.navigationManager.setLastTopNavDirection(selectedIndex, index)
+                                                    viewModel.navigationManager.setSkipContentFocusFor(800)
                                                     viewModel.setIndex(index)
                                                     viewModel.navigationManager.navigateToFromDrawer(item.destination)
                                                 }
                                                 NavDrawerItem.Home -> {
+                                                    viewModel.navigationManager.setLastTopNavDirection(selectedIndex, -1)
+                                                    viewModel.navigationManager.setSkipContentFocusFor(800)
                                                     viewModel.setIndex(-1)
                                                     if (destination is Destination.Home) {
                                                         viewModel.navigationManager.reloadHome()
@@ -444,24 +474,12 @@ fun TopNavBar(
                 )
             }
         }
-        if (navHasFocus && focusMetrics != null) {
-            Box(
-                modifier =
-                    Modifier
-                        .offset(x = focusIndicatorOffsetX, y = focusIndicatorOffsetY)
-                        .size(focusIndicatorWidth, focusIndicatorHeight)
-                        .border(
-                            width = 2.dp,
-                            color = Color.White,
-                            shape = focusMetrics.shape,
-                        ),
-            )
-        }
     }
 }
 
 private val NavBarPillShape = RoundedCornerShape(20.dp)
 private val NavBarProfileShape = RoundedCornerShape(4.dp)
+private val NavBarFocusedBackground = Color.White.copy(alpha = 0.22f)
 private const val NavProfileKey = -1000
 private const val NavSettingsKey = -1001
 

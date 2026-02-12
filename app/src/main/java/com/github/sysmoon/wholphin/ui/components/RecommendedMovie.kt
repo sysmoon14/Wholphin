@@ -226,6 +226,8 @@ fun RecommendedMovie(
     topRowFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
     consumeDownToTopRow: Boolean = false,
     dropEmptyRows: Boolean = false,
+    skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
+    wasOpenedViaTopNavSwitch: Boolean = false,
     viewModel: RecommendedMovieViewModel =
         hiltViewModel<RecommendedMovieViewModel, RecommendedMovieViewModel.Factory>(
             creationCallback = { it.create(parentId) },
@@ -240,5 +242,7 @@ fun RecommendedMovie(
         topRowFocusRequester = topRowFocusRequester,
         consumeDownToTopRow = consumeDownToTopRow,
         dropEmptyRows = dropEmptyRows,
+        skipContentFocusUntilMillis = skipContentFocusUntilMillis,
+        wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
     )
 }

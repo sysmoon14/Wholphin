@@ -1,6 +1,8 @@
 package com.github.sysmoon.wholphin.ui.main
 
+import android.os.SystemClock
 import android.widget.Toast
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
@@ -144,6 +146,8 @@ fun HomePage(
     viewModel: HomeViewModel = hiltViewModel(),
     playlistViewModel: AddPlaylistViewModel = hiltViewModel(),
     topRowFocusRequester: FocusRequester? = null,
+    skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
+    wasOpenedViaTopNavSwitch: Boolean = false,
 ) {
     val context = LocalContext.current
     var firstLoad by rememberSaveable { mutableStateOf(true) }
@@ -181,7 +185,7 @@ fun HomePage(
         LoadingState.Loading,
         LoadingState.Pending,
         -> {
-            LoadingPage()
+            LoadingPage(focusEnabled = false)
         }
 
         LoadingState.Success -> {
@@ -194,7 +198,9 @@ fun HomePage(
                 exit = fadeOut(animationSpec = tween(200)),
             ) {
                 HomePageContent(
-                watchingRows + latestRows,
+                homeRows = watchingRows + latestRows,
+                skipContentFocusUntilMillis = skipContentFocusUntilMillis,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                 onClickItem = { position, item ->
                     viewModel.navigationManager.navigateTo(item.destination())
                 },
@@ -269,6 +275,8 @@ fun HomePage(
 @Composable
 fun HomePageContent(
     homeRows: List<HomeRowLoadingState>,
+    skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
+    wasOpenedViaTopNavSwitch: Boolean = false,
     onClickItem: (RowColumn, BaseItem) -> Unit,
     onLongClickItem: (RowColumn, BaseItem) -> Unit,
     onClickPlay: (RowColumn, BaseItem) -> Unit,
@@ -312,6 +320,7 @@ fun HomePageContent(
     var firstFocused by remember { mutableStateOf(false) }
     var hasResetPosition by remember(resetPositionOnEnter) { mutableStateOf(false) }
     LaunchedEffect(homeRows) {
+        if (wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (!firstFocused && homeRows.isNotEmpty()) {
             if (position.row >= 0) {
                 val index = position.row.coerceIn(0, rowFocusRequesters.lastIndex)
@@ -335,6 +344,7 @@ fun HomePageContent(
     // Track previous row to detect actual row changes (not initial focus)
     var previousRow by remember { mutableIntStateOf(-1) }
     LaunchedEffect(homeRows, resetPositionOnEnter) {
+        if (wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (resetPositionOnEnter && !hasResetPosition && homeRows.isNotEmpty()) {
             val firstRowIndex =
                 homeRows.indexOfFirst {
@@ -527,7 +537,9 @@ fun HomePageContent(
                                             modifier = cardModifier,
                                         )
                                     }
-                                val isHeroRow = rowIndex == position.row
+                                // When focus is in the nav (position.row < 0), show first row as hero so it expands before user navigates down.
+                                val effectiveHeroRowIndex = if (position.row >= 0) position.row else firstRowIndex
+                                val isHeroRow = rowIndex == effectiveHeroRowIndex
                                 // Find the next valid row index (with non-empty items)
                                 val nextRowIndex = (rowIndex + 1 until homeRows.size).firstOrNull { idx ->
                                     (homeRows[idx] as? HomeRowLoadingState.Success)?.items?.isNotEmpty() == true
@@ -537,14 +549,14 @@ fun HomePageContent(
                                     (homeRows[idx] as? HomeRowLoadingState.Success)?.items?.isNotEmpty() == true
                                 }
                                 
-                                // For hero row, use the global headerItem; for non-hero rows, use the saved position
+                                // For hero row, use the global headerItem (or first item when position not set); for non-hero rows, use the saved position
                                 val rowFocusedIndex = if (isHeroRow) {
                                     position.column.coerceIn(0, row.items.lastIndex.coerceAtLeast(0))
                                 } else {
                                     (rowColumnPositions[rowIndex] ?: 0).coerceIn(0, row.items.lastIndex.coerceAtLeast(0))
                                 }
                                 val rowHeroItem = if (isHeroRow) {
-                                    headerItem
+                                    headerItem ?: row.items.getOrNull(rowFocusedIndex) as? BaseItem
                                 } else {
                                     row.items.getOrNull(rowFocusedIndex) as? BaseItem
                                 }
@@ -577,6 +589,7 @@ fun HomePageContent(
                                             val prevRow = homeRows[prevIdx] as HomeRowLoadingState.Success
                                             val savedColumn = rowColumnPositions[prevIdx] ?: 0
                                             position = RowColumn(prevIdx, savedColumn.coerceIn(0, prevRow.items.lastIndex.coerceAtLeast(0)))
+                                            rowFocusRequesters.getOrNull(prevIdx)?.tryRequestFocus()
                                         }
                                     },
                                     onNavigateDown = nextRowIndex?.let { nextIdx ->
@@ -585,6 +598,7 @@ fun HomePageContent(
                                             val nextRow = homeRows[nextIdx] as HomeRowLoadingState.Success
                                             val savedColumn = rowColumnPositions[nextIdx] ?: 0
                                             position = RowColumn(nextIdx, savedColumn.coerceIn(0, nextRow.items.lastIndex.coerceAtLeast(0)))
+                                            rowFocusRequesters.getOrNull(nextIdx)?.tryRequestFocus()
                                         }
                                     } ?: { },
                                     modifier = rowModifier
@@ -595,6 +609,7 @@ fun HomePageContent(
                                             }
                                         },
                                     heroFocusRequester = if (rowIndex == firstRowIndex) topRowHeroFocusRequester else null,
+                                    requestFocusOnCompose = !wasOpenedViaTopNavSwitch,
                                     heroCardContent = heroRowPosterContent,
                                     posterCardContent = rowCardContent,
                                 )
@@ -1071,12 +1086,13 @@ fun <T : Any> AnimatingHeroRow(
     onNavigateUp: (() -> Unit)? = null,
     onNavigateDown: (() -> Unit)? = null,
     heroFocusRequester: FocusRequester? = null,
+    requestFocusOnCompose: Boolean = true,
     heroCardContent: @Composable (Int, T?, Modifier) -> Unit,
     posterCardContent: @Composable (Int, T?, Modifier, () -> Unit, () -> Unit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val posterCardWidth = HERO_CARD_HEIGHT * (2f / 3f)  // ~173dp
-    val animationDuration = 600
+    val animationDuration = 280
     
     // Animate first card width between poster and hero size
     val firstCardWidth by animateDpAsState(
@@ -1130,9 +1146,9 @@ fun <T : Any> AnimatingHeroRow(
     }
     var wasNavigatingRight by remember { mutableStateOf(true) }
     
-    // When becoming hero row, request focus
-    LaunchedEffect(isHeroRow) {
-        if (isHeroRow) {
+    // When becoming hero row, request focus (skip during top-nav tab switch to avoid flicker)
+    LaunchedEffect(isHeroRow, requestFocusOnCompose) {
+        if (isHeroRow && requestFocusOnCompose) {
             internalHeroFocusRequester.tryRequestFocus()
         }
     }
@@ -1442,7 +1458,7 @@ fun HeroCardContent(
                     ImageRequest
                         .Builder(context)
                         .data(backdropUrl)
-                        .transitionFactory(CrossFadeFactory(600.milliseconds))
+                        .transitionFactory(CrossFadeFactory(280.milliseconds))
                         .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
@@ -1515,7 +1531,7 @@ fun HeroCardContent(
                         ImageRequest
                             .Builder(context)
                             .data(logoUrl)
-                            .transitionFactory(CrossFadeFactory(600.milliseconds))
+                            .transitionFactory(CrossFadeFactory(280.milliseconds))
                             .build(),
                     contentDescription = item?.title,
                     contentScale = ContentScale.Fit,
@@ -1652,7 +1668,7 @@ fun AnimatingHeroCardContent(
                     model = ImageRequest
                         .Builder(context)
                         .data(backdropUrl)
-                        .transitionFactory(CrossFadeFactory(600.milliseconds))
+                        .transitionFactory(CrossFadeFactory(280.milliseconds))
                         .build(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
@@ -1726,7 +1742,7 @@ fun AnimatingHeroCardContent(
                         model = ImageRequest
                             .Builder(context)
                             .data(logoUrl)
-                            .transitionFactory(CrossFadeFactory(600.milliseconds))
+                            .transitionFactory(CrossFadeFactory(280.milliseconds))
                             .build(),
                         contentDescription = item?.title,
                         contentScale = ContentScale.Fit,
@@ -1802,7 +1818,7 @@ fun BackdropPosterCard(
                 model = ImageRequest
                     .Builder(context)
                     .data(backdropUrl)
-                    .transitionFactory(CrossFadeFactory(600.milliseconds))
+                    .transitionFactory(CrossFadeFactory(280.milliseconds))
                     .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
@@ -1869,7 +1885,7 @@ fun BackdropPosterCard(
                     model = ImageRequest
                         .Builder(context)
                         .data(logoUrl)
-                        .transitionFactory(CrossFadeFactory(600.milliseconds))
+                        .transitionFactory(CrossFadeFactory(280.milliseconds))
                         .build(),
                     contentDescription = item?.title,
                     contentScale = ContentScale.Fit,

@@ -52,6 +52,7 @@ import com.github.sysmoon.wholphin.util.HomeRowLoadingState
 import com.github.sysmoon.wholphin.util.LoadingState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.MediaType
 import java.util.UUID
@@ -141,6 +142,8 @@ fun RecommendedContent(
     topRowFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
     consumeDownToTopRow: Boolean = false,
     dropEmptyRows: Boolean = false,
+    skipContentFocusUntilMillis: StateFlow<Long>? = null,
+    wasOpenedViaTopNavSwitch: Boolean = false,
 ) {
     val context = LocalContext.current
     var moreDialog by remember { mutableStateOf<Optional<RowColumnItem>>(Optional.absent()) }
@@ -152,14 +155,22 @@ fun RecommendedContent(
     }
     val loading by viewModel.loading.observeAsState(LoadingState.Loading)
     val rows by viewModel.rows.collectAsState()
+    // Only show Success and Error rows so we never flash "row header + Loading..." placeholders.
+    // Rows appear as they load instead of showing all headers with Loading at once.
     val effectiveRows =
-        if (dropEmptyRows) {
-            rows.filterNot { row ->
-                row is HomeRowLoadingState.Success && row.items.isEmpty()
+        rows
+            .filter { row ->
+                row is HomeRowLoadingState.Success || row is HomeRowLoadingState.Error
             }
-        } else {
-            rows
-        }
+            .let { filtered ->
+                if (dropEmptyRows) {
+                    filtered.filterNot { row ->
+                        row is HomeRowLoadingState.Success && row.items.isEmpty()
+                    }
+                } else {
+                    filtered
+                }
+            }
     val resetKey = rememberSaveable { mutableStateOf(0) }
     LaunchedEffect(resetPositionOnEnter) {
         if (resetPositionOnEnter) {
@@ -175,7 +186,7 @@ fun RecommendedContent(
         LoadingState.Loading,
         LoadingState.Pending,
         -> {
-            LoadingPage()
+            LoadingPage(focusEnabled = false)
         }
 
         LoadingState.Success -> {
@@ -221,6 +232,8 @@ fun RecommendedContent(
             key(resetKey.value) {
                 HomePageContent(
                     homeRows = effectiveRows,
+                    skipContentFocusUntilMillis = skipContentFocusUntilMillis,
+                    wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                     onClickItem = { _, item ->
                         viewModel.navigationManager.navigateTo(item.destination())
                     },

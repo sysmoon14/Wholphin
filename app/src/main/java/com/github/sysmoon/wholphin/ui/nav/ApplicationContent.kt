@@ -1,15 +1,26 @@
 package com.github.sysmoon.wholphin.ui.nav
 
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSerializable
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -49,10 +60,13 @@ import com.github.sysmoon.wholphin.services.BackdropService
 import com.github.sysmoon.wholphin.services.NavigationManager
 import com.github.sysmoon.wholphin.ui.CrossFadeFactory
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
+import com.github.sysmoon.wholphin.ui.components.TimeDisplay
 import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
+import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.ui.launchIO
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
 // Top scrim configuration for text readability (clock, season tabs)
@@ -97,13 +111,35 @@ fun ApplicationContent(
             NavBackStack(startDestination)
         }
     navigationManager.backStack = backStack
+    LaunchedEffect(Unit) { navigationManager.syncCurrentDestinationFromBackStack() }
+    val currentDestination by navigationManager.currentDestination.collectAsStateWithLifecycle(initialValue = null)
+    val showTopNavBar = currentDestination?.shouldShowTopNavBar() == true
+    // Consume once per destination change: true = opened via tab switch (keep focus in nav), false = initial load (focus content).
+    val wasOpenedViaTopNavSwitch = remember(currentDestination) {
+        navigationManager.consumeOpenedViaTopNavSwitch()
+    }
+    // Only reclaim focus to nav when we switched tabs; on initial load leave focus in content (hero).
+    LaunchedEffect(currentDestination) {
+        if (!showTopNavBar || !wasOpenedViaTopNavSwitch) return@LaunchedEffect
+        val reclaim = navigationManager.onRequestTopNavFocus ?: return@LaunchedEffect
+        var at = 0L
+        for (targetMs in listOf(0, 50, 150, 300, 500, 850)) {
+            delay((targetMs.toLong() - at).coerceAtLeast(0))
+            at = targetMs.toLong()
+            reclaim()
+        }
+    }
+    val homeTopRowFocusRequester = remember { FocusRequester() }
+    val navDrawerViewModel: NavDrawerViewModel = hiltViewModel(key = "${server.id}_${user.id}")
+    val showMore by navDrawerViewModel.showMore.observeAsState(initial = false)
+    BackHandler(enabled = showMore) { navDrawerViewModel.setShowMore(false) }
     val backdrop by viewModel.backdropService.backdropFlow.collectAsStateWithLifecycle()
     val backdropStyle = preferences.appPreferences.interfacePreferences.backdropStyle
-    val currentDestination = backStack.lastOrNull() as? Destination
+    val dest = currentDestination
     val showBackdropImage =
-        when (currentDestination) {
+        when (dest) {
             is Destination.MediaItem ->
-                currentDestination.type in setOf(
+                dest.type in setOf(
                     BaseItemKind.MOVIE,
                     BaseItemKind.SERIES,
                     BaseItemKind.EPISODE,
@@ -267,41 +303,116 @@ fun ApplicationContent(
                         },
             )
         }
-        NavDisplay(
-            backStack = navigationManager.backStack,
-            onBack = { navigationManager.goBack() },
-            entryDecorators =
-                listOf(
-                    rememberSaveableStateHolderNavEntryDecorator(),
-                    rememberViewModelStoreNavEntryDecorator(),
-                ),
-            entryProvider = { key ->
-                key as Destination
-                val contentKey = "${key}_${server?.id}_${user?.id}"
-                NavEntry(key, contentKey = contentKey) {
-                    if (key.fullScreen) {
-                        DestinationContent(
-                            destination = key,
-                            preferences = preferences,
-                            onClearBackdrop = viewModel::clearBackdrop,
-                            onNavigateBack = { navigationManager.goBack() },
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else if (user != null && server != null) {
-                        NavDrawer(
-                            destination = key,
-                            preferences = preferences,
-                            user = user,
-                            server = server,
-                            onClearBackdrop = viewModel::clearBackdrop,
-                            onNavigateBack = { navigationManager.goBack() },
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        ErrorMessage("Trying to go to $key without a user logged in", null)
-                    }
-                }
-            },
-        )
+        val navDirection = navigationManager.lastTopNavDirection
+        val slideDuration = 220
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (showTopNavBar && currentDestination != null) {
+                TopNavBar(
+                    destination = currentDestination!!,
+                    preferences = preferences,
+                    user = user,
+                    server = server,
+                    viewModel = navDrawerViewModel,
+                    onNavigateDown =
+                        if (currentDestination is Destination.Home) {
+                            { homeTopRowFocusRequester.tryRequestFocus("top_nav_to_home") }
+                        } else {
+                            null
+                        },
+                )
+            }
+            Box(
+                modifier =
+                    if (showTopNavBar) Modifier.fillMaxWidth().weight(1f)
+                    else Modifier.fillMaxSize(),
+            ) {
+                NavDisplay(
+                    backStack = navigationManager.backStack,
+                    onBack = { navigationManager.goBack() },
+                    entryDecorators =
+                        listOf(
+                            rememberSaveableStateHolderNavEntryDecorator(),
+                            rememberViewModelStoreNavEntryDecorator(),
+                        ),
+                    transitionSpec = {
+                        when (navDirection) {
+                            1 -> ContentTransform(
+                                targetContentEnter =
+                                    slideInHorizontally(animationSpec = tween(slideDuration)) { it } + fadeIn(animationSpec = tween(slideDuration)),
+                                initialContentExit =
+                                    slideOutHorizontally(animationSpec = tween(slideDuration)) { -it } + fadeOut(animationSpec = tween(slideDuration)),
+                                sizeTransform = null,
+                            )
+                            -1 -> ContentTransform(
+                                targetContentEnter =
+                                    slideInHorizontally(animationSpec = tween(slideDuration)) { -it } + fadeIn(animationSpec = tween(slideDuration)),
+                                initialContentExit =
+                                    slideOutHorizontally(animationSpec = tween(slideDuration)) { it } + fadeOut(animationSpec = tween(slideDuration)),
+                                sizeTransform = null,
+                            )
+                            else -> ContentTransform(
+                                targetContentEnter = fadeIn(animationSpec = tween(350)),
+                                initialContentExit = fadeOut(animationSpec = tween(350)),
+                                sizeTransform = null,
+                            )
+                        }
+                    },
+                    popTransitionSpec = {
+                        when (navDirection) {
+                            1 -> ContentTransform(
+                                targetContentEnter =
+                                    slideInHorizontally(animationSpec = tween(slideDuration)) { -it } + fadeIn(animationSpec = tween(slideDuration)),
+                                initialContentExit =
+                                    slideOutHorizontally(animationSpec = tween(slideDuration)) { it } + fadeOut(animationSpec = tween(slideDuration)),
+                                sizeTransform = null,
+                            )
+                            -1 -> ContentTransform(
+                                targetContentEnter =
+                                    slideInHorizontally(animationSpec = tween(slideDuration)) { -it } + fadeIn(animationSpec = tween(slideDuration)),
+                                initialContentExit =
+                                    slideOutHorizontally(animationSpec = tween(slideDuration)) { it } + fadeOut(animationSpec = tween(slideDuration)),
+                                sizeTransform = null,
+                            )
+                            else -> ContentTransform(
+                                targetContentEnter = fadeIn(animationSpec = tween(350)),
+                                initialContentExit = fadeOut(animationSpec = tween(350)),
+                                sizeTransform = null,
+                            )
+                        }
+                    },
+                    entryProvider = { key ->
+                        key as Destination
+                        val contentKey = "${key}_${server.id}_${user.id}"
+                        NavEntry(key, contentKey = contentKey) {
+                            if (key.fullScreen) {
+                                DestinationContent(
+                                    destination = key,
+                                    preferences = preferences,
+                                    onClearBackdrop = viewModel::clearBackdrop,
+                                    onNavigateBack = { navigationManager.goBack() },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    DestinationContent(
+                                        destination = key,
+                                        preferences = preferences,
+                                        onClearBackdrop = viewModel::clearBackdrop,
+                                        onNavigateBack = { navigationManager.goBack() },
+                                        modifier = Modifier.fillMaxSize(),
+                                        homeTopRowFocusRequester = if (key is Destination.Home) homeTopRowFocusRequester else null,
+                                        skipContentFocusUntilMillis = navigationManager.skipContentFocusUntilMillis,
+                                        wasOpenedViaTopNavSwitch = key == currentDestination && wasOpenedViaTopNavSwitch,
+                                    )
+                                    if (preferences.appPreferences.interfacePreferences.showClock) {
+                                        TimeDisplay()
+                                    }
+                                }
+                            }
+                        }
+                    },
+                )
+            }
+        }
     }
 }

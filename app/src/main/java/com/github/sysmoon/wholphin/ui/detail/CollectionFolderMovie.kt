@@ -16,6 +16,8 @@ fun CollectionFolderMovie(
     preferences: UserPreferences,
     destination: Destination.MediaItem,
     modifier: Modifier = Modifier,
+    skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
+    wasOpenedViaTopNavSwitch: Boolean = false,
     preferencesViewModel: PreferencesViewModel = hiltViewModel(),
 ) {
     val recommendedTopRowFocusRequester = remember { FocusRequester() }
@@ -27,6 +29,8 @@ fun CollectionFolderMovie(
         topRowFocusRequester = recommendedTopRowFocusRequester,
         consumeDownToTopRow = true,
         dropEmptyRows = true,
+        skipContentFocusUntilMillis = skipContentFocusUntilMillis,
+        wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
         modifier = modifier.fillMaxSize(),
     )
 }

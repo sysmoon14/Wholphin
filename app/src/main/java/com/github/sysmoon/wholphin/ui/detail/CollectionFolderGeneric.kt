@@ -32,6 +32,7 @@ fun CollectionFolderGeneric(
     filter: CollectionFolderFilter = CollectionFolderFilter(),
     filterOptions: List<ItemFilterBy<*>> = DefaultFilterOptions,
     sortOptions: List<ItemSortBy> = VideoSortOptions,
+    wasOpenedViaTopNavSwitch: Boolean = false,
     preferencesViewModel: PreferencesViewModel = hiltViewModel(),
 ) {
     var showHeader by remember { mutableStateOf(true) }
@@ -60,5 +61,6 @@ fun CollectionFolderGeneric(
         defaultViewOptions = viewOptions,
         playEnabled = playEnabled,
         filterOptions = filterOptions,
+        deferInitialFocus = wasOpenedViaTopNavSwitch,
     )
 }

@@ -66,7 +66,6 @@ import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import com.github.sysmoon.wholphin.ui.launchIO
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
 // Top scrim configuration for text readability (clock, season tabs)
@@ -117,17 +116,6 @@ fun ApplicationContent(
     // Consume once per destination change: true = opened via tab switch (keep focus in nav), false = initial load (focus content).
     val wasOpenedViaTopNavSwitch = remember(currentDestination) {
         navigationManager.consumeOpenedViaTopNavSwitch()
-    }
-    // Only reclaim focus to nav when we switched tabs; on initial load leave focus in content (hero).
-    LaunchedEffect(currentDestination) {
-        if (!showTopNavBar || !wasOpenedViaTopNavSwitch) return@LaunchedEffect
-        val reclaim = navigationManager.onRequestTopNavFocus ?: return@LaunchedEffect
-        var at = 0L
-        for (targetMs in listOf(0, 50, 150, 300, 500, 850)) {
-            delay((targetMs.toLong() - at).coerceAtLeast(0))
-            at = targetMs.toLong()
-            reclaim()
-        }
     }
     val homeTopRowFocusRequester = remember { FocusRequester() }
     val navDrawerViewModel: NavDrawerViewModel = hiltViewModel(key = "${server.id}_${user.id}")

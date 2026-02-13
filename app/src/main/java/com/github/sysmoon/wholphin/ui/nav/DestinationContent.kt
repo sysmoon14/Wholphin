@@ -239,6 +239,7 @@ fun DestinationContent(
                 playEnabled = true, // TODO only genres use this currently, so might need to change in future
                 filterOptions = DefaultForGenresFilterOptions,
                 modifier = modifier,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
             )
         }
 
@@ -257,6 +258,7 @@ fun DestinationContent(
             ItemGrid(
                 destination,
                 modifier,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
             )
         }
 
@@ -265,6 +267,7 @@ fun DestinationContent(
             FavoritesPage(
                 preferences = preferences,
                 modifier = modifier,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
             )
         }
 
@@ -281,6 +284,7 @@ fun DestinationContent(
             SearchPage(
                 userPreferences = preferences,
                 modifier = modifier,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
             )
         }
 
@@ -292,6 +296,7 @@ fun DestinationContent(
             DiscoverPage(
                 preferences = preferences,
                 modifier = modifier,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
             )
         }
 
@@ -372,6 +377,7 @@ fun CollectionFolder(
                 playEnabled = false,
                 modifier = modifier,
                 sortOptions = MovieSortOptions,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
             )
         }
 
@@ -405,6 +411,7 @@ fun CollectionFolder(
                 recursive = recursiveOverride ?: false,
                 playEnabled = true,
                 modifier = modifier,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
             )
         }
 
@@ -420,6 +427,7 @@ fun CollectionFolder(
                 recursive = recursiveOverride ?: false,
                 playEnabled = false,
                 modifier = modifier,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
             )
         }
     }

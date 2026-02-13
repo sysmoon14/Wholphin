@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -56,6 +57,8 @@ import com.github.sysmoon.wholphin.services.ServerEventListener
 import com.github.sysmoon.wholphin.services.SetupDestination
 import com.github.sysmoon.wholphin.services.SetupNavigationManager
 import com.github.sysmoon.wholphin.services.UpdateChecker
+import com.github.sysmoon.wholphin.services.PluginSettingsApplicator
+import com.github.sysmoon.wholphin.services.PluginSettingsService
 import com.github.sysmoon.wholphin.services.PluginSettingsUserSwitchListener
 import com.github.sysmoon.wholphin.services.UserSwitchListener
 import com.github.sysmoon.wholphin.services.hilt.AuthOkHttpClient
@@ -76,8 +79,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
@@ -195,8 +201,25 @@ class MainActivity : AppCompatActivity() {
         viewModel.appStart(overrideUserId, overrideServerId)
         
         setContent {
-            val appPreferences by viewModel.appPreferencesFlow.collectAsState(initial = null)
-            appPreferences?.let { appPreferences ->
+            val currentUser by viewModel.serverRepository.currentUser.observeAsState()
+            val appPrefsState by viewModel.appPreferencesFlow.collectAsState(initial = null)
+            val state = appPrefsState
+            val prefsMatchUser = state != null && state.userId == currentUser?.id
+            val prefsForTheme = state?.preferences
+            if (currentUser != null && prefsForTheme == null) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = MaterialTheme.colorScheme.border,
+                    )
+                }
+            } else if (prefsForTheme != null) {
+            val appPreferences = prefsForTheme
+            val showingUserSwitchLoader = currentUser != null && !prefsMatchUser
                 LaunchedEffect(appPreferences.signInAutomatically) {
                     signInAuto = appPreferences.signInAutomatically
                 }
@@ -228,6 +251,14 @@ class MainActivity : AppCompatActivity() {
                                     .background(MaterialTheme.colorScheme.background),
                             shape = RectangleShape,
                         ) {
+                            if (showingUserSwitchLoader) {
+                                Box(Modifier.fillMaxSize()) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.align(Alignment.Center),
+                                        color = MaterialTheme.colorScheme.border,
+                                    )
+                                }
+                            } else {
                             // Observe backStack reactively to avoid race conditions during initialization
                             val currentDestination = remember {
                                 derivedStateOf {
@@ -238,11 +269,11 @@ class MainActivity : AppCompatActivity() {
                             // Process pendingIntentData when AppContent is reached
                             // Use currentUser?.id as source of truth (not destination.current.user.id)
                             // because destination might not update immediately when switching users
-                            val currentUser = viewModel.serverRepository.currentUser.value
+                            val user = currentUser
                             val currentServer = viewModel.serverRepository.currentServer.value
-                            val appContentKey = remember(currentDestination, currentUser?.id, currentServer?.id) {
-                                if (currentDestination is SetupDestination.AppContent && currentUser != null && currentServer != null) {
-                                    "${currentUser.id}_${currentServer.id}"
+                            val appContentKey = remember(currentDestination, user?.id, currentServer?.id) {
+                                if (currentDestination is SetupDestination.AppContent && user != null && currentServer != null) {
+                                    "${user.id}_${currentServer.id}"
                                 } else {
                                     null
                                 }
@@ -379,6 +410,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -784,6 +816,9 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
+/** Preferences plus the user they belong to; used so UI only applies prefs when they match current user. */
+data class UserAppPreferences(val userId: UUID?, val preferences: AppPreferences)
+
 @HiltViewModel
 class MainActivityViewModel
     @Inject
@@ -794,20 +829,45 @@ class MainActivityViewModel
         private val navigationManager: SetupNavigationManager,
         private val deviceProfileService: DeviceProfileService,
         private val backdropService: BackdropService,
+        private val pluginSettingsService: PluginSettingsService,
+        private val pluginSettingsApplicator: PluginSettingsApplicator,
     ) : ViewModel() {
 
         /**
-         * Merged app preferences: device prefs when no user, device + per-user when logged in.
-         * We emit from the new user's merged prefs immediately on user change so the UI (e.g.
-         * settings cog) updates without waiting. PluginSettingsUserSwitchListener applies plugin
-         * settings in the background; when it updates Room this flow will emit again.
+         * Merged app preferences keyed by user: device prefs when no user, device + per-user when logged in.
+         * Emits (userId, prefs) so the UI can avoid showing the previous user's prefs while loading the new user's.
          */
-        val appPreferencesFlow: Flow<AppPreferences> =
+        val appPreferencesFlow: Flow<UserAppPreferences> =
             serverRepository.currentUser.asFlow().flatMapLatest { user ->
                 if (user != null) {
-                    userPreferencesRepository.getMergedPreferences(user.rowId)
+                    flow {
+                        val snapshot =
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val currentNow = serverRepository.currentUser.value
+                                    if (currentNow?.rowId != user.rowId) return@withContext null
+                                    val settings = pluginSettingsService.fetchSettings(user.id)
+                                    if (settings != null) {
+                                        pluginSettingsApplicator.apply(settings, user)
+                                    }
+                                    userPreferencesRepository.getMergedPreferencesOnce(user.rowId)
+                                } catch (e: Exception) {
+                                    Timber.w(e, "MainActivityViewModel: Failed to apply plugin settings for user %s", user.name)
+                                    null
+                                }
+                            }
+                        val currentNow = serverRepository.currentUser.value
+                        if (currentNow?.rowId == user.rowId && snapshot != null) {
+                            emit(UserAppPreferences(user.id, snapshot))
+                            emitAll(
+                                userPreferencesRepository.getMergedPreferences(user.rowId).map {
+                                    UserAppPreferences(user.id, it)
+                                },
+                            )
+                        }
+                    }
                 } else {
-                    preferences.data
+                    preferences.data.map { UserAppPreferences(null, it) }
                 }
             }
 

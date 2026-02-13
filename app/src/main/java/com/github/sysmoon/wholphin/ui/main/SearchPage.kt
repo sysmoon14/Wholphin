@@ -271,6 +271,7 @@ private const val VOICE_RESULT_FOCUS_DELAY_MS = 350L
 fun SearchPage(
     userPreferences: UserPreferences,
     modifier: Modifier = Modifier,
+    wasOpenedViaTopNavSwitch: Boolean = false,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -321,7 +322,9 @@ fun SearchPage(
         }
     }
     LaunchedEffect(Unit) {
-        focusRequesters.getOrNull(position.row)?.tryRequestFocus()
+        if (!wasOpenedViaTopNavSwitch) {
+            focusRequesters.getOrNull(position.row)?.tryRequestFocus()
+        }
     }
     val onClickItem = { index: Int, item: BaseItem ->
         viewModel.navigationManager.navigateTo(item.destination())

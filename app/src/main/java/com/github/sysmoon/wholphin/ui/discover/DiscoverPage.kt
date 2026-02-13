@@ -34,6 +34,7 @@ import com.github.sysmoon.wholphin.ui.preferences.PreferencesViewModel
 fun DiscoverPage(
     preferences: UserPreferences,
     modifier: Modifier = Modifier,
+    wasOpenedViaTopNavSwitch: Boolean = false,
     preferencesViewModel: PreferencesViewModel = hiltViewModel(),
 ) {
     val rememberedTabIndex =
@@ -81,6 +82,7 @@ fun DiscoverPage(
                     modifier =
                         Modifier
                             .fillMaxSize(),
+                    wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                 )
             }
 

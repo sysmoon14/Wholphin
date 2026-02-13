@@ -551,6 +551,7 @@ fun CollectionFolderGrid(
     filterOptions: List<ItemFilterBy<*>> = DefaultFilterOptions,
     focusRequesterOnEmpty: FocusRequester? = null,
     onHeaderFocusChange: ((Boolean) -> Unit)? = null,
+    deferInitialFocus: Boolean = false,
 ) = CollectionFolderGrid(
     preferences,
     itemId.toServerString(),
@@ -569,6 +570,7 @@ fun CollectionFolderGrid(
     filterOptions = filterOptions,
     focusRequesterOnEmpty = focusRequesterOnEmpty,
     onHeaderFocusChange = onHeaderFocusChange,
+    deferInitialFocus = deferInitialFocus,
 )
 
 @Composable
@@ -590,6 +592,7 @@ fun CollectionFolderGrid(
     filterOptions: List<ItemFilterBy<*>> = DefaultFilterOptions,
     focusRequesterOnEmpty: FocusRequester? = null,
     onHeaderFocusChange: ((Boolean) -> Unit)? = null,
+    deferInitialFocus: Boolean = false,
     playlistViewModel: AddPlaylistViewModel = hiltViewModel(),
     viewModel: CollectionFolderViewModel =
         hiltViewModel<CollectionFolderViewModel, CollectionFolderViewModel.Factory>(
@@ -621,7 +624,7 @@ fun CollectionFolderGrid(
         DataLoadingState.Loading,
         DataLoadingState.Pending,
         -> {
-            LoadingPage()
+            LoadingPage(focusEnabled = false)
         }
 
         is DataLoadingState.Error,
@@ -642,6 +645,7 @@ fun CollectionFolderGrid(
                     sortAndDirection = sortAndDirection!!,
                     modifier = Modifier.fillMaxSize(),
                     focusRequesterOnEmpty = focusRequesterOnEmpty,
+                    deferInitialFocus = deferInitialFocus,
                     onClickItem = onClickItem,
                     onLongClickItem = { position, item ->
                         moreDialog.makePresent(PositionItem(position, item))
@@ -787,6 +791,7 @@ fun CollectionFolderGridContent(
     onFilterChange: (GetItemsFilter) -> Unit = {},
     focusRequesterOnEmpty: FocusRequester? = null,
     onHeaderFocusChange: ((Boolean) -> Unit)? = null,
+    deferInitialFocus: Boolean = false,
 ) {
     val context = LocalContext.current
 
@@ -798,8 +803,8 @@ fun CollectionFolderGridContent(
 
     val gridFocusRequester = remember { FocusRequester() }
     if (pager?.isNotEmpty() == true) {
-        RequestOrRestoreFocus(gridFocusRequester)
-    } else {
+        RequestOrRestoreFocus(gridFocusRequester, requestOnLaunch = !deferInitialFocus)
+    } else if (!deferInitialFocus) {
         LaunchedEffect(Unit) {
             (focusRequesterOnEmpty ?: headerRowFocusRequester).tryRequestFocus()
         }

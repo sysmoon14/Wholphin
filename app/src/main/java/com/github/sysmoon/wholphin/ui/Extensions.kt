@@ -176,8 +176,9 @@ fun OneTimeLaunchedEffect(runOnceBlock: suspend CoroutineScope.() -> Unit) {
 fun RequestOrRestoreFocus(
     focusRequester: FocusRequester?,
     debugKey: String? = null,
+    requestOnLaunch: Boolean = true,
 ) {
-    if (focusRequester != null) {
+    if (focusRequester != null && requestOnLaunch) {
         LaunchedEffect(Unit) {
             debugKey?.let { Timber.v("RequestOrRestoreFocus: %s", it) }
             focusRequester.tryRequestFocus()

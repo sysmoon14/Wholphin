@@ -362,18 +362,21 @@ fun HomePageContent(
         }
     }
     
-    // Ensure scrolling happens when returning to the screen with a saved position
+    // Ensure scrolling happens when returning to the screen with a saved position (one-shot;
+    // do not run on every position.row change or we interrupt animateScrollToItem with instant scroll after 50ms)
     LaunchedEffect(homeRows, position.row) {
-        if (firstFocused && homeRows.isNotEmpty() && position.row >= 0) {
+        if (firstFocused && homeRows.isNotEmpty() && position.row >= 0 && previousRow < 0) {
             val index = position.row.coerceIn(0, rowFocusRequesters.lastIndex)
             delay(50)
             listState.scrollToItem(index)
+            previousRow = position.row
         }
     }
-    // Only scroll vertically when navigating between rows (not on initial focus from nav bar)
+    // Only scroll vertically when navigating between rows (not on initial focus from nav bar).
+    // scrollOffset = 0 places the focused row at the top of the viewport so the row below doesn't peek in.
     LaunchedEffect(position.row) {
         if (previousRow >= 0 && position.row >= 0 && position.row != previousRow) {
-            listState.animateScrollToItem(position.row)
+            listState.animateScrollToItem(position.row, scrollOffset = 0)
         }
         previousRow = position.row
     }
@@ -472,12 +475,13 @@ fun HomePageContent(
 
                         is HomeRowLoadingState.Success -> {
                             if (row.items.isNotEmpty()) {
+                                val isFocusedRow = rowIndex == position.row
                                 val rowModifier =
                                     Modifier
                                         .fillMaxWidth()
                                         .focusGroup()
                                         .focusRequester(rowFocusRequesters[rowIndex])
-                                        .animateItem()
+                                        .zIndex(if (isFocusedRow) 1f else 0f)
                                 // Card content for non-hero rows (focusable cards)
                                 // Uses backdrop image with logo overlay, wrapped in focusable Card
                                 val rowCardContent: @Composable (Int, BaseItem?, Modifier, () -> Unit, () -> Unit) -> Unit =
@@ -566,6 +570,8 @@ fun HomePageContent(
                                     items = row.items,
                                     heroItem = rowHeroItem,
                                     isHeroRow = isHeroRow,
+                                    rowIndex = rowIndex,
+                                    focusedRowIndex = effectiveHeroRowIndex,
                                     focusedIndex = rowFocusedIndex,
                                     onFocusedIndexChange = { newIndex ->
                                         position = RowColumn(rowIndex, newIndex)
@@ -1078,6 +1084,8 @@ fun <T : Any> AnimatingHeroRow(
     items: List<T?>,
     heroItem: BaseItem?,
     isHeroRow: Boolean,
+    rowIndex: Int,
+    focusedRowIndex: Int,
     focusedIndex: Int,
     onFocusedIndexChange: (Int) -> Unit,
     onClickItem: (Int, T) -> Unit,
@@ -1094,31 +1102,46 @@ fun <T : Any> AnimatingHeroRow(
     val posterCardWidth = HERO_CARD_HEIGHT * (2f / 3f)  // ~173dp
     val animationDuration = 280
     
+    // When we lose hero by scrolling DOWN, delay collapse so the parent's scroll runs against stable layout.
+    // When we lose hero by scrolling UP, collapse instantly so the row below doesn't animate hero->poster in view.
+    val lostHeroByScrollingDown = !isHeroRow && (rowIndex < focusedRowIndex)
+    val collapseDelayMs = 450L
+    var collapseDelayActive by remember { mutableStateOf(false) }
+    LaunchedEffect(isHeroRow) {
+        if (!isHeroRow && lostHeroByScrollingDown) {
+            collapseDelayActive = true
+            delay(collapseDelayMs)
+            collapseDelayActive = false
+        }
+    }
+    val effectiveIsHeroRow = isHeroRow || collapseDelayActive
+    val collapseDuration = if (!isHeroRow && rowIndex > focusedRowIndex) 0 else animationDuration
+    
     // Animate first card width between poster and hero size
     val firstCardWidth by animateDpAsState(
-        targetValue = if (isHeroRow) HERO_CARD_WIDTH else posterCardWidth,
-        animationSpec = tween(animationDuration),
+        targetValue = if (effectiveIsHeroRow) HERO_CARD_WIDTH else posterCardWidth,
+        animationSpec = tween(if (effectiveIsHeroRow) animationDuration else collapseDuration),
         label = "firstCardWidth",
     )
     
     // Animate the offset for other cards (they slide right when hero expands)
     val cardsOffset by animateDpAsState(
-        targetValue = if (isHeroRow) (HERO_CARD_WIDTH - posterCardWidth) else 0.dp,
-        animationSpec = tween(animationDuration),
+        targetValue = if (effectiveIsHeroRow) (HERO_CARD_WIDTH - posterCardWidth) else 0.dp,
+        animationSpec = tween(if (effectiveIsHeroRow) animationDuration else collapseDuration),
         label = "cardsOffset",
     )
     
     // Animate hero info visibility
     val heroInfoAlpha by animateFloatAsState(
-        targetValue = if (isHeroRow) 1f else 0f,
-        animationSpec = tween(animationDuration),
+        targetValue = if (effectiveIsHeroRow) 1f else 0f,
+        animationSpec = tween(if (effectiveIsHeroRow) animationDuration else collapseDuration),
         label = "heroInfoAlpha",
     )
     
     // Hero content crossfade (show backdrop when hero, poster when not)
     val heroContentAlpha by animateFloatAsState(
-        targetValue = if (isHeroRow) 1f else 0f,
-        animationSpec = tween(animationDuration),
+        targetValue = if (effectiveIsHeroRow) 1f else 0f,
+        animationSpec = tween(if (effectiveIsHeroRow) animationDuration else collapseDuration),
         label = "heroContentAlpha",
     )
     
@@ -1405,8 +1428,8 @@ fun <T : Any> AnimatingHeroRow(
         
         // Bottom spacing (matches hero row spacing when in hero mode)
         val bottomSpacing by animateDpAsState(
-            targetValue = if (isHeroRow) HERO_ROW_BOTTOM_SPACING else 8.dp,
-            animationSpec = tween(animationDuration),
+            targetValue = if (effectiveIsHeroRow) HERO_ROW_BOTTOM_SPACING else 8.dp,
+            animationSpec = tween(if (effectiveIsHeroRow) animationDuration else collapseDuration),
             label = "bottomSpacing",
         )
         Spacer(modifier = Modifier.height(bottomSpacing))

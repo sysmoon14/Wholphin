@@ -61,7 +61,6 @@ import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.input.key.Key
@@ -116,19 +115,6 @@ fun TopNavBar(
     val defaultKey = allNavItems.firstOrNull()?.first ?: NavProfileKey
     val allKeys = allNavItems.map { it.first } + listOf(NavProfileKey) + if (hideSettingsCog) emptyList() else listOf(NavSettingsKey)
     allKeys.forEach { focusRequesterFor(it) }
-    // Let ApplicationContent reclaim focus to the nav when destination changes (avoids content flicker).
-    // Only reclaim when focus is still on the current tab; if user has moved to another tab (e.g. Movies -> Shows
-    // while content is loading), don't pull focus back or they get stuck and can't complete the switch.
-    DisposableEffect(selectedIndex) {
-        if (allNavItems.any { it.first == selectedIndex }) {
-            viewModel.navigationManager.onRequestTopNavFocus = {
-                if (focusedIndex == selectedIndex) {
-                    focusRequesterFor(selectedIndex).tryRequestFocus("app_content_reclaim")
-                }
-            }
-        }
-        onDispose { viewModel.navigationManager.onRequestTopNavFocus = null }
-    }
     LaunchedEffect(navHasFocus, selectedIndex) {
         if (navHasFocus) {
             val targetKey =
@@ -141,17 +127,8 @@ fun TopNavBar(
             focusRequesterFor(targetKey).tryRequestFocus("top_nav_enter")
         }
     }
-    // After a top-nav switch, keep focus in the nav. Content below often requests focus when it
-    // composes or when data loads, so we request after the transition then reclaim once more.
-    LaunchedEffect(selectedIndex) {
-        if (!allNavItems.any { it.first == selectedIndex }) return@LaunchedEffect
-        val requester = focusRequesterFor(selectedIndex)
-        delay(450)
-        focusedIndex = selectedIndex
-        requester.tryRequestFocus("top_nav_after_transition")
-        delay(450)
-        requester.tryRequestFocus("top_nav_reclaim")
-    }
+    // Don't run delayed reclaim here (450ms/900ms) - it overwrites the user moving to another tab
+    // before the delay completes. ApplicationContent already reclaims at 0/50/100ms.
     // Auto-navigate when focus moves to a different core nav item (no OK press needed).
     // Short delay so quick left/right to cross the bar doesn't trigger every tab.
     // Excludes profile and settings, which still require OK.

@@ -462,6 +462,9 @@ fun MovieDetailsContent(
     LaunchedEffect(position) {
         if (position == HEADER_ROW) {
             focusRequesters[HEADER_ROW].tryRequestFocus()
+            scope.launch(ExceptionHandler()) {
+                bringIntoViewRequester.bringIntoView()
+            }
         }
     }
 
@@ -523,7 +526,7 @@ fun MovieDetailsContent(
         }
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(start = 32.dp, top = 8.dp, end = 0.dp, bottom = 8.dp),
             modifier = Modifier.weight(1f, fill = true),
         ) {
             if (similar.isNotEmpty()) {

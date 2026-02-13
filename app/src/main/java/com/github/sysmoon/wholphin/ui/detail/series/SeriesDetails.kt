@@ -404,7 +404,7 @@ fun SeriesDetailsContent(
         Column(
             modifier =
                 Modifier
-                    .padding(16.dp)
+                    .padding(start = 16.dp, top = 16.dp)
                     .fillMaxSize(),
         ) {
             Column(
@@ -486,8 +486,8 @@ fun SeriesDetailsContent(
                 }
             }
             LazyColumn(
-                contentPadding = PaddingValues(bottom = 80.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 24.dp, end = 0.dp, bottom = 80.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
                 modifier = Modifier.weight(1f, fill = true),
             ) {
                 if (similar.isNotEmpty()) {

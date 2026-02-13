@@ -31,12 +31,11 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
-import androidx.compose.foundation.background
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -90,6 +89,33 @@ fun DetailActionButtons(
     val hasMoreToScroll = scrollState.maxValue > 0
     var lastButtonFocused by remember { mutableStateOf(false) }
 
+    val density = LocalDensity.current
+    val viewportHeightPx = with(density) { ButtonsVisibleHeight.toPx() }
+    val buttonHeightPx = with(density) { (MinButtonHeight + ButtonSpacing).toPx() }
+    val totalButtons =
+        1 + (if (showMoreEpisodes) 1 else 0) + (if (showShuffle) 1 else 0) + 1 +
+            (if (showCastAndCrew) 1 else 0) + 1 + (if (!trailers.isNullOrEmpty()) 1 else 0) + 1
+    // Use a point half a button above the viewport bottom so we don't switch the hint until
+    // the next button is substantially visible (avoids the bottom button going bright too early).
+    val lastVisibleIndex =
+        if (totalButtons > 0) {
+            ((scrollState.value + viewportHeightPx - buttonHeightPx / 2f) / buttonHeightPx)
+                .toInt()
+                .coerceIn(0, totalButtons - 1)
+        } else {
+            0
+        }
+
+    /** When there are more buttons to scroll, use darker color on the last visible button as a hint. */
+    val scrollHintColor =
+        if (hasMoreToScroll && !lastButtonFocused) {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+        } else {
+            null
+        }
+
+    var buttonIndex = 0
+    fun isLastVisible() = (buttonIndex++ == lastVisibleIndex)
     Box(
         modifier =
             modifier
@@ -104,6 +130,7 @@ fun DetailActionButtons(
             verticalArrangement = Arrangement.spacedBy(ButtonSpacing),
             horizontalAlignment = Alignment.Start,
         ) {
+        isLastVisible() // advance index for Play button (no contentColor on that overload)
         DetailActionButton(
             title = playButtonLabel,
             icon = Icons.Default.PlayArrow,
@@ -120,6 +147,7 @@ fun DetailActionButtons(
                 iconStringRes = R.string.fa_list_ul,
                 onClick = onMoreEpisodesClick,
                 modifier = Modifier.width(ButtonWidth),
+                contentColor = if (isLastVisible()) scrollHintColor else null,
             )
         }
         if (showShuffle) {
@@ -128,6 +156,7 @@ fun DetailActionButtons(
                 iconStringRes = R.string.fa_shuffle,
                 onClick = onShuffleClick,
                 modifier = Modifier.width(ButtonWidth),
+                contentColor = if (isLastVisible()) scrollHintColor else null,
             )
         }
         DetailActionButton(
@@ -135,6 +164,7 @@ fun DetailActionButtons(
             iconStringRes = R.string.fa_closed_captioning,
             onClick = onChooseSubtitlesClick,
             modifier = Modifier.width(ButtonWidth),
+            contentColor = if (isLastVisible()) scrollHintColor else null,
         )
         if (showCastAndCrew) {
             DetailActionButton(
@@ -142,6 +172,7 @@ fun DetailActionButtons(
                 iconStringRes = R.string.fa_user,
                 onClick = onCastAndCrewClick,
                 modifier = Modifier.width(ButtonWidth),
+                contentColor = if (isLastVisible()) scrollHintColor else null,
             )
         }
         DetailActionButton(
@@ -150,6 +181,7 @@ fun DetailActionButtons(
             onClick = onFavouriteClick,
             modifier = Modifier.width(ButtonWidth),
             iconColor = if (favourite) Color.Red else Color.Unspecified,
+            contentColor = if (isLastVisible()) scrollHintColor else null,
         )
         trailers?.let { list ->
             if (list.isNotEmpty()) {
@@ -157,6 +189,7 @@ fun DetailActionButtons(
                     trailers = list,
                     trailerOnClick = onTrailerClick,
                     modifier = Modifier.width(ButtonWidth),
+                    contentColor = if (isLastVisible()) scrollHintColor else null,
                 )
             }
         }
@@ -168,26 +201,8 @@ fun DetailActionButtons(
                 Modifier
                     .width(ButtonWidth)
                     .onFocusChanged { lastButtonFocused = it.isFocused },
+            contentColor = if (isLastVisible()) scrollHintColor else null,
         )
-        }
-        if (hasMoreToScroll && !lastButtonFocused) {
-            Box(
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .width(ButtonWidth)
-                        .height(48.dp)
-                        .focusProperties { canFocus = false }
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors =
-                                    listOf(
-                                        Color.Transparent,
-                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                    ),
-                            ),
-                        ),
-            )
         }
     }
 }
@@ -244,6 +259,7 @@ private fun DetailActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     iconColor: Color = Color.Unspecified,
+    contentColor: Color? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Button(
@@ -257,6 +273,7 @@ private fun DetailActionButton(
         colors =
             ButtonDefaults.colors(
                 containerColor = Color.Transparent,
+                contentColor = contentColor ?: MaterialTheme.colorScheme.onSurface,
                 focusedContainerColor = MaterialTheme.colorScheme.primary,
                 focusedContentColor = MaterialTheme.colorScheme.onPrimary,
             ),
@@ -276,7 +293,11 @@ private fun DetailActionButton(
                     fontSize = 12.sp,
                     fontFamily = FontAwesome,
                     textAlign = TextAlign.Center,
-                    color = if (iconColor != Color.Unspecified) iconColor else LocalContentColor.current,
+                    color = when {
+                        iconColor != Color.Unspecified -> iconColor
+                        contentColor != null -> contentColor
+                        else -> LocalContentColor.current
+                    },
                 )
             }
             Text(
@@ -296,6 +317,7 @@ private fun DetailActionTrailerButton(
     trailers: List<Trailer>,
     trailerOnClick: (Trailer) -> Unit,
     modifier: Modifier = Modifier,
+    contentColor: Color? = null,
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val titleRes =
@@ -316,6 +338,7 @@ private fun DetailActionTrailerButton(
         },
         modifier = modifier,
         iconColor = Color.Unspecified,
+        contentColor = contentColor,
     )
     if (showDialog) {
         TrailerDialog(

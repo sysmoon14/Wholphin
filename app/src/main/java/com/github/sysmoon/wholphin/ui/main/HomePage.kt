@@ -192,6 +192,7 @@ fun HomePage(
             var dialog by remember { mutableStateOf<DialogParams?>(null) }
             var showPlaylistDialog by remember { mutableStateOf<UUID?>(null) }
             val playlistState by playlistViewModel.playlistState.observeAsState(PlaylistLoadingState.Pending)
+            val savedPositionToRestore by viewModel.savedHomePositionToRestore.observeAsState()
             AnimatedVisibility(
                 visible = true,
                 enter = fadeIn(animationSpec = tween(400)),
@@ -201,7 +202,10 @@ fun HomePage(
                 homeRows = watchingRows + latestRows,
                 skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                savedPositionToRestore = savedPositionToRestore,
+                onConsumeRestoredPosition = viewModel::clearSavedHomePositionToRestore,
                 onClickItem = { position, item ->
+                    viewModel.saveHomePositionForRestore(position)
                     viewModel.navigationManager.navigateTo(item.destination())
                 },
                 onLongClickItem = { position, item ->
@@ -277,6 +281,8 @@ fun HomePageContent(
     homeRows: List<HomeRowLoadingState>,
     skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    savedPositionToRestore: RowColumn? = null,
+    onConsumeRestoredPosition: (() -> Unit)? = null,
     onClickItem: (RowColumn, BaseItem) -> Unit,
     onLongClickItem: (RowColumn, BaseItem) -> Unit,
     onClickPlay: (RowColumn, BaseItem) -> Unit,
@@ -321,9 +327,12 @@ fun HomePageContent(
     var hasResetPosition by remember(resetPositionOnEnter) { mutableStateOf(false) }
     LaunchedEffect(homeRows) {
         if (wasOpenedViaTopNavSwitch) return@LaunchedEffect
+        if (savedPositionToRestore != null) return@LaunchedEffect // Restore LaunchedEffect handles focus when returning from details
         if (!firstFocused && homeRows.isNotEmpty()) {
             if (position.row >= 0) {
                 val index = position.row.coerceIn(0, rowFocusRequesters.lastIndex)
+                // Restore column for this row (from ViewModel when returning from details, or from rememberSaveable)
+                rowColumnPositions[index] = position.column.coerceIn(0, Int.MAX_VALUE)
                 rowFocusRequesters.getOrNull(index)?.tryRequestFocus()
                 firstFocused = true
                 delay(50)
@@ -343,6 +352,20 @@ fun HomePageContent(
     }
     // Track previous row to detect actual row changes (not initial focus)
     var previousRow by remember { mutableIntStateOf(-1) }
+    // When returning from details, apply ViewModel-saved position and restore focus/scroll in one place
+    LaunchedEffect(savedPositionToRestore, homeRows) {
+        val saved = savedPositionToRestore ?: return@LaunchedEffect
+        if (homeRows.isEmpty() || saved.row !in 0 until homeRows.size) return@LaunchedEffect
+        position = saved
+        rowColumnPositions[saved.row] = saved.column.coerceIn(0, Int.MAX_VALUE)
+        onConsumeRestoredPosition?.invoke()
+        firstFocused = true
+        previousRow = saved.row
+        val index = saved.row.coerceIn(0, rowFocusRequesters.lastIndex)
+        rowFocusRequesters.getOrNull(index)?.tryRequestFocus()
+        delay(50)
+        listState.scrollToItem(index)
+    }
     LaunchedEffect(homeRows, resetPositionOnEnter) {
         if (wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (resetPositionOnEnter && !hasResetPosition && homeRows.isNotEmpty()) {
@@ -610,8 +633,16 @@ fun HomePageContent(
                                     modifier = rowModifier
                                         .onFocusChanged {
                                             if (it.hasFocus) {
-                                                val savedColumn = rowColumnPositions[rowIndex] ?: 0
-                                                position = RowColumn(rowIndex, savedColumn.coerceIn(0, row.items.lastIndex.coerceAtLeast(0)))
+                                                // Use saved column for this row, or current position.column when returning from details (rowColumnPositions was cleared)
+                                                val existingInMap = rowColumnPositions[rowIndex]
+                                                val column = if (existingInMap != null) {
+                                                    existingInMap
+                                                } else {
+                                                    // Returning from details: rowColumnPositions was cleared; keep restored position.column if it's already this row
+                                                    if (position.row == rowIndex && position.column >= 0) position.column else 0
+                                                }
+                                                val clamped = column.coerceIn(0, row.items.lastIndex.coerceAtLeast(0))
+                                                position = RowColumn(rowIndex, clamped)
                                             }
                                         },
                                     heroFocusRequester = if (rowIndex == firstRowIndex) topRowHeroFocusRequester else null,

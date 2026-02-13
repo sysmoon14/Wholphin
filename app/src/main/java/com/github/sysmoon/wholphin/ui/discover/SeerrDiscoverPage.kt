@@ -34,10 +34,13 @@ import androidx.tv.material3.Text
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.data.model.DiscoverItem
 import com.github.sysmoon.wholphin.data.model.DiscoverRating
+import com.github.sysmoon.wholphin.api.seerr.infrastructure.ClientException
+import com.github.sysmoon.wholphin.api.seerr.infrastructure.ServerException
 import com.github.sysmoon.wholphin.data.model.SeerrItemType
 import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.services.BackdropService
 import com.github.sysmoon.wholphin.services.NavigationManager
+import com.github.sysmoon.wholphin.services.SeerrServerRepository
 import com.github.sysmoon.wholphin.services.SeerrService
 import com.github.sysmoon.wholphin.ui.Cards
 import com.github.sysmoon.wholphin.ui.cards.DiscoverItemCard
@@ -55,6 +58,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import org.jellyfin.sdk.api.client.ApiClient
 import javax.inject.Inject
@@ -65,6 +69,7 @@ class SeerrDiscoverViewModel
     constructor(
         @param:ApplicationContext private val context: Context,
         private val seerrService: SeerrService,
+        private val seerrServerRepository: SeerrServerRepository,
         val navigationManager: NavigationManager,
         private val api: ApiClient,
         private val backdropService: BackdropService,
@@ -76,26 +81,29 @@ class SeerrDiscoverViewModel
             viewModelScope.launchIO {
                 backdropService.clearBackdrop()
             }
-            fetchAndUpdateState(seerrService::discoverMovies) {
-                this.copy(movies = DiscoverRowData(context.getString(R.string.popular_movies), it))
-            }
-            fetchAndUpdateState(seerrService::discoverTv) {
-                this.copy(tv = DiscoverRowData(context.getString(R.string.popular_series), it))
-            }
-            fetchAndUpdateState(seerrService::trending) {
-                this.copy(trending = DiscoverRowData(context.getString(R.string.trending), it))
-            }
-            fetchAndUpdateState(seerrService::upcomingMovies) {
-                this.copy(
-                    upcomingMovies =
-                        DiscoverRowData(context.getString(R.string.upcoming_movies), it),
-                )
-            }
-            fetchAndUpdateState(seerrService::upcomingTv) {
-                this.copy(
-                    upcomingTv =
-                        DiscoverRowData(context.getString(R.string.upcoming_tv), it),
-                )
+            viewModelScope.launchIO {
+                seerrServerRepository.current.first { it != null }
+                fetchAndUpdateState(seerrService::discoverMovies) {
+                    this.copy(movies = DiscoverRowData(context.getString(R.string.popular_movies), it))
+                }
+                fetchAndUpdateState(seerrService::discoverTv) {
+                    this.copy(tv = DiscoverRowData(context.getString(R.string.popular_series), it))
+                }
+                fetchAndUpdateState(seerrService::trending) {
+                    this.copy(trending = DiscoverRowData(context.getString(R.string.trending), it))
+                }
+                fetchAndUpdateState(seerrService::upcomingMovies) {
+                    this.copy(
+                        upcomingMovies =
+                            DiscoverRowData(context.getString(R.string.upcoming_movies), it),
+                    )
+                }
+                fetchAndUpdateState(seerrService::upcomingTv) {
+                    this.copy(
+                        upcomingTv =
+                            DiscoverRowData(context.getString(R.string.upcoming_tv), it),
+                    )
+                }
             }
         }
 
@@ -145,15 +153,27 @@ class SeerrDiscoverViewModel
                 val result =
                     when (item.type) {
                         SeerrItemType.MOVIE -> {
-                            DiscoverRating(
-                                seerrService.api.moviesApi.movieMovieIdRatingsGet(
-                                    movieId = item.id,
-                                ),
-                            )
+                            try {
+                                DiscoverRating(
+                                    seerrService.api.moviesApi.movieMovieIdRatingsGet(
+                                        movieId = item.id,
+                                    ),
+                                )
+                            } catch (e: ClientException) {
+                                DiscoverRating(null, null)
+                            } catch (e: ServerException) {
+                                DiscoverRating(null, null)
+                            }
                         }
 
                         SeerrItemType.TV -> {
-                            DiscoverRating(seerrService.api.tvApi.tvTvIdRatingsGet(tvId = item.id))
+                            try {
+                                DiscoverRating(seerrService.api.tvApi.tvTvIdRatingsGet(tvId = item.id))
+                            } catch (e: ClientException) {
+                                DiscoverRating(null, null)
+                            } catch (e: ServerException) {
+                                DiscoverRating(null, null)
+                            }
                         }
 
                         SeerrItemType.PERSON -> {

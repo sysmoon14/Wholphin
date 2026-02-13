@@ -49,8 +49,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.github.sysmoon.wholphin.R
+import com.github.sysmoon.wholphin.data.model.CollectionFolderFilter
 import com.github.sysmoon.wholphin.data.model.JellyfinServer
 import com.github.sysmoon.wholphin.data.model.JellyfinUser
+import org.jellyfin.sdk.model.api.CollectionType
 import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.services.NavigationManager
 import com.github.sysmoon.wholphin.services.SetupDestination
@@ -398,7 +400,21 @@ fun TopNavBar(
                                                     viewModel.navigationManager.setLastTopNavDirection(selectedIndex, index)
                                                     viewModel.navigationManager.setSkipContentFocusFor(800)
                                                     viewModel.setIndex(index)
-                                                    viewModel.navigationManager.navigateToFromDrawer(item.destination)
+                                                    when (item.type) {
+                                                        CollectionType.MOVIES,
+                                                        CollectionType.TVSHOWS,
+                                                        -> {
+                                                            viewModel.navigationManager.navigateToFromDrawer(
+                                                                Destination.FilteredCollection(
+                                                                    itemId = item.itemId,
+                                                                    filter = CollectionFolderFilter(),
+                                                                    recursive = true,
+                                                                ),
+                                                            )
+                                                        }
+                                                        else ->
+                                                            viewModel.navigationManager.navigateToFromDrawer(item.destination)
+                                                    }
                                                 }
                                                 NavDrawerItem.Home -> {
                                                     viewModel.navigationManager.setLastTopNavDirection(selectedIndex, -1)

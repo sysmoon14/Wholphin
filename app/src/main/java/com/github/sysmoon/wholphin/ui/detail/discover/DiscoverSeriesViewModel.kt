@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.sysmoon.wholphin.api.seerr.infrastructure.ClientException
+import com.github.sysmoon.wholphin.api.seerr.infrastructure.ServerException
 import com.github.sysmoon.wholphin.api.seerr.model.RelatedVideo
 import com.github.sysmoon.wholphin.api.seerr.model.RequestPostRequest
 import com.github.sysmoon.wholphin.api.seerr.model.Season
@@ -109,8 +111,16 @@ class DiscoverSeriesViewModel
                     loading.value = LoadingState.Success
                 }
                 viewModelScope.launchIO {
-                    val result = seerrService.api.tvApi.tvTvIdRatingsGet(tvId = item.id)
-                    rating.setValueOnMain(DiscoverRating(result))
+                    try {
+                        val result = seerrService.api.tvApi.tvTvIdRatingsGet(tvId = item.id)
+                        rating.setValueOnMain(DiscoverRating(result))
+                    } catch (e: ClientException) {
+                        Timber.d(e, "Seerr TV ratings 404 or error for tvId=%s, treating as no ratings", item.id)
+                        rating.setValueOnMain(DiscoverRating(null, null))
+                    } catch (e: ServerException) {
+                        Timber.d(e, "Seerr TV ratings server error for tvId=%s, treating as no ratings", item.id)
+                        rating.setValueOnMain(DiscoverRating(null, null))
+                    }
                 }
                 if (!similar.isInitialized) {
                     viewModelScope.launchIO {

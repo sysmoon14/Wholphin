@@ -356,13 +356,12 @@ class CollectionFolderViewModel
             filter: GetItemsFilter,
         ): GetItemsRequest {
             val item = item.value
+            val collectionType = item?.data?.collectionType
             val includeItemTypes =
-                item
-                    ?.data
-                    ?.collectionType
+                collectionType
                     ?.baseItemKinds
                     .orEmpty()
-            val request =
+            var request =
                 filter.applyTo(
                     GetItemsRequest(
                         parentId = item?.id,
@@ -377,7 +376,7 @@ class CollectionFolderViewModel
                                     if (sortAndDirection.sort != ItemSortBy.SORT_NAME) {
                                         add(ItemSortBy.SORT_NAME)
                                     }
-                                    if (item?.data?.collectionType == CollectionType.MOVIES) {
+                                    if (collectionType == CollectionType.MOVIES) {
                                         add(ItemSortBy.PRODUCTION_YEAR)
                                     }
                                 }
@@ -389,7 +388,7 @@ class CollectionFolderViewModel
                                     if (sortAndDirection.sort != ItemSortBy.SORT_NAME) {
                                         add(SortOrder.ASCENDING)
                                     }
-                                    if (item?.data?.collectionType == CollectionType.MOVIES) {
+                                    if (collectionType == CollectionType.MOVIES) {
                                         add(SortOrder.ASCENDING)
                                     }
                                 }
@@ -397,6 +396,10 @@ class CollectionFolderViewModel
                         fields = SlimItemFields,
                     ),
                 )
+            // Shows library grid always displays series, not episodes (saved filter may have includeItemTypes = EPISODE)
+            if (collectionType == CollectionType.TVSHOWS) {
+                request = request.copy(includeItemTypes = listOf(BaseItemKind.SERIES))
+            }
             return request
         }
 

@@ -3,6 +3,7 @@ package com.github.sysmoon.wholphin.services
 import com.github.sysmoon.wholphin.api.seerr.SeerrApiClient
 import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
 import okhttp3.OkHttpClient
+import timber.log.Timber
 
 /**
  * Wrapper for [SeerrApiClient]. In most cases, you should use [SeerrService] instead.
@@ -31,6 +32,11 @@ class SeerrApi(
         val normalized = baseUrl.trimEnd('/').let { u ->
             if (u.endsWith("/api/v1")) u else "$u/api/v1"
         }
+        Timber.d(
+            "SeerrApi.update: baseUrl=%s apiKey=%s (new client instance)",
+            normalized,
+            if (apiKey.isNotNullOrBlank()) apiKey else "null",
+        )
         api = SeerrApiClient(normalized, apiKey, okHttpClient)
     }
 }

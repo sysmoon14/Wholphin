@@ -21,11 +21,21 @@ class SeerrApiClient(
         okHttpClient
             .newBuilder()
             .cookieJar(cookieJar)
-            .addInterceptor {
-                Timber.d("SeerrApiClient: ${it.request().method} ${it.request().url}")
-                it.proceed(
-                    it
-                        .request()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val authLog =
+                    when {
+                        apiKey.isNotNullOrBlank() -> "apiKey=$apiKey"
+                        else -> "apiKey=null (using cookies)"
+                    }
+                Timber.d(
+                    "SeerrApiClient: %s %s auth=%s",
+                    request.method,
+                    request.url,
+                    authLog,
+                )
+                chain.proceed(
+                    request
                         .newBuilder()
                         .apply {
                             if (apiKey.isNotNullOrBlank()) header("X-Api-Key", apiKey)
@@ -70,15 +80,28 @@ private class SeerrCookieJar : CookieJar {
         url: HttpUrl,
         cookies: List<Cookie>,
     ) {
-        cookies
-            .filter { it.name == "connect.sid" }
+        val sessionCookies = cookies.filter { it.name == "connect.sid" }
+        sessionCookies
             .groupBy { it.domain }
-            .forEach { (domain, cookies) ->
-                this.cookies[domain] = cookies
+            .forEach { (domain, list) ->
+                this.cookies[domain] = list
+                Timber.d(
+                    "SeerrCookieJar: saveFromResponse domain=%s connect.sid saved (count=%d)",
+                    domain,
+                    list.size,
+                )
             }
     }
 
-    override fun loadForRequest(url: HttpUrl): List<Cookie> = this.cookies[url.host].orEmpty()
+    override fun loadForRequest(url: HttpUrl): List<Cookie> {
+        val list = this.cookies[url.host].orEmpty()
+        Timber.d(
+            "SeerrCookieJar: loadForRequest host=%s cookiesCount=%d",
+            url.host,
+            list.size,
+        )
+        return list
+    }
 
     fun hasValidCredentials(baseUrl: String): Boolean =
         baseUrl.toHttpUrlOrNull()?.host?.let { domain ->

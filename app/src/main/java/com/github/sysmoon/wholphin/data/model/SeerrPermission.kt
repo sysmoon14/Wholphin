@@ -42,8 +42,12 @@ enum class SeerrPermission(
 }
 
 /**
- * Check whether the user has the given permissions (or is an admin)
+ * Check whether the user has the given permissions (or is an admin).
+ * When permissions is null or 0 (e.g. Seerr owner returns 0), treat as full access.
  */
 fun SeerrUserConfig?.hasPermission(permission: SeerrPermission): Boolean {
-    return permission.hasPermission(this?.permissions ?: return false) || SeerrPermission.ADMIN.hasPermission(permissions)
+    if (this == null) return false
+    val perms = permissions
+    if (perms == null || perms == 0) return true // null or 0 = full access (e.g. owner)
+    return permission.hasPermission(perms) || SeerrPermission.ADMIN.hasPermission(perms)
 }

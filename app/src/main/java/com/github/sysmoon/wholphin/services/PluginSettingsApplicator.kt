@@ -333,30 +333,46 @@ class PluginSettingsApplicator
 
     private suspend fun applySeerr(creds: SeerrCredentialsDto?, currentUser: JellyfinUser) {
         if (creds == null || creds.url.isBlank()) return
-        try {
-            val authMethod =
-                when (creds.authMethod.uppercase()) {
-                    "API_KEY" -> SeerrAuthMethod.API_KEY
-                    "JELLYFIN" -> SeerrAuthMethod.JELLYFIN
-                    "LOCAL" -> SeerrAuthMethod.LOCAL
-                    else -> {
-                        Timber.w("PluginSettingsApplicator: Unknown Seerr authMethod=%s", creds.authMethod)
-                        return
-                    }
+        val authMethod =
+            when (creds.authMethod.uppercase()) {
+                "API_KEY" -> SeerrAuthMethod.API_KEY
+                "JELLYFIN" -> SeerrAuthMethod.JELLYFIN
+                "LOCAL" -> SeerrAuthMethod.LOCAL
+                else -> {
+                    Timber.w("PluginSettingsApplicator: Unknown Seerr authMethod=%s", creds.authMethod)
+                    return
                 }
-            val passwordOrApiKey = creds.passwordOrApiKey ?: ""
+            }
+        val passwordOrApiKey = creds.passwordOrApiKey ?: ""
+        val username = creds.username ?: ""
+        Timber.d(
+            "PluginSettingsApplicator: Applying Seerr creds url=%s authMethod=%s username=%s password=%s",
+            creds.url,
+            authMethod,
+            username,
+            passwordOrApiKey,
+        )
+        try {
             if (authMethod == SeerrAuthMethod.API_KEY) {
                 seerrServerRepository.addAndChangeServer(creds.url, passwordOrApiKey)
             } else {
                 seerrServerRepository.addAndChangeServer(
                     creds.url,
                     authMethod,
-                    creds.username ?: "",
+                    username,
                     passwordOrApiKey,
                 )
             }
         } catch (e: Exception) {
-            Timber.e(e, "PluginSettingsApplicator: Failed to apply Seerr credentials")
+            Timber.e(
+                e,
+                "PluginSettingsApplicator: Failed to apply Seerr credentials url=%s authMethod=%s username=%s password=%s message=%s",
+                creds.url,
+                authMethod,
+                username,
+                passwordOrApiKey,
+                e.message,
+            )
         }
     }
 

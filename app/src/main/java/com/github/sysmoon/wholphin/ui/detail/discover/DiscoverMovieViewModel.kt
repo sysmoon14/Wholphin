@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.sysmoon.wholphin.api.seerr.infrastructure.ClientException
+import com.github.sysmoon.wholphin.api.seerr.infrastructure.ServerException
 import com.github.sysmoon.wholphin.api.seerr.model.MediaRequest
 import com.github.sysmoon.wholphin.api.seerr.model.MovieDetails
 import com.github.sysmoon.wholphin.api.seerr.model.RelatedVideo
@@ -111,8 +113,16 @@ class DiscoverMovieViewModel
                     loading.value = LoadingState.Success
                 }
                 viewModelScope.launchIO {
-                    val result = seerrService.api.moviesApi.movieMovieIdRatingsGet(movieId = item.id)
-                    rating.setValueOnMain(DiscoverRating(result))
+                    try {
+                        val result = seerrService.api.moviesApi.movieMovieIdRatingsGet(movieId = item.id)
+                        rating.setValueOnMain(DiscoverRating(result))
+                    } catch (e: ClientException) {
+                        Timber.d(e, "Seerr movie ratings 404 or error for movieId=%s, treating as no ratings", item.id)
+                        rating.setValueOnMain(DiscoverRating(null, null))
+                    } catch (e: ServerException) {
+                        Timber.d(e, "Seerr movie ratings server error for movieId=%s, treating as no ratings", item.id)
+                        rating.setValueOnMain(DiscoverRating(null, null))
+                    }
                 }
                 if (!similar.isInitialized) {
                     viewModelScope.launchIO {

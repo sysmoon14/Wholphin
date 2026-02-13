@@ -17,9 +17,11 @@ import com.github.sysmoon.wholphin.services.DatePlayedService
 import com.github.sysmoon.wholphin.services.FavoriteWatchManager
 import com.github.sysmoon.wholphin.services.HomeScreenSectionsService
 import com.github.sysmoon.wholphin.services.LatestNextUpService
+import com.github.sysmoon.wholphin.services.WholphinRow
 import com.github.sysmoon.wholphin.services.NavigationManager
 import com.github.sysmoon.wholphin.services.PluginSettingsApplicator
 import com.github.sysmoon.wholphin.services.PluginSettingsService
+import com.github.sysmoon.wholphin.ui.data.RowColumn
 import com.github.sysmoon.wholphin.ui.launchIO
 import com.github.sysmoon.wholphin.ui.nav.ServerNavDrawerItem
 import com.github.sysmoon.wholphin.ui.setValueOnMain
@@ -63,7 +65,13 @@ class HomeViewModel
         val watchingRows = MutableLiveData<List<HomeRowLoadingState>>(listOf())
         val latestRows = MutableLiveData<List<HomeRowLoadingState>>(listOf())
 
+        /** When non-null, home content should restore focus to this position (e.g. after back from details). Consumed once applied. */
+        val savedHomePositionToRestore = MutableLiveData<RowColumn?>(null)
+
         private lateinit var preferences: UserPreferences
+        /** Cached plugin row layout; on subsequent visits we only refresh content for these rows. */
+        private var cachedPluginLayout: List<WholphinRow>? = null
+        private var cachedPluginLayoutUserId: UUID? = null
 
         init {
             datePlayedService.invalidateAll()
@@ -109,17 +117,43 @@ class HomeViewModel
                             pluginSettingsApplicator.apply(settings, jellyfinUser)
                         }
                     }
-                    // Try custom sections from companion plugin; if none, use default home rows
+                    // Try custom sections from companion plugin; if none, use default home rows.
+                    // On first load we fetch layout + content; on subsequent visits we keep the same rows and only refresh content.
+                    val useCachedLayout =
+                        backgroundRefresh &&
+                            cachedPluginLayout != null &&
+                            cachedPluginLayoutUserId == userDto.id
                     val customRows =
-                        homeScreenSectionsService.getCustomRows(
-                            userId = userDto.id,
-                            itemsPerRow = limit,
-                            enableRewatchingNextUp = prefs.enableRewatchingNextUp,
-                        )
+                        if (useCachedLayout) {
+                            val existingRows = withContext(Dispatchers.Main) { latestRows.value }.orEmpty()
+                            homeScreenSectionsService.buildRowsFromLayoutWithPartialRefresh(
+                                layoutRows = cachedPluginLayout!!,
+                                userId = userDto.id,
+                                itemsPerRow = limit,
+                                enableRewatchingNextUp = prefs.enableRewatchingNextUp,
+                                existingRows = existingRows,
+                            ).takeIf { it.isNotEmpty() }
+                        } else {
+                            val layout = homeScreenSectionsService.getLayoutRows(userDto.id)
+                            if (layout != null) {
+                                cachedPluginLayout = layout
+                                cachedPluginLayoutUserId = userDto.id
+                                homeScreenSectionsService.buildRowsFromLayout(
+                                    layoutRows = layout,
+                                    userId = userDto.id,
+                                    itemsPerRow = limit,
+                                    enableRewatchingNextUp = prefs.enableRewatchingNextUp,
+                                ).takeIf { it.isNotEmpty() }
+                            } else {
+                                cachedPluginLayout = null
+                                cachedPluginLayoutUserId = null
+                                null
+                            }
+                        }
 
                     if (customRows != null) {
                         // Plugin rows are available, use them
-                        Timber.i("HomeViewModel: Using custom home rows from plugin (%s rows)", customRows.size)
+                        Timber.i("HomeViewModel: Using custom home rows from plugin (%s rows)%s", customRows.size, if (useCachedLayout) " (content refresh)" else " (full load)")
                         appPreferencesDataStore.updateData {
                             it.updateInterfacePreferences { homeUsesPluginRows = true }
                         }
@@ -134,6 +168,8 @@ class HomeViewModel
                         refreshState.setValueOnMain(LoadingState.Success)
                     } else {
                         // Plugin not available, use default behavior
+                        cachedPluginLayout = null
+                        cachedPluginLayoutUserId = null
                         appPreferencesDataStore.updateData {
                             it.updateInterfacePreferences { homeUsesPluginRows = false }
                         }
@@ -229,6 +265,15 @@ class HomeViewModel
             viewModelScope.launchIO {
                 backdropService.submit(item)
             }
+        }
+
+        /** Call before navigating to a details screen so we can restore this position when the user presses back. */
+        fun saveHomePositionForRestore(position: RowColumn) {
+            savedHomePositionToRestore.value = position
+        }
+
+        fun clearSavedHomePositionToRestore() {
+            savedHomePositionToRestore.value = null
         }
     }
 

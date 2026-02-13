@@ -124,6 +124,13 @@ class SeerrServerRepository
             }
             server?.server?.let { server ->
                 serverRepository.currentUser.value?.let { jellyfinUser ->
+                    Timber.d(
+                        "SeerrServerRepository: addAndChangeServer baseUrl=%s authMethod=%s username=%s password=%s",
+                        baseUrl,
+                        authMethod,
+                        username,
+                        password,
+                    )
                     // TODO Need to update server early so that cookies are saved
                     seerrApi.update(server.url, null)
                     val userConfig = login(seerrApi.api, authMethod, username, password)
@@ -210,10 +217,17 @@ private suspend fun login(
         }
 
         SeerrAuthMethod.JELLYFIN -> {
+            val u = username ?: ""
+            val p = password ?: ""
+            Timber.d(
+                "SeerrServerRepository: login JELLYFIN authJellyfinPost about to call API username=%s password=%s",
+                u,
+                p,
+            )
             client.authApi.authJellyfinPost(
                 AuthJellyfinPostRequest(
-                    username = username ?: "",
-                    password = password ?: "",
+                    username = u,
+                    password = p,
                 ),
             )
         }

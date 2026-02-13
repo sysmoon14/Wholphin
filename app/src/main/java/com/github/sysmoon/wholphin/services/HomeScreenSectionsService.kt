@@ -59,7 +59,100 @@ class HomeScreenSectionsService
         private val json = Json { ignoreUnknownKeys = true }
 
         /**
-         * Fetches custom home rows from the Wholphin Companion plugin.
+         * Fetches only the row layout from the Wholphin Companion plugin (no content).
+         * Returns null if the plugin is not available or not configured.
+         * Used to cache layout on first load and refresh only content on subsequent visits.
+         */
+        suspend fun getLayoutRows(userId: UUID): List<WholphinRow>? =
+            withContext(Dispatchers.IO) {
+                try {
+                    val baseUrl = api.baseUrl
+                    val accessToken = api.accessToken
+                    if (baseUrl.isNullOrBlank() || accessToken.isNullOrBlank()) return@withContext null
+                    val layoutRows = fetchLayoutRows(baseUrl, accessToken, userId)
+                    val effectiveLayoutRows =
+                        if (layoutRows.isNullOrEmpty()) {
+                            fetchLayoutRows(baseUrl, accessToken, null)
+                        } else {
+                            layoutRows
+                        }
+                    if (effectiveLayoutRows.isNullOrEmpty()) return@withContext null
+                    Timber.d("HomeScreenSectionsService: getLayoutRows returning %s rows", effectiveLayoutRows.size)
+                    effectiveLayoutRows
+                } catch (ex: Exception) {
+                    Timber.e(ex, "HomeScreenSectionsService: getLayoutRows failed")
+                    null
+                }
+            }
+
+        /** NativeRow values that should have their content refreshed on subsequent home visits; other rows keep existing content. */
+        private val CONTENT_REFRESHABLE_NATIVE_ROWS = setOf("NextUp", "ContinueWatching", "ContinueWatchingCombined")
+
+        private fun isRowContentRefreshable(row: WholphinRow): Boolean {
+            if (row.type?.lowercase() != "system") return false
+            val nativeRow = row.endpointParams?.get("NativeRow")?.jsonPrimitive?.contentOrNull ?: return false
+            return nativeRow in CONTENT_REFRESHABLE_NATIVE_ROWS
+        }
+
+        /**
+         * Builds home row content from an existing layout (e.g. cached from first load).
+         * Use this on subsequent visits to refresh only content without changing row order or types.
+         */
+        suspend fun buildRowsFromLayout(
+            layoutRows: List<WholphinRow>,
+            userId: UUID,
+            itemsPerRow: Int,
+            enableRewatchingNextUp: Boolean,
+        ): List<HomeRowLoadingState> =
+            withContext(Dispatchers.IO) {
+                layoutRows.mapNotNull { row ->
+                    try {
+                        buildRow(row, userId, itemsPerRow, enableRewatchingNextUp, isHideWatchedItems(row))
+                    } catch (ex: Exception) {
+                        Timber.e(ex, "Error building row for type=%s", row.type)
+                        val title = resolveRowTitle(row)
+                        HomeRowLoadingState.Error(title = title, exception = ex)
+                    }
+                }
+            }
+
+        /**
+         * Like [buildRowsFromLayout] but only refreshes content for Next Up, Continue Watching, and Continue Watching (Combined).
+         * Other rows keep the corresponding entry from [existingRows]; if none, the row is built once.
+         */
+        suspend fun buildRowsFromLayoutWithPartialRefresh(
+            layoutRows: List<WholphinRow>,
+            userId: UUID,
+            itemsPerRow: Int,
+            enableRewatchingNextUp: Boolean,
+            existingRows: List<HomeRowLoadingState>,
+        ): List<HomeRowLoadingState> =
+            withContext(Dispatchers.IO) {
+                layoutRows.mapIndexed { index, row ->
+                    if (isRowContentRefreshable(row)) {
+                        try {
+                            buildRow(row, userId, itemsPerRow, enableRewatchingNextUp, isHideWatchedItems(row))
+                                ?: existingRows.getOrNull(index)
+                        } catch (ex: Exception) {
+                            Timber.e(ex, "Error building row for type=%s", row.type)
+                            val title = resolveRowTitle(row)
+                            HomeRowLoadingState.Error(title = title, exception = ex)
+                        }
+                    } else {
+                        existingRows.getOrNull(index)
+                            ?: try {
+                                buildRow(row, userId, itemsPerRow, enableRewatchingNextUp, isHideWatchedItems(row))
+                            } catch (ex: Exception) {
+                                Timber.e(ex, "Error building row for type=%s", row.type)
+                                val title = resolveRowTitle(row)
+                                HomeRowLoadingState.Error(title = title, exception = ex)
+                            }
+                    }
+                }.filterNotNull()
+            }
+
+        /**
+         * Fetches custom home rows from the Wholphin Companion plugin (layout + content).
          * Returns null if the plugin is not available or not configured.
          */
         suspend fun getCustomRows(
@@ -70,51 +163,12 @@ class HomeScreenSectionsService
             withContext(Dispatchers.IO) {
                 try {
                     Timber.d("HomeScreenSectionsService: getCustomRows called for userId=$userId")
-                    val baseUrl = api.baseUrl
-                    val accessToken = api.accessToken
-
-                    if (baseUrl.isNullOrBlank() || accessToken.isNullOrBlank()) {
-                        Timber.w(
-                            "HomeScreenSectionsService: No base URL or access token. baseUrl=%s, accessToken=%s",
-                            baseUrl,
-                            if (accessToken.isNullOrBlank()) "null/blank" else "present",
-                        )
-                        return@withContext null
-                    }
-
-                    Timber.d("HomeScreenSectionsService: Fetching layout from %s", baseUrl)
-                    val layoutRows = fetchLayoutRows(baseUrl, accessToken, userId)
-                    val effectiveLayoutRows =
-                        if (layoutRows.isNullOrEmpty()) {
-                            Timber.d("HomeScreenSectionsService: No layout rows returned for user, retrying global")
-                            fetchLayoutRows(baseUrl, accessToken, null)
-                        } else {
-                            layoutRows
-                        }
-                    if (effectiveLayoutRows.isNullOrEmpty()) {
-                        Timber.d("HomeScreenSectionsService: No layout rows returned")
-                        return@withContext null
-                    }
-
-                    val rows =
-                        effectiveLayoutRows.mapNotNull { row ->
-                            try {
-                                buildRow(row, userId, itemsPerRow, enableRewatchingNextUp, isHideWatchedItems(row))
-                            } catch (ex: Exception) {
-                                Timber.e(ex, "Error building row for type=%s", row.type)
-                                val title = resolveRowTitle(row)
-                                HomeRowLoadingState.Error(
-                                    title = title,
-                                    exception = ex,
-                                )
-                            }
-                        }
-
+                    val layoutRows = getLayoutRows(userId) ?: return@withContext null
+                    val rows = buildRowsFromLayout(layoutRows, userId, itemsPerRow, enableRewatchingNextUp)
                     if (rows.isEmpty()) {
                         Timber.w("HomeScreenSectionsService: Layout rows parsed but none resolved to items")
                         return@withContext null
                     }
-
                     Timber.i("HomeScreenSectionsService: Returning %s custom rows", rows.size)
                     rows
                 } catch (ex: Exception) {
@@ -715,6 +769,21 @@ class HomeScreenSectionsService
         }
     }
 
+/** Row definition from the Wholphin Companion plugin layout; used to cache layout and refresh only content on subsequent visits. */
+@Serializable
+data class WholphinRow(
+    @kotlinx.serialization.SerialName("Type")
+    val type: String? = null,
+    @kotlinx.serialization.SerialName("Label")
+    val label: String? = null,
+    @kotlinx.serialization.SerialName("PluginId")
+    val pluginId: String? = null,
+    @kotlinx.serialization.SerialName("HideWatchedItems")
+    val hideWatchedItems: Boolean? = null,
+    @kotlinx.serialization.SerialName("EndpointParams")
+    val endpointParams: JsonObject? = null,
+)
+
 @Serializable
 private data class WholphinConfig(
     @kotlinx.serialization.SerialName("Layout")
@@ -729,18 +798,4 @@ private data class WholphinSection(
     val title: String? = null,
     @kotlinx.serialization.SerialName("Rows")
     val rows: List<WholphinRow> = emptyList(),
-)
-
-@Serializable
-private data class WholphinRow(
-    @kotlinx.serialization.SerialName("Type")
-    val type: String? = null,
-    @kotlinx.serialization.SerialName("Label")
-    val label: String? = null,
-    @kotlinx.serialization.SerialName("PluginId")
-    val pluginId: String? = null,
-    @kotlinx.serialization.SerialName("HideWatchedItems")
-    val hideWatchedItems: Boolean? = null,
-    @kotlinx.serialization.SerialName("EndpointParams")
-    val endpointParams: JsonObject? = null,
 )

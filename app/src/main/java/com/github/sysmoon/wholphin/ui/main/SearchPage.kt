@@ -272,6 +272,7 @@ fun SearchPage(
     userPreferences: UserPreferences,
     modifier: Modifier = Modifier,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -321,10 +322,9 @@ fun SearchPage(
             }
         }
     }
-    LaunchedEffect(Unit) {
-        if (!wasOpenedViaTopNavSwitch) {
-            focusRequesters.getOrNull(position.row)?.tryRequestFocus()
-        }
+    LaunchedEffect(Unit, navHasFocus) {
+        if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
+        focusRequesters.getOrNull(position.row)?.tryRequestFocus()
     }
     val onClickItem = { index: Int, item: BaseItem ->
         viewModel.navigationManager.navigateTo(item.destination())

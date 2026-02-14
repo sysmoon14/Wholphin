@@ -68,6 +68,7 @@ import com.github.sysmoon.wholphin.ui.components.DialogPopup
 import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
 import com.github.sysmoon.wholphin.ui.theme.WholphinTheme
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
+import kotlinx.coroutines.delay
 import java.util.UUID
 
 /**
@@ -96,7 +97,10 @@ fun UserList(
         val focusRequester = remember { FocusRequester() }
         val firstFocusRequester = remember { FocusRequester() }
         if (users.isNotEmpty()) {
-            LaunchedEffect(Unit) { focusRequester.tryRequestFocus() }
+            LaunchedEffect(users.size) {
+                delay(80)
+                firstFocusRequester.tryRequestFocus()
+            }
         }
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(4.dp),

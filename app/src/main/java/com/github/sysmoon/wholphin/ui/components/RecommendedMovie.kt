@@ -228,6 +228,7 @@ fun RecommendedMovie(
     dropEmptyRows: Boolean = false,
     skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     viewModel: RecommendedMovieViewModel =
         hiltViewModel<RecommendedMovieViewModel, RecommendedMovieViewModel.Factory>(
             creationCallback = { it.create(parentId) },
@@ -244,5 +245,6 @@ fun RecommendedMovie(
         dropEmptyRows = dropEmptyRows,
         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+        navHasFocus = navHasFocus,
     )
 }

@@ -214,6 +214,7 @@ fun SeerrDiscoverPage(
     preferences: UserPreferences,
     modifier: Modifier = Modifier,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     viewModel: SeerrDiscoverViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -234,8 +235,8 @@ fun SeerrDiscoverPage(
         viewModel.updateBackdrop(focusedItem)
     }
     var firstFocused by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(state.trending) {
-        if (wasOpenedViaTopNavSwitch) return@LaunchedEffect
+    LaunchedEffect(state.trending, navHasFocus) {
+        if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (!firstFocused && state.trending.items is DataLoadingState.Success<*>) {
             firstFocused = focusRequesters.getOrNull(0)?.tryRequestFocus("discover") == true
             if (firstFocused) {

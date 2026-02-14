@@ -53,6 +53,7 @@ fun DestinationContent(
     homeTopRowFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
     skipContentFocusUntilMillis: StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     onNavigateBack: (() -> Unit)? = null,
 ) {
     if (destination.fullScreen) {
@@ -66,6 +67,7 @@ fun DestinationContent(
                 topRowFocusRequester = homeTopRowFocusRequester,
                 skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
 
@@ -173,6 +175,7 @@ fun DestinationContent(
                         modifier = modifier,
                         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                        navHasFocus = navHasFocus,
                     )
                 }
 
@@ -187,6 +190,7 @@ fun DestinationContent(
                         modifier = modifier,
                         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                        navHasFocus = navHasFocus,
                     )
                 }
 
@@ -201,6 +205,7 @@ fun DestinationContent(
                         modifier = modifier,
                         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                        navHasFocus = navHasFocus,
                     )
                 }
 
@@ -240,6 +245,7 @@ fun DestinationContent(
                 filterOptions = DefaultForGenresFilterOptions,
                 modifier = modifier,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
 
@@ -259,6 +265,7 @@ fun DestinationContent(
                 destination,
                 modifier,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
 
@@ -268,6 +275,7 @@ fun DestinationContent(
                 preferences = preferences,
                 modifier = modifier,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
 
@@ -285,6 +293,7 @@ fun DestinationContent(
                 userPreferences = preferences,
                 modifier = modifier,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
 
@@ -297,6 +306,7 @@ fun DestinationContent(
                 preferences = preferences,
                 modifier = modifier,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
 
@@ -346,6 +356,7 @@ fun CollectionFolder(
     modifier: Modifier = Modifier,
     skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
 ) {
     when (collectionType) {
         CollectionType.TVSHOWS -> {
@@ -355,6 +366,7 @@ fun CollectionFolder(
                 modifier,
                 skipContentFocusUntilMillis,
                 wasOpenedViaTopNavSwitch,
+                navHasFocus,
             )
         }
 
@@ -365,6 +377,7 @@ fun CollectionFolder(
                 modifier,
                 skipContentFocusUntilMillis,
                 wasOpenedViaTopNavSwitch,
+                navHasFocus,
             )
         }
 
@@ -378,6 +391,7 @@ fun CollectionFolder(
                 modifier = modifier,
                 sortOptions = MovieSortOptions,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
 
@@ -412,6 +426,7 @@ fun CollectionFolder(
                 playEnabled = true,
                 modifier = modifier,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
 
@@ -428,6 +443,7 @@ fun CollectionFolder(
                 playEnabled = false,
                 modifier = modifier,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
     }

@@ -288,6 +288,7 @@ fun RecommendedTvShow(
     dropEmptyRows: Boolean = false,
     skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     viewModel: RecommendedTvShowViewModel =
         hiltViewModel<RecommendedTvShowViewModel, RecommendedTvShowViewModel.Factory>(
             creationCallback = { it.create(parentId) },
@@ -304,5 +305,6 @@ fun RecommendedTvShow(
         dropEmptyRows = dropEmptyRows,
         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+        navHasFocus = navHasFocus,
     )
 }

@@ -148,6 +148,7 @@ fun HomePage(
     topRowFocusRequester: FocusRequester? = null,
     skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
 ) {
     val context = LocalContext.current
     var firstLoad by rememberSaveable { mutableStateOf(true) }
@@ -202,6 +203,7 @@ fun HomePage(
                 homeRows = watchingRows + latestRows,
                 skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                 wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
                 savedPositionToRestore = savedPositionToRestore,
                 onConsumeRestoredPosition = viewModel::clearSavedHomePositionToRestore,
                 onClickItem = { position, item ->
@@ -281,6 +283,7 @@ fun HomePageContent(
     homeRows: List<HomeRowLoadingState>,
     skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     savedPositionToRestore: RowColumn? = null,
     onConsumeRestoredPosition: (() -> Unit)? = null,
     onClickItem: (RowColumn, BaseItem) -> Unit,
@@ -325,8 +328,8 @@ fun HomePageContent(
         }.takeIf { it >= 0 } ?: 0
     var firstFocused by remember { mutableStateOf(false) }
     var hasResetPosition by remember(resetPositionOnEnter) { mutableStateOf(false) }
-    LaunchedEffect(homeRows) {
-        if (wasOpenedViaTopNavSwitch) return@LaunchedEffect
+    LaunchedEffect(homeRows, navHasFocus) {
+        if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (savedPositionToRestore != null) return@LaunchedEffect // Restore LaunchedEffect handles focus when returning from details
         if (!firstFocused && homeRows.isNotEmpty()) {
             if (position.row >= 0) {
@@ -366,8 +369,8 @@ fun HomePageContent(
         delay(50)
         listState.scrollToItem(index)
     }
-    LaunchedEffect(homeRows, resetPositionOnEnter) {
-        if (wasOpenedViaTopNavSwitch) return@LaunchedEffect
+    LaunchedEffect(homeRows, resetPositionOnEnter, navHasFocus) {
+        if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (resetPositionOnEnter && !hasResetPosition && homeRows.isNotEmpty()) {
             val firstRowIndex =
                 homeRows.indexOfFirst {
@@ -646,7 +649,7 @@ fun HomePageContent(
                                             }
                                         },
                                     heroFocusRequester = if (rowIndex == firstRowIndex) topRowHeroFocusRequester else null,
-                                    requestFocusOnCompose = !wasOpenedViaTopNavSwitch,
+                                    requestFocusOnCompose = !wasOpenedViaTopNavSwitch && !navHasFocus,
                                     heroCardContent = heroRowPosterContent,
                                     posterCardContent = rowCardContent,
                                 )
@@ -1008,18 +1011,17 @@ fun <T : Any> HeroItemRow(
                                 hasFocus = focusState.isFocused
                             }
                             .onPreviewKeyEvent { event ->
-                                // Use onPreviewKeyEvent to intercept before Card processes
+                                // Use onPreviewKeyEvent to intercept before Card processes.
+                                // Use KeyDown (including repeat) for left/right so holding the key moves through items quickly.
                                 when (event.key) {
                                     Key.DirectionRight -> {
-                                        // Always consume left/right to prevent focus escaping
-                                        if (event.type == KeyEventType.KeyUp && focusedIndex < items.lastIndex) {
+                                        if (event.type == KeyEventType.KeyDown && focusedIndex < items.lastIndex) {
                                             onFocusedIndexChange(focusedIndex + 1)
                                         }
                                         return@onPreviewKeyEvent true // Consume both KeyDown and KeyUp
                                     }
                                     Key.DirectionLeft -> {
-                                        // Always consume left/right to prevent focus escaping
-                                        if (event.type == KeyEventType.KeyUp && focusedIndex > 0) {
+                                        if (event.type == KeyEventType.KeyDown && focusedIndex > 0) {
                                             onFocusedIndexChange(focusedIndex - 1)
                                         }
                                         return@onPreviewKeyEvent true // Consume both KeyDown and KeyUp
@@ -1357,13 +1359,13 @@ fun <T : Any> AnimatingHeroRow(
                                 if (!isHeroRow) return@onPreviewKeyEvent false
                                 when (event.key) {
                                     Key.DirectionRight -> {
-                                        if (event.type == KeyEventType.KeyUp && focusedIndex < items.lastIndex) {
+                                        if (event.type == KeyEventType.KeyDown && focusedIndex < items.lastIndex) {
                                             onFocusedIndexChange(focusedIndex + 1)
                                         }
                                         return@onPreviewKeyEvent true
                                     }
                                     Key.DirectionLeft -> {
-                                        if (event.type == KeyEventType.KeyUp && focusedIndex > 0) {
+                                        if (event.type == KeyEventType.KeyDown && focusedIndex > 0) {
                                             onFocusedIndexChange(focusedIndex - 1)
                                         }
                                         return@onPreviewKeyEvent true

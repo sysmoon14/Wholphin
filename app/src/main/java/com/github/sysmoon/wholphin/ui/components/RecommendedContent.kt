@@ -144,6 +144,7 @@ fun RecommendedContent(
     dropEmptyRows: Boolean = false,
     skipContentFocusUntilMillis: StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
 ) {
     val context = LocalContext.current
     var moreDialog by remember { mutableStateOf<Optional<RowColumnItem>>(Optional.absent()) }
@@ -234,6 +235,7 @@ fun RecommendedContent(
                     homeRows = effectiveRows,
                     skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                     wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                    navHasFocus = navHasFocus,
                     onClickItem = { _, item ->
                         viewModel.navigationManager.navigateTo(item.destination())
                     },

@@ -87,6 +87,7 @@ fun ItemGrid(
     destination: Destination.ItemGrid,
     modifier: Modifier = Modifier,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     viewModel: ItemGridViewModel =
         hiltViewModel<ItemGridViewModel, ItemGridViewModel.Factory>(
             creationCallback = { it.create(destination) },
@@ -107,8 +108,9 @@ fun ItemGrid(
 
         LoadingState.Success -> {
             val focusRequester = remember { FocusRequester() }
-            LaunchedEffect(Unit) {
-                if (!wasOpenedViaTopNavSwitch) focusRequester.tryRequestFocus()
+            LaunchedEffect(Unit, navHasFocus) {
+                if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
+                focusRequester.tryRequestFocus()
             }
             Column(modifier = modifier) {
                 Text(

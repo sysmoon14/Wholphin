@@ -51,6 +51,7 @@ import org.jellyfin.sdk.model.api.SortOrder
 @Composable
 fun FavoritesPage(
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     preferences: UserPreferences,
     modifier: Modifier = Modifier,
     preferencesViewModel: PreferencesViewModel = hiltViewModel(),
@@ -93,8 +94,9 @@ fun FavoritesPage(
         preferencesViewModel.navigationManager.navigateTo(item.destination())
     }
 
-    LaunchedEffect(Unit) {
-        if (!wasOpenedViaTopNavSwitch) focusRequester.tryRequestFocus()
+    LaunchedEffect(Unit, navHasFocus) {
+        if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
+        focusRequester.tryRequestFocus()
     }
     Column(
         modifier = modifier,
@@ -146,6 +148,7 @@ fun FavoritesPage(
                     filterOptions = DefaultForFavoritesFilterOptions,
                     focusRequesterOnEmpty = tabFocusRequesters.getOrNull(selectedTabIndex),
                     deferInitialFocus = wasOpenedViaTopNavSwitch,
+                    navHasFocus = navHasFocus,
                 )
             }
 
@@ -179,6 +182,7 @@ fun FavoritesPage(
                     filterOptions = DefaultForFavoritesFilterOptions,
                     focusRequesterOnEmpty = tabFocusRequesters.getOrNull(selectedTabIndex),
                     deferInitialFocus = wasOpenedViaTopNavSwitch,
+                    navHasFocus = navHasFocus,
                 )
             }
 
@@ -213,6 +217,7 @@ fun FavoritesPage(
                     filterOptions = DefaultForFavoritesFilterOptions,
                     focusRequesterOnEmpty = tabFocusRequesters.getOrNull(selectedTabIndex),
                     deferInitialFocus = wasOpenedViaTopNavSwitch,
+                    navHasFocus = navHasFocus,
                 )
             }
 
@@ -246,6 +251,7 @@ fun FavoritesPage(
                     filterOptions = DefaultForFavoritesFilterOptions,
                     focusRequesterOnEmpty = tabFocusRequesters.getOrNull(selectedTabIndex),
                     deferInitialFocus = wasOpenedViaTopNavSwitch,
+                    navHasFocus = navHasFocus,
                 )
             }
 
@@ -279,6 +285,7 @@ fun FavoritesPage(
                     filterOptions = DefaultForFavoritesFilterOptions,
                     focusRequesterOnEmpty = tabFocusRequesters.getOrNull(selectedTabIndex),
                     deferInitialFocus = wasOpenedViaTopNavSwitch,
+                    navHasFocus = navHasFocus,
                 )
             }
 
@@ -317,6 +324,7 @@ fun FavoritesPage(
                     filterOptions = listOf(),
                     focusRequesterOnEmpty = tabFocusRequesters.getOrNull(selectedTabIndex),
                     deferInitialFocus = wasOpenedViaTopNavSwitch,
+                    navHasFocus = navHasFocus,
                 )
             }
 

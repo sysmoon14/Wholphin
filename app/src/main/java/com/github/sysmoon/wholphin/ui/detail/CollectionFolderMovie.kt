@@ -18,6 +18,7 @@ fun CollectionFolderMovie(
     modifier: Modifier = Modifier,
     skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     preferencesViewModel: PreferencesViewModel = hiltViewModel(),
 ) {
     val recommendedTopRowFocusRequester = remember { FocusRequester() }
@@ -31,6 +32,7 @@ fun CollectionFolderMovie(
         dropEmptyRows = true,
         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+        navHasFocus = navHasFocus,
         modifier = modifier.fillMaxSize(),
     )
 }

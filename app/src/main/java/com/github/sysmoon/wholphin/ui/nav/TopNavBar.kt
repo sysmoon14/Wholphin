@@ -85,6 +85,8 @@ fun TopNavBar(
     server: JellyfinServer,
     viewModel: NavDrawerViewModel,
     onNavigateDown: (() -> Unit)? = null,
+    /** When set, this requester is attached to the currently selected nav item so content can use it for focusProperties { up = ... }. */
+    contentAreaUpFocusRequester: FocusRequester? = null,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -184,6 +186,7 @@ fun TopNavBar(
             .focusGroup()
             .onFocusChanged {
                 navHasFocus = it.hasFocus
+                viewModel.navHasFocus.value = it.hasFocus
                 if (!it.hasFocus) {
                     focusedIndex = null
                 }
@@ -338,9 +341,15 @@ fun TopNavBar(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         allNavItems.forEach { (index, item) ->
+                            val requester =
+                                if (index == selectedIndex && contentAreaUpFocusRequester != null) {
+                                    contentAreaUpFocusRequester
+                                } else {
+                                    focusRequesterFor(index)
+                                }
                             val navItemModifier =
                                 downKeyModifier
-                                    .focusRequester(focusRequesterFor(index))
+                                    .focusRequester(requester)
                                     .onFocusChanged {
                                         if (it.isFocused) {
                                             focusedIndex = index

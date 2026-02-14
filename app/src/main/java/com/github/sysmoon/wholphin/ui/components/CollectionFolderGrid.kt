@@ -555,6 +555,7 @@ fun CollectionFolderGrid(
     focusRequesterOnEmpty: FocusRequester? = null,
     onHeaderFocusChange: ((Boolean) -> Unit)? = null,
     deferInitialFocus: Boolean = false,
+    navHasFocus: Boolean = false,
 ) = CollectionFolderGrid(
     preferences,
     itemId.toServerString(),
@@ -574,6 +575,7 @@ fun CollectionFolderGrid(
     focusRequesterOnEmpty = focusRequesterOnEmpty,
     onHeaderFocusChange = onHeaderFocusChange,
     deferInitialFocus = deferInitialFocus,
+    navHasFocus = navHasFocus,
 )
 
 @Composable
@@ -596,6 +598,7 @@ fun CollectionFolderGrid(
     focusRequesterOnEmpty: FocusRequester? = null,
     onHeaderFocusChange: ((Boolean) -> Unit)? = null,
     deferInitialFocus: Boolean = false,
+    navHasFocus: Boolean = false,
     playlistViewModel: AddPlaylistViewModel = hiltViewModel(),
     viewModel: CollectionFolderViewModel =
         hiltViewModel<CollectionFolderViewModel, CollectionFolderViewModel.Factory>(
@@ -649,6 +652,7 @@ fun CollectionFolderGrid(
                     modifier = Modifier.fillMaxSize(),
                     focusRequesterOnEmpty = focusRequesterOnEmpty,
                     deferInitialFocus = deferInitialFocus,
+                    navHasFocus = navHasFocus,
                     onClickItem = onClickItem,
                     onLongClickItem = { position, item ->
                         moreDialog.makePresent(PositionItem(position, item))
@@ -795,6 +799,7 @@ fun CollectionFolderGridContent(
     focusRequesterOnEmpty: FocusRequester? = null,
     onHeaderFocusChange: ((Boolean) -> Unit)? = null,
     deferInitialFocus: Boolean = false,
+    navHasFocus: Boolean = false,
 ) {
     val context = LocalContext.current
 
@@ -806,9 +811,10 @@ fun CollectionFolderGridContent(
 
     val gridFocusRequester = remember { FocusRequester() }
     if (pager?.isNotEmpty() == true) {
-        RequestOrRestoreFocus(gridFocusRequester, requestOnLaunch = !deferInitialFocus)
+        RequestOrRestoreFocus(gridFocusRequester, requestOnLaunch = !deferInitialFocus && !navHasFocus)
     } else if (!deferInitialFocus) {
-        LaunchedEffect(Unit) {
+        LaunchedEffect(Unit, navHasFocus) {
+            if (navHasFocus) return@LaunchedEffect
             (focusRequesterOnEmpty ?: headerRowFocusRequester).tryRequestFocus()
         }
     }

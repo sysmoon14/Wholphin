@@ -35,6 +35,7 @@ fun DiscoverPage(
     preferences: UserPreferences,
     modifier: Modifier = Modifier,
     wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     preferencesViewModel: PreferencesViewModel = hiltViewModel(),
 ) {
     val rememberedTabIndex =
@@ -83,6 +84,7 @@ fun DiscoverPage(
                         Modifier
                             .fillMaxSize(),
                     wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                    navHasFocus = navHasFocus,
                 )
             }
 

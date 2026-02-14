@@ -21,6 +21,7 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -80,8 +81,16 @@ class ApplicationContentViewModel
     constructor(
         val backdropService: BackdropService,
     ) : ViewModel() {
+        /**
+         * Clears the backdrop image. Deferred to the next run loop iteration so that
+         * the StateFlow update does not trigger parent recomposition in the same
+         * frame as the new destination's composition, which can cause an AssertionError
+         * in the Compose runtime (slot table / recompose scope cleared while in use).
+         */
         fun clearBackdrop() {
-            viewModelScope.launchIO { backdropService.clearBackdrop() }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                viewModelScope.launchIO { backdropService.clearBackdrop() }
+            }
         }
     }
 
@@ -118,8 +127,10 @@ fun ApplicationContent(
         navigationManager.consumeOpenedViaTopNavSwitch()
     }
     val homeTopRowFocusRequester = remember { FocusRequester() }
+    val topNavFocusRequester = remember { FocusRequester() }
     val navDrawerViewModel: NavDrawerViewModel = hiltViewModel(key = "${server.id}_${user.id}")
     val showMore by navDrawerViewModel.showMore.observeAsState(initial = false)
+    val navHasFocus by navDrawerViewModel.navHasFocus.observeAsState(initial = false)
     BackHandler(enabled = showMore) { navDrawerViewModel.setShowMore(false) }
     val backdrop by viewModel.backdropService.backdropFlow.collectAsStateWithLifecycle()
     val backdropStyle = preferences.appPreferences.interfacePreferences.backdropStyle
@@ -307,12 +318,20 @@ fun ApplicationContent(
                         } else {
                             null
                         },
+                    contentAreaUpFocusRequester = topNavFocusRequester,
                 )
             }
             Box(
                 modifier =
-                    if (showTopNavBar) Modifier.fillMaxWidth().weight(1f)
-                    else Modifier.fillMaxSize(),
+                    (if (showTopNavBar) Modifier.fillMaxWidth().weight(1f)
+                    else Modifier.fillMaxSize())
+                        .then(
+                            if (showTopNavBar) {
+                                Modifier.focusProperties { up = topNavFocusRequester }
+                            } else {
+                                Modifier
+                            },
+                        ),
             ) {
                 NavDisplay(
                     backStack = navigationManager.backStack,
@@ -379,6 +398,7 @@ fun ApplicationContent(
                                     onClearBackdrop = viewModel::clearBackdrop,
                                     onNavigateBack = { navigationManager.goBack() },
                                     modifier = Modifier.fillMaxSize(),
+                                    navHasFocus = navHasFocus,
                                 )
                             } else {
                                 Box(modifier = Modifier.fillMaxSize()) {
@@ -391,6 +411,7 @@ fun ApplicationContent(
                                         homeTopRowFocusRequester = if (key is Destination.Home) homeTopRowFocusRequester else null,
                                         skipContentFocusUntilMillis = navigationManager.skipContentFocusUntilMillis,
                                         wasOpenedViaTopNavSwitch = key == currentDestination && wasOpenedViaTopNavSwitch,
+                                        navHasFocus = navHasFocus,
                                     )
                                     if (preferences.appPreferences.interfacePreferences.showClock) {
                                         TimeDisplay()

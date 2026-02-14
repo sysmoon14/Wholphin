@@ -114,6 +114,8 @@ class NavDrawerViewModel
         val libraries = MutableLiveData<List<NavDrawerItem>>(listOf())
         val selectedIndex = MutableLiveData(-1)
         val showMore = MutableLiveData(false)
+        /** True while the top nav bar has focus. Content must not request focus when this is true. */
+        val navHasFocus = MutableLiveData(false)
 
         init {
             seerrServerRepository.active

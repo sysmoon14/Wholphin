@@ -32,6 +32,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jellyfin.sdk.Jellyfin
 import org.jellyfin.sdk.api.client.HttpClientOptions
 import org.jellyfin.sdk.api.client.exception.InvalidStatusException
@@ -119,11 +120,24 @@ class SwitchUserViewModel
             quickConnectJob?.cancel()
             viewModelScope.launchIO {
                 users.setValueOnMain(listOf())
-                val serverUsers = getUsers()
-                withContext(Dispatchers.Main) {
-                    users.setValueOnMain(serverUsers)
+                try {
+                    val serverUsers = getUsers()
+                    withContext(Dispatchers.Main) {
+                        users.setValueOnMain(serverUsers)
+                    }
+                    // Timeout so user list appears even if backdrop fetch hangs (e.g. slow/unreachable server)
+                    withTimeoutOrNull(15.seconds) {
+                        preloadAllUserBackdrops(serverUsers)
+                    }
+                    ?: Timber.w("User backdrop preload timed out; showing user list anyway")
+                } catch (ex: Exception) {
+                    if (ex is CancellationException) throw ex
+                    Timber.e(ex, "Error loading users or preloading backdrops")
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isPreloading.value = false
+                    }
                 }
-                preloadAllUserBackdrops(serverUsers)
             }
 
             viewModelScope.launchIO {

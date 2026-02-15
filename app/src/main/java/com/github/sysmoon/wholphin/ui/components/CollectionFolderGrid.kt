@@ -170,18 +170,10 @@ class CollectionFolderViewModel
             viewModelScope.launchIO {
                 super.itemId = itemId
                 try {
-                    itemId.toUUIDOrNull()?.let {
-                        fetchItem(it)
-                    }
-
                     val libraryDisplayInfo =
                         serverRepository.currentUser.value?.let { user ->
                             libraryDisplayInfoDao.getItem(user, itemId)
                         }
-                    this@CollectionFolderViewModel.viewOptions.setValueOnMainIfActive(
-                        viewModelScope,
-                        libraryDisplayInfo?.viewOptions ?: defaultViewOptions,
-                    )
 
                     val sortAndDirection =
                         if (collectionFilter.useSavedLibraryDisplayInfo) {
@@ -197,10 +189,36 @@ class CollectionFolderViewModel
                             collectionFilter.filter
                         }
 
-                    loadResults(true, sortAndDirection, recursive, filterToUse, useSeriesForPrimary)
+                    val viewOptionsToSet = libraryDisplayInfo?.viewOptions ?: defaultViewOptions
+                    // Defer first LiveData updates to next frame to avoid Compose AssertionError when
+                    // navigating to this screen (slot table / recompose scope cleared while in use).
+                    withContext(Dispatchers.Main) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            if (!viewModelScope.isActive) return@post
+                            viewModelScope.launchIO {
+                                try {
+                                    itemId.toUUIDOrNull()?.let { fetchItem(it) }
+                                    this@CollectionFolderViewModel.viewOptions.setValueOnMainIfActive(
+                                        viewModelScope,
+                                        viewOptionsToSet,
+                                    )
+                                    loadResults(true, sortAndDirection, recursive, filterToUse, useSeriesForPrimary)
+                                } catch (ex: Exception) {
+                                    Timber.e(ex, "Error during init")
+                                    loading.setValueOnMainIfActive(viewModelScope, DataLoadingState.Error(ex))
+                                }
+                            }
+                        }
+                    }
                 } catch (ex: Exception) {
                     Timber.e(ex, "Error during init")
-                    loading.setValueOnMainIfActive(viewModelScope, DataLoadingState.Error(ex))
+                    withContext(Dispatchers.Main) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            if (viewModelScope.isActive) {
+                                loading.value = DataLoadingState.Error(ex)
+                            }
+                        }
+                    }
                 }
             }
         }

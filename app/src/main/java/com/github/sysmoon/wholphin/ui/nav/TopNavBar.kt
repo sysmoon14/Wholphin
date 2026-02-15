@@ -101,6 +101,10 @@ fun TopNavBar(
     val moreLibraries by viewModel.moreLibraries.observeAsState(initial = listOf())
     val libraries by viewModel.libraries.observeAsState(initial = listOf())
     val selectedIndex by viewModel.selectedIndex.observeAsState(initial = -1)
+    /** Requester to use when requesting focus: for the selected item we use contentAreaUpFocusRequester (the one actually attached). */
+    fun requesterForFocus(key: Int): FocusRequester =
+        if (key == selectedIndex && contentAreaUpFocusRequester != null) contentAreaUpFocusRequester
+        else focusRequesterFor(key)
     val showMore by viewModel.showMore.observeAsState(initial = false)
     LaunchedEffect(Unit) { viewModel.init() }
 
@@ -128,7 +132,7 @@ fun TopNavBar(
                     defaultKey
                 }
             focusedIndex = targetKey
-            focusRequesterFor(targetKey).tryRequestFocus("top_nav_enter")
+            requesterForFocus(targetKey).tryRequestFocus("top_nav_enter")
         }
     }
     // Don't run delayed reclaim here (450ms/900ms) - it overwrites the user moving to another tab
@@ -199,7 +203,7 @@ fun TopNavBar(
                         } else {
                             defaultKey
                         }
-                    focusRequesterFor(targetKey)
+                    requesterForFocus(targetKey)
                 }
             }
             .onGloballyPositioned { coords ->

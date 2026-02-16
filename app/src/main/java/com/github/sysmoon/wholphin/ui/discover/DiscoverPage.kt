@@ -75,8 +75,10 @@ fun DiscoverPage(
         tabFocusRequesters.getOrNull(focusedTabIndex)?.tryRequestFocus()
     }
 
-    // Keep focus on the sub-tab row: when the page is first shown and whenever the selected tab changes
-    LaunchedEffect(selectedTabIndex) {
+    // Keep focus on the sub-tab row: when the page is first shown and whenever the selected tab changes.
+    // Skip when opened via top nav switch so focus stays in the top nav (same as other tabbed pages).
+    LaunchedEffect(selectedTabIndex, navHasFocus, wasOpenedViaTopNavSwitch) {
+        if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
         delay(16)
         tabFocusRequesters.getOrNull(selectedTabIndex)?.tryRequestFocus()
     }

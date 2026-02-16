@@ -413,6 +413,8 @@ fun CollectionFolder(
                 preferences = preferences,
                 destination = destination,
                 modifier = modifier,
+                wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
+                navHasFocus = navHasFocus,
             )
         }
 

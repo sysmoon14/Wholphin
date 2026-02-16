@@ -87,6 +87,8 @@ fun CollectionFolderLiveTv(
     preferences: UserPreferences,
     destination: Destination.MediaItem,
     modifier: Modifier = Modifier,
+    wasOpenedViaTopNavSwitch: Boolean = false,
+    navHasFocus: Boolean = false,
     viewModel: LiveTvCollectionViewModel = hiltViewModel(),
 ) {
     val rememberedTabIndex =
@@ -108,7 +110,10 @@ fun CollectionFolderLiveTv(
     val tabFocusRequesters = remember(tabs.size) { List(tabs.size) { FocusRequester() } }
 
     val firstTabFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { firstTabFocusRequester.tryRequestFocus() }
+    LaunchedEffect(Unit, navHasFocus, wasOpenedViaTopNavSwitch) {
+        if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
+        firstTabFocusRequester.tryRequestFocus()
+    }
 
     LaunchedEffect(selectedTabIndex) {
         logTab("livetv", selectedTabIndex)
@@ -121,7 +126,10 @@ fun CollectionFolderLiveTv(
 
     var showHeader by rememberSaveable { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) { focusRequester.tryRequestFocus() }
+    LaunchedEffect(Unit, navHasFocus, wasOpenedViaTopNavSwitch) {
+        if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
+        focusRequester.tryRequestFocus()
+    }
     Column(
         modifier = modifier,
     ) {
@@ -141,10 +149,11 @@ fun CollectionFolderLiveTv(
                 focusRequesters = tabFocusRequesters,
             )
         }
+        val requestFocusInContent = !wasOpenedViaTopNavSwitch && !navHasFocus
         when (selectedTabIndex) {
             0 -> {
                 TvGuideGrid(
-                    true,
+                    requestFocusAfterLoading = requestFocusInContent,
                     onRowPosition = {
                         showHeader = it <= 0
                     },
@@ -156,7 +165,7 @@ fun CollectionFolderLiveTv(
 
             1 -> {
                 DvrSchedule(
-                    requestFocusAfterLoading = true,
+                    requestFocusAfterLoading = requestFocusInContent,
                     focusRequesterOnEmpty = tabFocusRequesters[1],
                     modifier =
                         Modifier

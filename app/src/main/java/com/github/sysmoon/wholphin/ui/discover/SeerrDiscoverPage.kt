@@ -82,7 +82,9 @@ class SeerrDiscoverViewModel
                 backdropService.clearBackdrop()
             }
             viewModelScope.launchIO {
+                // Wait for Seerr to be ready; avoid racing with UserSwitchListener
                 seerrServerRepository.current.first { it != null }
+                seerrServerRepository.active.first { it }
                 fetchAndUpdateState(seerrService::discoverMovies) {
                     this.copy(movies = DiscoverRowData(context.getString(R.string.popular_movies), it))
                 }
@@ -116,7 +118,7 @@ class SeerrDiscoverViewModel
                     copyFunc.invoke(it, DataLoadingState.Loading)
                 }
                 try {
-                    val results = getData.invoke()
+                    val results = fetchWithRetryOnUnauthorized(getData)
                     state.update {
                         copyFunc.invoke(it, DataLoadingState.Success(results))
                     }
@@ -124,6 +126,25 @@ class SeerrDiscoverViewModel
                     state.update {
                         copyFunc.invoke(it, DataLoadingState.Error(ex))
                     }
+                }
+            }
+        }
+
+        /**
+         * Fetches once; on 401 Unauthorized retries once after a short delay.
+         * Handles race where the first request runs before Seerr auth is fully ready.
+         */
+        private suspend fun fetchWithRetryOnUnauthorized(
+            getData: suspend () -> List<DiscoverItem>,
+        ): List<DiscoverItem> {
+            return try {
+                getData()
+            } catch (ex: ClientException) {
+                if (ex.statusCode == 401) {
+                    delay(400)
+                    getData()
+                } else {
+                    throw ex
                 }
             }
         }
@@ -215,6 +236,7 @@ fun SeerrDiscoverPage(
     modifier: Modifier = Modifier,
     wasOpenedViaTopNavSwitch: Boolean = false,
     navHasFocus: Boolean = false,
+    deferInitialFocus: Boolean = false,
     viewModel: SeerrDiscoverViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -235,8 +257,16 @@ fun SeerrDiscoverPage(
         viewModel.updateBackdrop(focusedItem)
     }
     var firstFocused by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(state.trending, navHasFocus) {
-        if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
+    var initialPositionSet by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(state.trending) {
+        val trending = state.trending.items
+        if (!initialPositionSet && trending is DataLoadingState.Success && trending.data.isNotEmpty()) {
+            position = RowColumn(0, 0)
+            initialPositionSet = true
+        }
+    }
+    LaunchedEffect(state.trending, navHasFocus, deferInitialFocus) {
+        if (navHasFocus || wasOpenedViaTopNavSwitch || deferInitialFocus) return@LaunchedEffect
         if (!firstFocused && state.trending.items is DataLoadingState.Success<*>) {
             firstFocused = focusRequesters.getOrNull(0)?.tryRequestFocus("discover") == true
             if (firstFocused) {

@@ -179,6 +179,46 @@ class NavDrawerViewModel
             selectedIndex.value = index
         }
 
+        /**
+         * Sync [selectedIndex] from the current back stack (e.g. after Back returns to Home).
+         * Call when [NavigationManager.currentDestination] changes so the top nav highlight is correct.
+         */
+        fun syncSelectedIndexFromBackStack() {
+            viewModelScope.launchIO {
+                val all = navDrawerItemRepository.getNavDrawerItems()
+                val libraries = navDrawerItemRepository.getFilteredNavDrawerItems(all)
+                val asDestinations =
+                    (libraries + listOf(NavDrawerItem.Discover)).map {
+                        when {
+                            it is ServerNavDrawerItem -> it.destination
+                            it is NavDrawerItem.Favorites -> Destination.Favorites
+                            it is NavDrawerItem.Discover -> Destination.Discover
+                            else -> null
+                        }
+                    }
+                val backstack = navigationManager.backStack.toList().reversed()
+                for (key in backstack) {
+                    if (key is Destination) {
+                        val index =
+                            when {
+                                key is Destination.Home -> -1
+                                key is Destination.Search -> -2
+                                else -> {
+                                    val idx = asDestinations.indexOf(key)
+                                    if (idx >= 0) idx else null
+                                }
+                            }
+                        if (index != null) {
+                            withContext(Dispatchers.Main) {
+                                selectedIndex.value = index
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
         fun setShowMore(value: Boolean) {
             showMore.value = value
         }
@@ -219,7 +259,7 @@ sealed interface NavDrawerItem {
         override val id: String
             get() = "a_discover"
 
-        override fun name(context: Context): String = context.getString(R.string.discover)
+        override fun name(context: Context): String = context.getString(R.string.request)
     }
 }
 

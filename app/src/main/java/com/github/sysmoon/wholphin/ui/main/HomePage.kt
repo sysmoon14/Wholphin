@@ -409,6 +409,18 @@ fun HomePageContent(
     LaunchedEffect(onUpdateBackdrop, backdropItem) {
         backdropItem?.let { onUpdateBackdrop.invoke(it) }
     }
+    // When opening a library page (e.g. Movies) via tab switch, submit initial backdrop immediately
+    // so the background loads before focus lands on the first row (avoids blank → harsh load)
+    LaunchedEffect(homeRows, resetPositionOnEnter, wasOpenedViaTopNavSwitch, onUpdateBackdrop) {
+        if (!resetPositionOnEnter || !wasOpenedViaTopNavSwitch) return@LaunchedEffect
+        val firstRow = homeRows
+            .firstOrNull { it is HomeRowLoadingState.Success && it.items.isNotEmpty() }
+            as? HomeRowLoadingState.Success ?: return@LaunchedEffect
+        val firstItem = firstRow.items.firstOrNull { item ->
+            item != null && !(item.type == BaseItemKind.BOX_SET && item.name == "View All")
+        } ?: firstRow.items.firstOrNull { it != null }
+        firstItem?.let { onUpdateBackdrop.invoke(it) }
+    }
     Box(modifier = modifier) {
         LazyColumn(
             state = listState,

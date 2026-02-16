@@ -1,6 +1,5 @@
 package com.github.sysmoon.wholphin.ui.discover
 
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -186,24 +185,26 @@ data class RequestGridItem(
 fun SeerrRequestsPage(
     focusRequesterOnEmpty: FocusRequester?,
     modifier: Modifier = Modifier,
+    deferInitialFocus: Boolean = false,
     viewModel: SeerrRequestsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState(SeerrRequestsState.EMPTY)
 
     when (val state = state.requests) {
         is DataLoadingState.Error -> {
-            ErrorMessage(state.message, state.exception, modifier.focusable())
+            ErrorMessage(state.message, state.exception, modifier)
         }
 
         DataLoadingState.Loading,
         DataLoadingState.Pending,
         -> {
-            LoadingPage(modifier.focusable())
+            LoadingPage(modifier)
         }
 
         is DataLoadingState.Success<List<RequestGridItem>> -> {
             val focusRequester = remember { FocusRequester() }
             LaunchedEffect(Unit) {
+                if (deferInitialFocus) return@LaunchedEffect
                 if (state.data.isNotEmpty()) {
                     focusRequester.tryRequestFocus()
                 } else {

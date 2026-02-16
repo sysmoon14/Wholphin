@@ -165,7 +165,6 @@ fun DestinationContent(
                 }
 
                 BaseItemKind.COLLECTION_FOLDER -> {
-                    LaunchedEffect(Unit) { onClearBackdrop.invoke() }
                     CollectionFolder(
                         preferences = preferences,
                         destination = destination,
@@ -176,11 +175,11 @@ fun DestinationContent(
                         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                         navHasFocus = navHasFocus,
+                        onClearBackdrop = onClearBackdrop,
                     )
                 }
 
                 BaseItemKind.FOLDER -> {
-                    LaunchedEffect(Unit) { onClearBackdrop.invoke() }
                     CollectionFolder(
                         preferences = preferences,
                         destination = destination,
@@ -191,11 +190,11 @@ fun DestinationContent(
                         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                         navHasFocus = navHasFocus,
+                        onClearBackdrop = onClearBackdrop,
                     )
                 }
 
                 BaseItemKind.USER_VIEW -> {
-                    LaunchedEffect(Unit) { onClearBackdrop.invoke() }
                     CollectionFolder(
                         preferences = preferences,
                         destination = destination,
@@ -206,6 +205,7 @@ fun DestinationContent(
                         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                         navHasFocus = navHasFocus,
+                        onClearBackdrop = onClearBackdrop,
                     )
                 }
 
@@ -357,6 +357,7 @@ fun CollectionFolder(
     skipContentFocusUntilMillis: kotlinx.coroutines.flow.StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
     navHasFocus: Boolean = false,
+    onClearBackdrop: () -> Unit = {},
 ) {
     when (collectionType) {
         CollectionType.TVSHOWS -> {
@@ -382,6 +383,7 @@ fun CollectionFolder(
         }
 
         CollectionType.BOXSETS -> {
+            LaunchedEffect(Unit) { onClearBackdrop.invoke() }
             CollectionFolderGeneric(
                 preferences = preferences,
                 itemId = destination.itemId,
@@ -396,6 +398,7 @@ fun CollectionFolder(
         }
 
         CollectionType.PLAYLISTS -> {
+            LaunchedEffect(Unit) { onClearBackdrop.invoke() }
             CollectionFolderPlaylist(
                 preferences,
                 destination.itemId,
@@ -405,6 +408,7 @@ fun CollectionFolder(
         }
 
         CollectionType.LIVETV -> {
+            LaunchedEffect(Unit) { onClearBackdrop.invoke() }
             CollectionFolderLiveTv(
                 preferences = preferences,
                 destination = destination,
@@ -418,6 +422,7 @@ fun CollectionFolder(
         CollectionType.BOOKS,
         CollectionType.PHOTOS,
         -> {
+            LaunchedEffect(Unit) { onClearBackdrop.invoke() }
             CollectionFolderGeneric(
                 preferences,
                 destination.itemId,
@@ -435,6 +440,7 @@ fun CollectionFolder(
         CollectionType.UNKNOWN,
         null,
         -> {
+            LaunchedEffect(Unit) { onClearBackdrop.invoke() }
             CollectionFolderGeneric(
                 preferences,
                 destination.itemId,

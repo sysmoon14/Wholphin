@@ -56,6 +56,8 @@ fun TabRow(
     focusRequesters: List<FocusRequester>,
     onClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    /** When set, called with the tab index when that tab receives focus (for focus-to-navigate like top nav). */
+    onTabFocused: ((Int) -> Unit)? = null,
 ) {
     val state = rememberLazyListState()
     val density = LocalDensity.current
@@ -144,6 +146,7 @@ fun TabRow(
                             .onFocusChanged {
                                 if (it.isFocused) {
                                     focusedIndex = index
+                                    onTabFocused?.invoke(index)
                                 }
                             }.onGloballyPositioned { coords ->
                                 val position = coords.positionInRoot()
@@ -229,7 +232,7 @@ private fun TabRowPreview() {
             TabRow(
                 selectedTabIndex = 1,
                 tabs = listOf("Tab 1", "Tab 2", "Tab 3"),
-                focusRequesters = listOf(),
+                focusRequesters = listOf(remember { FocusRequester() }, remember { FocusRequester() }, remember { FocusRequester() }),
                 onClick = {},
             )
             Tab(

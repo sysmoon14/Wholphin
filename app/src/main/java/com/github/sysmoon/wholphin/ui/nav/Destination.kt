@@ -129,7 +129,7 @@ sealed class Destination(
 }
 
 /**
- * True when the destination is a "main" tab (Home, Movies, Shows, Collections, Favourites, Search)
+ * True when the destination is a "main" tab (Home, Movies, Shows, Collections, Favourites, Search, Discover)
  * where the top navbar should be shown. On all other pages the navbar is hidden and content shifts up.
  */
 fun Destination.shouldShowTopNavBar(): Boolean =
@@ -139,6 +139,7 @@ fun Destination.shouldShowTopNavBar(): Boolean =
         is Destination.Favorites -> true
         is Destination.FilteredCollection -> true
         is Destination.ItemGrid -> true
+        Destination.Discover -> true
         is Destination.MediaItem ->
             type in setOf(
                 BaseItemKind.COLLECTION_FOLDER,

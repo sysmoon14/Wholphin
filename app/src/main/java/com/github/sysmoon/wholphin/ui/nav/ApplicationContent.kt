@@ -2,6 +2,7 @@ package com.github.sysmoon.wholphin.ui.nav
 
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.background
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -129,6 +131,9 @@ fun ApplicationContent(
     val homeTopRowFocusRequester = remember { FocusRequester() }
     val topNavFocusRequester = remember { FocusRequester() }
     val navDrawerViewModel: NavDrawerViewModel = hiltViewModel(key = "${server.id}_${user.id}")
+    LaunchedEffect(currentDestination) {
+        navDrawerViewModel.syncSelectedIndexFromBackStack()
+    }
     val showMore by navDrawerViewModel.showMore.observeAsState(initial = false)
     val navHasFocus by navDrawerViewModel.navHasFocus.observeAsState(initial = false)
     BackHandler(enabled = showMore) { navDrawerViewModel.setShowMore(false) }
@@ -144,10 +149,12 @@ fun ApplicationContent(
                     BaseItemKind.EPISODE,
                 )
             is Destination.SeriesOverview -> true
+            Destination.Discover -> true
+            is Destination.DiscoveredItem -> true
             else -> false
         }
     Box(
-        modifier = modifier,
+        modifier = modifier.background(MaterialTheme.colorScheme.background),
     ) {
         val baseBackgroundColor = MaterialTheme.colorScheme.background
         // Full-screen backdrop image only on detail pages (movie/series/episode/season list), not home
@@ -231,6 +238,10 @@ fun ApplicationContent(
         if (backdrop.hasColors &&
             (backdropStyle == BackdropStyle.BACKDROP_DYNAMIC_COLOR || backdropStyle == BackdropStyle.UNRECOGNIZED)
         ) {
+            val backdropAlpha = remember { Animatable(0f) }
+            LaunchedEffect(Unit) {
+                backdropAlpha.animateTo(1f, tween(400))
+            }
             val animPrimary by animateColorAsState(
                 backdrop.primaryColor,
                 animationSpec = tween(1250),
@@ -250,6 +261,7 @@ fun ApplicationContent(
                 modifier =
                     Modifier
                         .fillMaxSize()
+                        .alpha(backdropAlpha.value)
                         .then(
                             if (showBackdropImage && backdrop.imageUrl.isNotNullOrBlank()) {
                                 Modifier.alpha(0.75f)

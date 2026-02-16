@@ -59,10 +59,8 @@ class BackdropService
         ) = withContext(Dispatchers.IO) {
             if (backdropFlow.firstOrNull()?.imageUrl != imageUrl) {
                 _backdropFlow.update {
-                    it.copy(
-                        itemId = itemId,
-                        imageUrl = null,
-                    )
+                    it.copy(itemId = itemId)
+                    // Keep current imageUrl so previous backdrop stays visible until new one is ready (smooth transition)
                 }
                 extractColors(itemId, imageUrl)
             }

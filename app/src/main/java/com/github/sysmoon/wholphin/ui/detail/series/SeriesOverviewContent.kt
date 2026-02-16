@@ -1,5 +1,6 @@
 package com.github.sysmoon.wholphin.ui.detail.series
 
+import android.os.SystemClock
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusGroup
@@ -82,6 +83,9 @@ private val EpisodeRowSlotHeight: Dp = 12.dp + (260.dp * 9f / 16f) + 12.dp + 8.d
 /** Thumbnail size in episode row - must match EpisodeListRow. */
 private val EpisodeThumbnailWidth = 260.dp
 private val EpisodeThumbnailHeight = EpisodeThumbnailWidth * 9f / 16f
+
+/** Min ms between episode/season navigations when holding up/down (matches hero row feel). */
+private const val EPISODE_LIST_KEY_REPEAT_INTERVAL_MS = 400L
 
 @Composable
 private fun SeriesOverviewHeader(
@@ -370,6 +374,7 @@ private fun RowScope.EpisodeAreaInRow(
                 val slotFocusSource = remember { MutableInteractionSource() }
                 val slotFocused by slotFocusSource.collectIsFocusedAsState()
                 var ignoreNextSelectKeyUp by remember { mutableStateOf(false) }
+                var lastKeyRepeatNavTime by remember { mutableStateOf(0L) }
                 val currentEpisode = eps.episodes.getOrNull(position.episodeRowIndex)
                 val selectedSeasonFocus =
                     seasonFocusRequesters.getOrNull(
@@ -425,14 +430,24 @@ private fun RowScope.EpisodeAreaInRow(
                                 .onPreviewKeyEvent { event ->
                                     when (event.key) {
                                         Key.DirectionDown -> {
-                                            if (event.type == KeyEventType.KeyUp) {
-                                                onSelectNextEpisode()
+                                            if (event.type == KeyEventType.KeyDown) {
+                                                val isRepeat = event.nativeKeyEvent.repeatCount > 0
+                                                val now = SystemClock.elapsedRealtime()
+                                                if (!isRepeat || (now - lastKeyRepeatNavTime) >= EPISODE_LIST_KEY_REPEAT_INTERVAL_MS) {
+                                                    lastKeyRepeatNavTime = now
+                                                    onSelectNextEpisode()
+                                                }
                                             }
                                             true
                                         }
                                         Key.DirectionUp -> {
-                                            if (event.type == KeyEventType.KeyUp) {
-                                                onSelectPreviousEpisode()
+                                            if (event.type == KeyEventType.KeyDown) {
+                                                val isRepeat = event.nativeKeyEvent.repeatCount > 0
+                                                val now = SystemClock.elapsedRealtime()
+                                                if (!isRepeat || (now - lastKeyRepeatNavTime) >= EPISODE_LIST_KEY_REPEAT_INTERVAL_MS) {
+                                                    lastKeyRepeatNavTime = now
+                                                    onSelectPreviousEpisode()
+                                                }
                                             }
                                             true
                                         }

@@ -763,6 +763,7 @@ private val HERO_INFO_TOP_SPACING = 12.dp
 private val HERO_INFO_HEIGHT = 100.dp  // Fixed height for info section to prevent row shifting
 private val HERO_ROW_BOTTOM_SPACING = 8.dp
 private const val PASSED_ITEMS_ALPHA = 0.25f  // Dimmed alpha for passed items
+private const val HERO_ROW_KEY_REPEAT_INTERVAL_MS = 400L  // Min ms between navigations when holding left/right
 
 /**
  * A row with a large hero card on the left (showing the focused item's backdrop + logo)
@@ -794,6 +795,7 @@ fun <T : Any> HeroItemRow(
     val upcomingState = rememberLazyListState()
     val internalHeroFocusRequester = heroFocusRequester ?: remember { FocusRequester() }
     var hasFocus by remember { mutableStateOf(false) }
+    var lastKeyRepeatNavTime by remember { mutableStateOf(0L) }
 
     // Track previous focused index to determine navigation direction
     var previousFocusedIndex by remember { mutableIntStateOf(focusedIndex) }
@@ -1012,17 +1014,28 @@ fun <T : Any> HeroItemRow(
                             }
                             .onPreviewKeyEvent { event ->
                                 // Use onPreviewKeyEvent to intercept before Card processes.
-                                // Use KeyDown (including repeat) for left/right so holding the key moves through items quickly.
+                                // Use KeyDown (including repeat) for left/right so holding the key moves through items.
+                                // Throttle repeat events to avoid moving too quickly when long-pressing.
                                 when (event.key) {
                                     Key.DirectionRight -> {
                                         if (event.type == KeyEventType.KeyDown && focusedIndex < items.lastIndex) {
-                                            onFocusedIndexChange(focusedIndex + 1)
+                                            val isRepeat = event.nativeKeyEvent.repeatCount > 0
+                                            val now = SystemClock.elapsedRealtime()
+                                            if (!isRepeat || (now - lastKeyRepeatNavTime) >= HERO_ROW_KEY_REPEAT_INTERVAL_MS) {
+                                                lastKeyRepeatNavTime = now
+                                                onFocusedIndexChange(focusedIndex + 1)
+                                            }
                                         }
                                         return@onPreviewKeyEvent true // Consume both KeyDown and KeyUp
                                     }
                                     Key.DirectionLeft -> {
                                         if (event.type == KeyEventType.KeyDown && focusedIndex > 0) {
-                                            onFocusedIndexChange(focusedIndex - 1)
+                                            val isRepeat = event.nativeKeyEvent.repeatCount > 0
+                                            val now = SystemClock.elapsedRealtime()
+                                            if (!isRepeat || (now - lastKeyRepeatNavTime) >= HERO_ROW_KEY_REPEAT_INTERVAL_MS) {
+                                                lastKeyRepeatNavTime = now
+                                                onFocusedIndexChange(focusedIndex - 1)
+                                            }
                                         }
                                         return@onPreviewKeyEvent true // Consume both KeyDown and KeyUp
                                     }
@@ -1180,6 +1193,7 @@ fun <T : Any> AnimatingHeroRow(
     
     val internalHeroFocusRequester = heroFocusRequester ?: remember { FocusRequester() }
     var hasFocus by remember { mutableStateOf(false) }
+    var lastKeyRepeatNavTime by remember { mutableStateOf(0L) }
     val lazyListState = rememberLazyListState()
     
     // For hero mode: track passed items
@@ -1360,13 +1374,23 @@ fun <T : Any> AnimatingHeroRow(
                                 when (event.key) {
                                     Key.DirectionRight -> {
                                         if (event.type == KeyEventType.KeyDown && focusedIndex < items.lastIndex) {
-                                            onFocusedIndexChange(focusedIndex + 1)
+                                            val isRepeat = event.nativeKeyEvent.repeatCount > 0
+                                            val now = SystemClock.elapsedRealtime()
+                                            if (!isRepeat || (now - lastKeyRepeatNavTime) >= HERO_ROW_KEY_REPEAT_INTERVAL_MS) {
+                                                lastKeyRepeatNavTime = now
+                                                onFocusedIndexChange(focusedIndex + 1)
+                                            }
                                         }
                                         return@onPreviewKeyEvent true
                                     }
                                     Key.DirectionLeft -> {
                                         if (event.type == KeyEventType.KeyDown && focusedIndex > 0) {
-                                            onFocusedIndexChange(focusedIndex - 1)
+                                            val isRepeat = event.nativeKeyEvent.repeatCount > 0
+                                            val now = SystemClock.elapsedRealtime()
+                                            if (!isRepeat || (now - lastKeyRepeatNavTime) >= HERO_ROW_KEY_REPEAT_INTERVAL_MS) {
+                                                lastKeyRepeatNavTime = now
+                                                onFocusedIndexChange(focusedIndex - 1)
+                                            }
                                         }
                                         return@onPreviewKeyEvent true
                                     }

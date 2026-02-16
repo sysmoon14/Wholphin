@@ -39,12 +39,15 @@ import org.jellyfin.sdk.model.api.request.GetSuggestionsRequest
 import org.jellyfin.sdk.model.serializer.toUUIDOrNull
 import timber.log.Timber
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Service for fetching custom home screen sections from the Wholphin Companion plugin.
  * Falls back gracefully if the plugin is not available.
+ * Home layout is cached in-memory by userId so pre-loading after user select (before navigate)
+ * and HomeViewModel.init() can share the same layout without duplicate network calls.
  */
 @Singleton
 class HomeScreenSectionsService
@@ -59,14 +62,39 @@ class HomeScreenSectionsService
     ) {
         private val json = Json { ignoreUnknownKeys = true }
 
+        /** Session cache: layout rows keyed by userId. Populated by preload (SwitchUserViewModel) or first getLayoutRows call. */
+        private val layoutCache = ConcurrentHashMap<UUID, List<WholphinRow>>()
+
+        /** Clears the layout cache (e.g. when switching user so only the new user's layout is cached). */
+        fun clearLayoutCache() {
+            layoutCache.clear()
+            libraryTabCache.clear()
+        }
+
+        /** Cache for library tab rows (Movies, Shows, etc.) keyed by (userId, parentId). Populated by preload after home load. */
+        private val libraryTabCache = ConcurrentHashMap<Pair<UUID, UUID>, List<HomeRowLoadingState>>()
+
+        /** Returns cached library tab rows if preload has run for this library. */
+        fun getCachedLibraryRows(userId: UUID, parentId: UUID): List<HomeRowLoadingState>? =
+            libraryTabCache[userId to parentId]
+
+        /** Stores library tab rows for instant display when user switches to that tab. */
+        fun putCachedLibraryRows(userId: UUID, parentId: UUID, rows: List<HomeRowLoadingState>) {
+            libraryTabCache[userId to parentId] = rows
+        }
+
         /**
          * Fetches only the row layout from the Wholphin Companion plugin (no content).
          * Returns null if the plugin is not available or not configured.
-         * Used to cache layout on first load and refresh only content on subsequent visits.
+         * Uses in-memory cache so pre-load after user select and HomeViewModel.init() do not fetch twice.
          */
         suspend fun getLayoutRows(userId: UUID): List<WholphinRow>? =
             withContext(Dispatchers.IO) {
                 try {
+                    layoutCache[userId]?.let { cached ->
+                        Timber.d("HomeScreenSectionsService: getLayoutRows cache hit for userId=%s (%s rows)", userId, cached.size)
+                        return@withContext cached
+                    }
                     val baseUrl = api.baseUrl
                     val accessToken = api.accessToken
                     if (baseUrl.isNullOrBlank() || accessToken.isNullOrBlank()) return@withContext null
@@ -78,7 +106,8 @@ class HomeScreenSectionsService
                             layoutRows
                         }
                     if (effectiveLayoutRows.isNullOrEmpty()) return@withContext null
-                    Timber.d("HomeScreenSectionsService: getLayoutRows returning %s rows", effectiveLayoutRows.size)
+                    layoutCache[userId] = effectiveLayoutRows
+                    Timber.d("HomeScreenSectionsService: getLayoutRows returning %s rows (cached)", effectiveLayoutRows.size)
                     effectiveLayoutRows
                 } catch (ex: Exception) {
                     Timber.e(ex, "HomeScreenSectionsService: getLayoutRows failed")

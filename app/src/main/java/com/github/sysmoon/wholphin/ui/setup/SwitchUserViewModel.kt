@@ -8,8 +8,11 @@ import com.github.sysmoon.wholphin.data.JellyfinServerDao
 import com.github.sysmoon.wholphin.data.ServerRepository
 import com.github.sysmoon.wholphin.data.model.JellyfinServer
 import com.github.sysmoon.wholphin.data.model.JellyfinUser
+import com.github.sysmoon.wholphin.services.HomeScreenSectionsService
 import com.github.sysmoon.wholphin.services.ImageUrlService
 import com.github.sysmoon.wholphin.services.NavigationManager
+import com.github.sysmoon.wholphin.services.PluginSettingsApplicator
+import com.github.sysmoon.wholphin.services.PluginSettingsService
 import com.github.sysmoon.wholphin.services.SetupDestination
 import com.github.sysmoon.wholphin.services.SetupNavigationManager
 import com.github.sysmoon.wholphin.ui.SlimItemFields
@@ -64,6 +67,9 @@ class SwitchUserViewModel
         val navigationManager: NavigationManager,
         val setupNavigationManager: SetupNavigationManager,
         val imageUrlService: ImageUrlService,
+        private val pluginSettingsService: PluginSettingsService,
+        private val pluginSettingsApplicator: PluginSettingsApplicator,
+        private val homeScreenSectionsService: HomeScreenSectionsService,
         @ApplicationContext private val context: Context,
         @Assisted val server: JellyfinServer,
     ) : ViewModel() {
@@ -178,6 +184,12 @@ class SwitchUserViewModel
                         withContext(Dispatchers.Main) {
                             setupNavigationManager.navigateTo(SetupDestination.AppContent(current))
                         }
+                        homeScreenSectionsService.clearLayoutCache()
+                        val settings = pluginSettingsService.fetchSettings(current.user.id)
+                        if (settings != null) {
+                            pluginSettingsApplicator.apply(settings, current.user)
+                        }
+                        homeScreenSectionsService.getLayoutRows(current.user.id)
                     }
                 } catch (ex: Exception) {
                     Timber.e(ex, "Error switching user")
@@ -204,6 +216,12 @@ class SwitchUserViewModel
                         withContext(Dispatchers.Main) {
                             setupNavigationManager.navigateTo(SetupDestination.AppContent(current))
                         }
+                        homeScreenSectionsService.clearLayoutCache()
+                        val settings = pluginSettingsService.fetchSettings(current.user.id)
+                        if (settings != null) {
+                            pluginSettingsApplicator.apply(settings, current.user)
+                        }
+                        homeScreenSectionsService.getLayoutRows(current.user.id)
                     }
                 } catch (ex: Exception) {
                     Timber.e(ex, "Error logging in user")
@@ -256,6 +274,12 @@ class SwitchUserViewModel
                                     SetupDestination.AppContent(current),
                                 )
                             }
+                            homeScreenSectionsService.clearLayoutCache()
+                            val settings = pluginSettingsService.fetchSettings(current.user.id)
+                            if (settings != null) {
+                                pluginSettingsApplicator.apply(settings, current.user)
+                            }
+                            homeScreenSectionsService.getLayoutRows(current.user.id)
                         }
                     } catch (ex: Exception) {
                         Timber.e(ex, "Error during quick connect")

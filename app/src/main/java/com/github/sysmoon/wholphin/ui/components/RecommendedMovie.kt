@@ -79,6 +79,14 @@ class RecommendedMovieViewModel
         override fun init() {
             viewModelScope.launch(Dispatchers.IO + ExceptionHandler()) {
                 val userId = serverRepository.currentUser.value?.id ?: return@launch
+                val cached = homeScreenSectionsService.getCachedLibraryRows(userId, parentId)
+                if (!cached.isNullOrEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        rows.value = cached
+                        loading.value = LoadingState.Success
+                    }
+                    return@launch
+                }
                 val itemsPerRow =
                     preferencesDataStore.data
                         .firstOrNull()

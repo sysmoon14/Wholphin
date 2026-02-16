@@ -16,12 +16,20 @@ import org.jellyfin.sdk.model.ClientInfo
 import org.jellyfin.sdk.model.DeviceInfo
 import timber.log.Timber
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.Duration.Companion.minutes
+
+private data class PluginSettingsCacheEntry(
+    val response: PluginSettingsResponse,
+    val expiresAtMillis: Long,
+)
 
 /**
  * Fetches merged settings (global + user) from the Wholphin Companion plugin.
  * Returns null if the plugin is not available or the endpoint returns an error.
+ * Results are cached in-memory by userId with a short TTL to avoid duplicate network calls.
  */
 @Singleton
 class PluginSettingsService
@@ -34,13 +42,28 @@ class PluginSettingsService
     ) {
         private val json = Json { ignoreUnknownKeys = true }
 
+        private val cache = ConcurrentHashMap<String, PluginSettingsCacheEntry>()
+        private val cacheTtlMillis = 5.minutes.inWholeMilliseconds
+
+        private fun cacheKey(userId: UUID?): String = userId?.toString() ?: "null"
+
         /**
          * Fetches settings from GET /Wholphin/Settings.
+         * Uses in-memory cache keyed by userId to avoid duplicate fetches (e.g. from appPreferencesFlow and HomeViewModel).
          * @param userId Optional Jellyfin user ID; if null, plugin may resolve from request context.
          * @return Parsed response or null on non-200, 404, or parse error.
          */
         suspend fun fetchSettings(userId: UUID?): PluginSettingsResponse? =
             withContext(Dispatchers.IO) {
+                val key = cacheKey(userId)
+                val now = System.currentTimeMillis()
+                cache[key]?.let { entry ->
+                    if (now < entry.expiresAtMillis) {
+                        Timber.d("PluginSettingsService: Cache hit for userId=%s", userId)
+                        return@withContext entry.response
+                    }
+                    cache.remove(key)
+                }
                 try {
                     val baseUrl = api.baseUrl
                     val accessToken = api.accessToken
@@ -101,6 +124,10 @@ class PluginSettingsService
                             "PluginSettingsService: Parsed settings globalKeys=%s userPresent=%s",
                             parsed.global.keys.toList(),
                             parsed.user != null,
+                        )
+                        cache[key] = PluginSettingsCacheEntry(
+                            response = parsed,
+                            expiresAtMillis = now + cacheTtlMillis,
                         )
                         parsed
                     }

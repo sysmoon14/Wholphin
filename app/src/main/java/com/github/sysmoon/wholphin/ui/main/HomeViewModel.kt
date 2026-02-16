@@ -33,6 +33,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
@@ -110,15 +112,25 @@ class HomeViewModel
                 }
 
                 serverRepository.currentUserDto.value?.let { userDto ->
-                    // Fetch and apply plugin settings (global + user prefs, Seerr, nav drawer)
-                    serverRepository.currentUser.value?.let { jellyfinUser ->
-                        val settings = pluginSettingsService.fetchSettings(userDto.id)
-                        if (settings != null) {
-                            pluginSettingsApplicator.apply(settings, jellyfinUser)
+                    val jellyfinUser = serverRepository.currentUser.value
+                    // Fetch plugin settings and companion layout in parallel (both may be cached from preload).
+                    val (settings, layout) = coroutineScope {
+                        val settingsDeferred = async {
+                            pluginSettingsService.fetchSettings(userDto.id)
                         }
+                        val layoutDeferred = async {
+                            if (backgroundRefresh && cachedPluginLayout != null && cachedPluginLayoutUserId == userDto.id) {
+                                cachedPluginLayout
+                            } else {
+                                homeScreenSectionsService.getLayoutRows(userDto.id)
+                            }
+                        }
+                        Pair(settingsDeferred.await(), layoutDeferred.await())
+                    }
+                    if (settings != null && jellyfinUser != null) {
+                        pluginSettingsApplicator.apply(settings, jellyfinUser)
                     }
                     // Try custom sections from companion plugin; if none, use default home rows.
-                    // On first load we fetch layout + content; on subsequent visits we keep the same rows and only refresh content.
                     val useCachedLayout =
                         backgroundRefresh &&
                             cachedPluginLayout != null &&
@@ -133,22 +145,19 @@ class HomeViewModel
                                 enableRewatchingNextUp = prefs.enableRewatchingNextUp,
                                 existingRows = existingRows,
                             ).takeIf { it.isNotEmpty() }
+                        } else if (layout != null) {
+                            cachedPluginLayout = layout
+                            cachedPluginLayoutUserId = userDto.id
+                            homeScreenSectionsService.buildRowsFromLayout(
+                                layoutRows = layout,
+                                userId = userDto.id,
+                                itemsPerRow = limit,
+                                enableRewatchingNextUp = prefs.enableRewatchingNextUp,
+                            ).takeIf { it.isNotEmpty() }
                         } else {
-                            val layout = homeScreenSectionsService.getLayoutRows(userDto.id)
-                            if (layout != null) {
-                                cachedPluginLayout = layout
-                                cachedPluginLayoutUserId = userDto.id
-                                homeScreenSectionsService.buildRowsFromLayout(
-                                    layoutRows = layout,
-                                    userId = userDto.id,
-                                    itemsPerRow = limit,
-                                    enableRewatchingNextUp = prefs.enableRewatchingNextUp,
-                                ).takeIf { it.isNotEmpty() }
-                            } else {
-                                cachedPluginLayout = null
-                                cachedPluginLayoutUserId = null
-                                null
-                            }
+                            cachedPluginLayout = null
+                            cachedPluginLayoutUserId = null
+                            null
                         }
 
                     if (customRows != null) {
@@ -166,6 +175,7 @@ class HomeViewModel
                             }
                         }
                         refreshState.setValueOnMain(LoadingState.Success)
+                        preloadLibraryTabs(userDto.id, limit, prefs.enableRewatchingNextUp)
                     } else {
                         // Plugin not available, use default behavior
                         cachedPluginLayout = null
@@ -226,6 +236,35 @@ class HomeViewModel
                             loadingState.value = LoadingState.Success
                         }
                         refreshState.setValueOnMain(LoadingState.Success)
+                        preloadLibraryTabs(userDto.id, limit, prefs.enableRewatchingNextUp)
+                    }
+                }
+            }
+        }
+
+        /** Preloads library tab data (Movies, Shows, etc.) in background so tab switch shows content without spinner. */
+        private fun preloadLibraryTabs(userId: UUID, itemsPerRow: Int, enableRewatchingNextUp: Boolean) {
+            viewModelScope.launch(Dispatchers.IO + ExceptionHandler()) {
+                val all = navDrawerItemRepository.getNavDrawerItems()
+                val pinned = navDrawerItemRepository.getFilteredNavDrawerItems(all)
+                    .filterIsInstance<ServerNavDrawerItem>()
+                for (item in pinned) {
+                    try {
+                        val layout = homeScreenSectionsService.getLibraryLayoutRows(item.itemId, userId) ?: continue
+                        val rows = homeScreenSectionsService.buildRowsFromLayout(
+                            layout,
+                            userId,
+                            itemsPerRow,
+                            enableRewatchingNextUp,
+                            parentId = item.itemId,
+                            collectionType = item.type,
+                        )
+                        if (rows.isNotEmpty()) {
+                            homeScreenSectionsService.putCachedLibraryRows(userId, item.itemId, rows)
+                            Timber.d("HomeViewModel: Preloaded library tab for %s (%s rows)", item.name, rows.size)
+                        }
+                    } catch (e: Exception) {
+                        Timber.d(e, "HomeViewModel: Preload library tab failed for %s", item.itemId)
                     }
                 }
             }

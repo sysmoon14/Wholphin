@@ -509,12 +509,25 @@ fun createDeviceProfile(
         }
     }
 
-    // Audio channel profile
+    // Audio channel profile (Global)
     codecProfile {
         type = CodecType.VIDEO_AUDIO
 
         conditions {
             ProfileConditionValue.AUDIO_CHANNELS lowerThanOrEquals if (downMixAudio) 2 else 8
+        }
+    }
+
+    // Unrestricted TrueHD Passthrough Profile
+    // This prevents Jellyfin from transcoding high-bitrate, high-sample-rate, or misreported TrueHD tracks.
+    codecProfile {
+        type = CodecType.VIDEO_AUDIO
+        codec = Codec.Audio.TRUEHD
+
+        conditions {
+            // If the user explicitly requested a downmix, honor it.
+            // Otherwise, set the channel ceiling artificially high (32) so Atmos metadata never triggers a transcode.
+            ProfileConditionValue.AUDIO_CHANNELS lowerThanOrEquals if (downMixAudio) 2 else 32
         }
     }
 

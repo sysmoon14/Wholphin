@@ -65,7 +65,9 @@ import com.github.sysmoon.wholphin.ui.AppColors
 import com.github.sysmoon.wholphin.ui.AspectRatios
 import com.github.sysmoon.wholphin.ui.ItemLogoHeight
 import com.github.sysmoon.wholphin.ui.ItemLogoWidth
+import com.github.sysmoon.wholphin.preferences.AppThemeColors
 import com.github.sysmoon.wholphin.ui.LocalImageUrlService
+import com.github.sysmoon.wholphin.ui.theme.LocalTheme
 import com.github.sysmoon.wholphin.ui.TimeFormatter
 import com.github.sysmoon.wholphin.ui.cards.ChapterCard
 import com.github.sysmoon.wholphin.ui.cards.SeasonCard
@@ -142,15 +144,23 @@ fun PlaybackOverlay(
     var controllerHeight by remember { mutableStateOf(0.dp) }
     var state by remember { mutableStateOf(OverlayViewState.CONTROLLER) }
 
-    // Background scrim for OSD readability
+    // Background scrim for OSD readability.
+    // Use stronger scrim for Black theme so controls remain visible over bright HDR content.
+    val theme = LocalTheme.current
     val scrimBrush =
-        remember {
+        remember(theme) {
+            val (midAlpha, bottomAlpha) =
+                if (theme == AppThemeColors.OLED_BLACK) {
+                    0.7f to 0.95f
+                } else {
+                    0.5f to 0.80f
+                }
             Brush.verticalGradient(
                 colors =
                     listOf(
                         Color.Transparent,
-                        Color.Black.copy(alpha = 0.5f),
-                        Color.Black.copy(alpha = 0.80f),
+                        Color.Black.copy(alpha = midAlpha),
+                        Color.Black.copy(alpha = bottomAlpha),
                     ),
             )
         }

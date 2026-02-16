@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -431,15 +432,27 @@ fun PlaybackButton(
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource? = null,
 ) {
+    val theme = LocalTheme.current
     val selectedColor = MaterialTheme.colorScheme.border
+    val buttonContainerColor =
+        if (theme == AppThemeColors.OLED_BLACK) {
+            AppColors.TransparentBlack50
+        } else {
+            AppColors.TransparentBlack25
+        }
+    // Black theme uses a light color for focused background (border); use dark icon for contrast.
+    val focusedContentColor =
+        if (theme == AppThemeColors.OLED_BLACK) Color.Black
+        else MaterialTheme.colorScheme.inverseOnSurface
     Button(
         enabled = enabled,
         onClick = onClick,
 //        shape = ButtonDefaults.shape(CircleShape),
         colors =
             ClickableSurfaceDefaults.colors(
-                containerColor = AppColors.TransparentBlack25,
+                containerColor = buttonContainerColor,
                 focusedContainerColor = selectedColor,
+                focusedContentColor = focusedContentColor,
             ),
         contentPadding = PaddingValues(4.dp),
         interactionSource = interactionSource,

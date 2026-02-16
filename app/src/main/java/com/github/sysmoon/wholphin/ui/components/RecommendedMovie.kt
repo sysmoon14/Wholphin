@@ -14,6 +14,7 @@ import com.github.sysmoon.wholphin.preferences.AppPreferences
 import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.services.BackdropService
 import com.github.sysmoon.wholphin.services.FavoriteWatchManager
+import com.github.sysmoon.wholphin.services.HomeScreenSectionsService
 import com.github.sysmoon.wholphin.services.NavigationManager
 import com.github.sysmoon.wholphin.ui.SlimItemFields
 import com.github.sysmoon.wholphin.ui.data.RowColumn
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.SortOrder
@@ -48,12 +50,13 @@ import java.util.UUID
 
 @HiltViewModel(assistedFactory = RecommendedMovieViewModel.Factory::class)
 class RecommendedMovieViewModel
-    @AssistedInject
+        @AssistedInject
     constructor(
         @ApplicationContext context: Context,
         private val api: ApiClient,
         private val serverRepository: ServerRepository,
         private val preferencesDataStore: DataStore<AppPreferences>,
+        private val homeScreenSectionsService: HomeScreenSectionsService,
         @Assisted val parentId: UUID,
         navigationManager: NavigationManager,
         favoriteWatchManager: FavoriteWatchManager,
@@ -75,13 +78,34 @@ class RecommendedMovieViewModel
 
         override fun init() {
             viewModelScope.launch(Dispatchers.IO + ExceptionHandler()) {
+                val userId = serverRepository.currentUser.value?.id ?: return@launch
                 val itemsPerRow =
                     preferencesDataStore.data
                         .firstOrNull()
                         ?.homePagePreferences
                         ?.maxItemsPerRow
                         ?: AppPreference.HomePageItems.defaultValue.toInt()
+                val enableRewatchingNextUp =
+                    preferencesDataStore.data.firstOrNull()?.homePagePreferences?.enableRewatchingNextUp ?: false
                 try {
+                    val libraryLayoutRows = homeScreenSectionsService.getLibraryLayoutRows(parentId, userId)
+                    if (!libraryLayoutRows.isNullOrEmpty()) {
+                        val builtRows =
+                            homeScreenSectionsService.buildRowsFromLayout(
+                                libraryLayoutRows,
+                                userId,
+                                itemsPerRow,
+                                enableRewatchingNextUp,
+                                parentId = parentId,
+                                collectionType = CollectionType.MOVIES,
+                            )
+                        withContext(Dispatchers.Main) {
+                            rows.value = builtRows
+                            loading.value = LoadingState.Success
+                        }
+                        return@launch
+                    }
+                    // Fallback: use hardcoded rows when no library layout is configured
                     val resumeItemsRequest =
                         GetResumeItemsRequest(
                             parentId = parentId,

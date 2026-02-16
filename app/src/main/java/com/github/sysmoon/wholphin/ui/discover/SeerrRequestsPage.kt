@@ -18,6 +18,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.github.sysmoon.wholphin.R
+import com.github.sysmoon.wholphin.api.seerr.infrastructure.ClientException
 import com.github.sysmoon.wholphin.api.seerr.model.MediaRequest
 import com.github.sysmoon.wholphin.data.model.DiscoverItem
 import com.github.sysmoon.wholphin.data.model.SeerrItemType
@@ -95,10 +96,24 @@ class SeerrRequestsViewModel
         ) {
             val semaphore = Semaphore(3)
             val mediaRequests =
-                seerrService.api.requestApi
-                    .requestGet(take = take, skip = skip)
-                    .results
-                    .orEmpty()
+                try {
+                    seerrService.api.requestApi
+                        .requestGet(take = take, skip = skip)
+                        .results
+                        .orEmpty()
+                } catch (e: ClientException) {
+                    Timber.w(e, "Seerr requestGet failed (e.g. 401 when navigating away)")
+                    state.update {
+                        it.copy(requests = DataLoadingState.Error(e.message ?: "Request failed", e))
+                    }
+                    return
+                } catch (e: Exception) {
+                    Timber.w(e, "Seerr requestGet failed")
+                    state.update {
+                        it.copy(requests = DataLoadingState.Error(e.message ?: "Request failed", e))
+                    }
+                    return
+                }
             val requests =
                 mediaRequests.mapNotNull { request ->
                     if (request.media?.tmdbId != null) {

@@ -45,10 +45,12 @@ class LatestNextUpService
             userId: UUID,
             limit: Int,
             includeEpisodes: Boolean,
+            parentId: UUID? = null,
         ): List<BaseItem> {
             val request =
                 GetResumeItemsRequest(
                     userId = userId,
+                    parentId = parentId,
                     fields = SlimItemFields,
                     limit = limit,
                     includeItemTypes =
@@ -76,13 +78,14 @@ class LatestNextUpService
             limit: Int,
             enableRewatching: Boolean,
             enableResumable: Boolean,
+            parentId: UUID? = null,
         ): List<BaseItem> {
             val request =
                 GetNextUpRequest(
                     userId = userId,
                     fields = SlimItemFields,
                     imageTypeLimit = 1,
-                    parentId = null,
+                    parentId = parentId,
                     limit = limit,
                     enableResumable = enableResumable,
                     enableUserData = true,

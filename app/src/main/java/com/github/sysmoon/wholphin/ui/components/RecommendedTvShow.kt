@@ -13,6 +13,7 @@ import com.github.sysmoon.wholphin.preferences.AppPreferences
 import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.services.BackdropService
 import com.github.sysmoon.wholphin.services.FavoriteWatchManager
+import com.github.sysmoon.wholphin.services.HomeScreenSectionsService
 import com.github.sysmoon.wholphin.services.LatestNextUpService
 import com.github.sysmoon.wholphin.services.NavigationManager
 import com.github.sysmoon.wholphin.ui.SlimItemFields
@@ -39,6 +40,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.SortOrder
@@ -51,13 +53,14 @@ import java.util.UUID
 
 @HiltViewModel(assistedFactory = RecommendedTvShowViewModel.Factory::class)
 class RecommendedTvShowViewModel
-    @AssistedInject
+        @AssistedInject
     constructor(
         @ApplicationContext context: Context,
         private val api: ApiClient,
         private val serverRepository: ServerRepository,
         private val preferencesDataStore: DataStore<AppPreferences>,
         private val lastestNextUpService: LatestNextUpService,
+        private val homeScreenSectionsService: HomeScreenSectionsService,
         @Assisted val parentId: UUID,
         navigationManager: NavigationManager,
         favoriteWatchManager: FavoriteWatchManager,
@@ -79,12 +82,31 @@ class RecommendedTvShowViewModel
 
         override fun init() {
             viewModelScope.launch(Dispatchers.IO + ExceptionHandler()) {
+                val userId = serverRepository.currentUser.value?.id ?: return@launch
                 val preferences =
                     preferencesDataStore.data.firstOrNull() ?: AppPreferences.getDefaultInstance()
                 val combineNextUp = preferences.homePagePreferences.combineContinueNext
                 val itemsPerRow = preferences.homePagePreferences.maxItemsPerRow
-                val userId = serverRepository.currentUser.value?.id
+                val enableRewatchingNextUp = preferences.homePagePreferences.enableRewatchingNextUp
                 try {
+                    val libraryLayoutRows = homeScreenSectionsService.getLibraryLayoutRows(parentId, userId)
+                    if (!libraryLayoutRows.isNullOrEmpty()) {
+                        val builtRows =
+                            homeScreenSectionsService.buildRowsFromLayout(
+                                libraryLayoutRows,
+                                userId,
+                                itemsPerRow,
+                                enableRewatchingNextUp,
+                                parentId = parentId,
+                                collectionType = CollectionType.TVSHOWS,
+                            )
+                        withContext(Dispatchers.Main) {
+                            rows.value = builtRows
+                            loading.value = LoadingState.Success
+                        }
+                        return@launch
+                    }
+                    // Fallback: use hardcoded rows when no library layout is configured
                     val resumeItemsDeferred =
                         viewModelScope.async(Dispatchers.IO) {
                             val resumeItemsRequest =

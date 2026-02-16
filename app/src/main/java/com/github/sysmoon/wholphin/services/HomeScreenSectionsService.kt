@@ -30,6 +30,7 @@ import org.jellyfin.sdk.api.client.util.AuthorizationHeaderBuilder
 import org.jellyfin.sdk.model.ClientInfo
 import org.jellyfin.sdk.model.DeviceInfo
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.SortOrder
 import org.jellyfin.sdk.model.api.request.GetItemsRequest
@@ -97,17 +98,29 @@ class HomeScreenSectionsService
         /**
          * Builds home row content from an existing layout (e.g. cached from first load).
          * Use this on subsequent visits to refresh only content without changing row order or types.
+         * When parentId and collectionType are set (library context), rows are scoped to that library
+         * and collection rows are filtered to only items belonging to the library.
          */
         suspend fun buildRowsFromLayout(
             layoutRows: List<WholphinRow>,
             userId: UUID,
             itemsPerRow: Int,
             enableRewatchingNextUp: Boolean,
+            parentId: UUID? = null,
+            collectionType: CollectionType? = null,
         ): List<HomeRowLoadingState> =
             withContext(Dispatchers.IO) {
                 layoutRows.mapNotNull { row ->
                     try {
-                        buildRow(row, userId, itemsPerRow, enableRewatchingNextUp, isHideWatchedItems(row))
+                        buildRow(
+                            row,
+                            userId,
+                            itemsPerRow,
+                            enableRewatchingNextUp,
+                            isHideWatchedItems(row),
+                            parentId,
+                            collectionType,
+                        )
                     } catch (ex: Exception) {
                         Timber.e(ex, "Error building row for type=%s", row.type)
                         val title = resolveRowTitle(row)
@@ -131,7 +144,15 @@ class HomeScreenSectionsService
                 layoutRows.mapIndexed { index, row ->
                     if (isRowContentRefreshable(row)) {
                         try {
-                            buildRow(row, userId, itemsPerRow, enableRewatchingNextUp, isHideWatchedItems(row))
+                            buildRow(
+                                row,
+                                userId,
+                                itemsPerRow,
+                                enableRewatchingNextUp,
+                                isHideWatchedItems(row),
+                                null,
+                                null,
+                            )
                                 ?: existingRows.getOrNull(index)
                         } catch (ex: Exception) {
                             Timber.e(ex, "Error building row for type=%s", row.type)
@@ -141,7 +162,15 @@ class HomeScreenSectionsService
                     } else {
                         existingRows.getOrNull(index)
                             ?: try {
-                                buildRow(row, userId, itemsPerRow, enableRewatchingNextUp, isHideWatchedItems(row))
+                                buildRow(
+                                    row,
+                                    userId,
+                                    itemsPerRow,
+                                    enableRewatchingNextUp,
+                                    isHideWatchedItems(row),
+                                    null,
+                                    null,
+                                )
                             } catch (ex: Exception) {
                                 Timber.e(ex, "Error building row for type=%s", row.type)
                                 val title = resolveRowTitle(row)
@@ -244,6 +273,128 @@ class HomeScreenSectionsService
             }
         }
 
+        private suspend fun fetchConfigJsonString(
+            baseUrl: String,
+            accessToken: String,
+            userId: UUID?,
+        ): String? =
+            withContext(Dispatchers.IO) {
+                try {
+                    val base = baseUrl.toHttpUrlOrNull() ?: return@withContext null
+                    val url =
+                        base
+                            .newBuilder()
+                            .addPathSegment("Wholphin")
+                            .addPathSegment("Config")
+                            .apply {
+                                if (userId != null) {
+                                    addQueryParameter("userId", formatUserId(userId))
+                                }
+                            }
+                            .build()
+                    val authHeader =
+                        AuthorizationHeaderBuilder.buildHeader(
+                            clientName = clientInfo.name,
+                            clientVersion = clientInfo.version,
+                            deviceId = deviceInfo.id,
+                            deviceName = deviceInfo.name,
+                            accessToken = accessToken,
+                        )
+                    val request =
+                        Request
+                            .Builder()
+                            .url(url)
+                            .addHeader("Authorization", authHeader)
+                            .addHeader("X-Emby-Token", accessToken)
+                            .get()
+                            .build()
+                    okHttpClient.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) return@withContext null
+                        val body = response.body.string()
+                        if (body.isBlank()) null else body
+                    }
+                } catch (ex: Exception) {
+                    Timber.e(ex, "HomeScreenSectionsService: Error fetching config")
+                    null
+                }
+            }
+
+        private fun parseLibraryLayoutRowsFromJson(jsonString: String): Map<String, List<WholphinRow>> {
+            return try {
+                val root = json.parseToJsonElement(jsonString).jsonObject
+                val libraryLayoutsEl = root["LibraryLayouts"] ?: root["libraryLayouts"] ?: return emptyMap()
+                val libraryLayoutsObj = libraryLayoutsEl.jsonObject
+                val result = mutableMapOf<String, List<WholphinRow>>()
+                for ((viewId, sectionsEl) in libraryLayoutsObj) {
+                    val sectionsArray = sectionsEl.jsonArray
+                    val rows = mutableListOf<WholphinRow>()
+                    for (sectionEl in sectionsArray) {
+                        val section = sectionEl.jsonObject
+                        val rowsEl = section["rows"] ?: section["Rows"] ?: continue
+                        val rowArray = rowsEl.jsonArray
+                        for (rowEl in rowArray) {
+                            val rowObj = rowEl.jsonObject
+                            val rowType = (rowObj["type"] ?: rowObj["Type"])?.jsonPrimitive?.contentOrNull
+                            val label = (rowObj["label"] ?: rowObj["Label"])?.jsonPrimitive?.contentOrNull
+                            val pluginId = (rowObj["pluginId"] ?: rowObj["PluginId"])?.jsonPrimitive?.contentOrNull
+                            val hideWatchedItems =
+                                (rowObj["HideWatchedItems"] ?: rowObj["hideWatchedItems"])?.let { el ->
+                                    when (el) {
+                                        is kotlinx.serialization.json.JsonPrimitive -> when (el.contentOrNull) {
+                                            "true" -> true
+                                            "false" -> false
+                                            else -> null
+                                        }
+                                        else -> null
+                                    }
+                                }
+                            val endpointParams = (rowObj["endpointParams"] ?: rowObj["EndpointParams"])?.jsonObject
+                            rows.add(
+                                WholphinRow(
+                                    type = rowType,
+                                    label = label,
+                                    pluginId = pluginId,
+                                    hideWatchedItems = hideWatchedItems,
+                                    endpointParams = endpointParams,
+                                ),
+                            )
+                        }
+                    }
+                    result[viewId] = rows
+                }
+                result
+            } catch (ex: Exception) {
+                Timber.e(ex, "HomeScreenSectionsService: Error parsing LibraryLayouts")
+                emptyMap()
+            }
+        }
+
+        suspend fun getLibraryLayoutRows(viewId: UUID, userId: UUID): List<WholphinRow>? =
+            withContext(Dispatchers.IO) {
+                try {
+                    val baseUrl = api.baseUrl
+                    val accessToken = api.accessToken
+                    if (baseUrl.isNullOrBlank() || accessToken.isNullOrBlank()) return@withContext null
+                    val jsonString = fetchConfigJsonString(baseUrl, accessToken, userId)
+                        ?: fetchConfigJsonString(baseUrl, accessToken, null)
+                        ?: return@withContext null
+                    val libraryLayouts = parseLibraryLayoutRowsFromJson(jsonString)
+                    val viewIdStr = viewId.toString()
+                    val rows =
+                        libraryLayouts[viewIdStr]
+                            ?: libraryLayouts[viewIdStr.replace("-", "")]
+                    if (rows.isNullOrEmpty()) {
+                        Timber.d("HomeScreenSectionsService: No library layout for viewId=%s", viewIdStr)
+                        return@withContext null
+                    }
+                    Timber.d("HomeScreenSectionsService: getLibraryLayoutRows returning %s rows for viewId=%s", rows.size, viewIdStr)
+                    rows
+                } catch (ex: Exception) {
+                    Timber.e(ex, "HomeScreenSectionsService: getLibraryLayoutRows failed")
+                    null
+                }
+            }
+
         private fun parseLayoutResponse(jsonString: String): List<WholphinRow>? {
             return try {
                 val config = json.decodeFromString(WholphinConfig.serializer(), jsonString)
@@ -326,10 +477,29 @@ class HomeScreenSectionsService
             itemsPerRow: Int,
             enableRewatchingNextUp: Boolean,
             hideWatchedItems: Boolean = false,
+            parentId: UUID? = null,
+            collectionType: CollectionType? = null,
         ): HomeRowLoadingState? {
             return when (row.type?.lowercase()) {
-                "system" -> buildSystemRow(row, userId, itemsPerRow, enableRewatchingNextUp, hideWatchedItems)
-                "collection" -> buildCollectionRow(row, userId, itemsPerRow, hideWatchedItems)
+                "system" ->
+                    buildSystemRow(
+                        row,
+                        userId,
+                        itemsPerRow,
+                        enableRewatchingNextUp,
+                        hideWatchedItems,
+                        parentId,
+                        collectionType,
+                    )
+                "collection" ->
+                    buildCollectionRow(
+                        row,
+                        userId,
+                        itemsPerRow,
+                        hideWatchedItems,
+                        parentId,
+                        collectionType,
+                    )
                 else -> {
                     Timber.w("HomeScreenSectionsService: Unsupported row type=%s", row.type)
                     null
@@ -343,6 +513,8 @@ class HomeScreenSectionsService
             itemsPerRow: Int,
             enableRewatchingNextUp: Boolean,
             hideWatchedItems: Boolean = false,
+            parentId: UUID? = null,
+            collectionType: CollectionType? = null,
         ): HomeRowLoadingState? {
             val nativeRow = row.endpointParams?.get("NativeRow")?.jsonPrimitive?.contentOrNull
             if (nativeRow.isNullOrBlank()) {
@@ -371,11 +543,37 @@ class HomeScreenSectionsService
 
             val items =
                 when (nativeRow) {
-                    "ContinueWatching" -> latestNextUpService.getResume(userId, itemsPerRow, true)
-                    "NextUp" -> latestNextUpService.getNextUp(userId, itemsPerRow, enableRewatchingNextUp, false)
+                    "ContinueWatching" ->
+                        latestNextUpService.getResume(
+                            userId,
+                            itemsPerRow,
+                            includeEpisodes = parentId != null,
+                            parentId = parentId,
+                        )
+                    "NextUp" ->
+                        latestNextUpService.getNextUp(
+                            userId,
+                            itemsPerRow,
+                            enableRewatchingNextUp,
+                            false,
+                            parentId = parentId,
+                        )
                     "ContinueWatchingCombined" -> {
-                        val resume = latestNextUpService.getResume(userId, itemsPerRow, true)
-                        val nextUp = latestNextUpService.getNextUp(userId, itemsPerRow, enableRewatchingNextUp, false)
+                        val resume =
+                            latestNextUpService.getResume(
+                                userId,
+                                itemsPerRow,
+                                includeEpisodes = true,
+                                parentId = parentId,
+                            )
+                        val nextUp =
+                            latestNextUpService.getNextUp(
+                                userId,
+                                itemsPerRow,
+                                enableRewatchingNextUp,
+                                false,
+                                parentId = parentId,
+                            )
                         latestNextUpService.buildCombined(resume, nextUp).take(itemsPerRow)
                     }
                     "RecentlyAddedMovies" ->
@@ -385,15 +583,27 @@ class HomeScreenSectionsService
                             sortBy = ItemSortBy.DATE_CREATED,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
+                            parentId = parentId,
                             excludeWatched = hideWatchedItems,
                         )
                     "RecentlyAddedShows" ->
+                        getItemsByType(
+                            userId = userId,
+                            includeItemTypes = listOf(BaseItemKind.SERIES),
+                            sortBy = ItemSortBy.DATE_CREATED,
+                            sortOrder = SortOrder.DESCENDING,
+                            limit = itemsPerRow,
+                            parentId = parentId,
+                            excludeWatched = hideWatchedItems,
+                        )
+                    "RecentlyAddedEpisodes" ->
                         getItemsByType(
                             userId = userId,
                             includeItemTypes = listOf(BaseItemKind.EPISODE),
                             sortBy = ItemSortBy.DATE_CREATED,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
+                            parentId = parentId,
                             excludeWatched = hideWatchedItems,
                         )
                     "LatestMovies" ->
@@ -403,6 +613,7 @@ class HomeScreenSectionsService
                             sortBy = ItemSortBy.PREMIERE_DATE,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
+                            parentId = parentId,
                             excludeWatched = hideWatchedItems,
                         )
                     "LatestShows" ->
@@ -412,8 +623,50 @@ class HomeScreenSectionsService
                             sortBy = ItemSortBy.PREMIERE_DATE,
                             sortOrder = SortOrder.DESCENDING,
                             limit = itemsPerRow,
+                            parentId = parentId,
                             excludeWatched = hideWatchedItems,
                         )
+                    "LatestEpisodes" ->
+                        getItemsByType(
+                            userId = userId,
+                            includeItemTypes = listOf(BaseItemKind.EPISODE),
+                            sortBy = ItemSortBy.PREMIERE_DATE,
+                            sortOrder = SortOrder.DESCENDING,
+                            limit = itemsPerRow,
+                            parentId = parentId,
+                            excludeWatched = hideWatchedItems,
+                        )
+                    "Suggestions" -> {
+                        val types =
+                            when (collectionType) {
+                                CollectionType.MOVIES -> listOf(BaseItemKind.MOVIE)
+                                CollectionType.TVSHOWS -> listOf(BaseItemKind.SERIES)
+                                else -> listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
+                            }
+                        getSuggestions(
+                            userId = userId,
+                            includeItemTypes = types,
+                            limit = itemsPerRow,
+                            excludeWatched = hideWatchedItems,
+                        )
+                    }
+                    "TopRatedUnwatched" -> {
+                        val types =
+                            when (collectionType) {
+                                CollectionType.MOVIES -> listOf(BaseItemKind.MOVIE)
+                                CollectionType.TVSHOWS -> listOf(BaseItemKind.SERIES)
+                                else -> listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
+                            }
+                        getItemsByType(
+                            userId = userId,
+                            includeItemTypes = types,
+                            sortBy = ItemSortBy.COMMUNITY_RATING,
+                            sortOrder = SortOrder.DESCENDING,
+                            limit = itemsPerRow,
+                            parentId = parentId,
+                            excludeWatched = true,
+                        )
+                    }
                     "BecauseYouWatched" -> {
                         val baseItemId =
                             extractBasedOnId(row)
@@ -426,9 +679,15 @@ class HomeScreenSectionsService
                                 excludeWatched = hideWatchedItems,
                             )
                         } else {
+                            val types =
+                                when (collectionType) {
+                                    CollectionType.MOVIES -> listOf(BaseItemKind.MOVIE)
+                                    CollectionType.TVSHOWS -> listOf(BaseItemKind.SERIES)
+                                    else -> listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
+                                }
                             getSuggestions(
                                 userId = userId,
-                                includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
+                                includeItemTypes = types,
                                 limit = itemsPerRow,
                                 excludeWatched = hideWatchedItems,
                             )
@@ -439,6 +698,7 @@ class HomeScreenSectionsService
                             userId = userId,
                             includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
                             limit = itemsPerRow,
+                            parentId = parentId,
                         )
                     else -> {
                         Timber.w("HomeScreenSectionsService: Unknown NativeRow=%s", nativeRow)
@@ -455,6 +715,8 @@ class HomeScreenSectionsService
             userId: UUID,
             itemsPerRow: Int,
             hideWatchedItems: Boolean = false,
+            parentId: UUID? = null,
+            collectionType: CollectionType? = null,
         ): HomeRowLoadingState? {
             val collectionId = parseAnyIdToUuidOrNull(row.pluginId)
             if (collectionId == null) {
@@ -466,7 +728,7 @@ class HomeScreenSectionsService
                 )
             }
 
-            val items =
+            var items =
                 getCollectionItems(
                     userId = userId,
                     limit = itemsPerRow,
@@ -474,6 +736,24 @@ class HomeScreenSectionsService
                     excludeItemIds = listOf(collectionId),
                     excludeWatched = hideWatchedItems,
                 )
+
+            // When showing a collection in a library, only display items that belong to that library.
+            // If none match (e.g. "Trending Movies" in Shows library), hide the row entirely.
+            if (collectionType != null && items.isNotEmpty()) {
+                val allowedTypes =
+                    when (collectionType) {
+                        CollectionType.MOVIES -> setOf(BaseItemKind.MOVIE)
+                        CollectionType.TVSHOWS -> setOf(BaseItemKind.SERIES, BaseItemKind.EPISODE)
+                        else -> null
+                    }
+                if (allowedTypes != null) {
+                    items = items.filter { it.type in allowedTypes }
+                    if (items.isEmpty()) {
+                        Timber.d("HomeScreenSectionsService: Collection row has no items for library type %s, hiding", collectionType)
+                        return null
+                    }
+                }
+            }
 
             val (boxSetName, viewAllItem) = fetchBoxSetViewAll(collectionId)
             val title =
@@ -548,6 +828,9 @@ class HomeScreenSectionsService
             recursive: Boolean = parentId == null,
             excludeWatched: Boolean = false,
         ): List<BaseItem> {
+            // Episodes are nested under series in a Shows library; we must recurse to get them.
+            val effectiveRecursive =
+                recursive || (parentId != null && BaseItemKind.EPISODE in includeItemTypes)
             val request =
                 GetItemsRequest(
                     userId = userId,
@@ -555,7 +838,7 @@ class HomeScreenSectionsService
                     includeItemTypes = includeItemTypes.takeIf { it.isNotEmpty() },
                     excludeItemIds = excludeItemIds,
                     fields = SlimItemFields,
-                    recursive = recursive,
+                    recursive = effectiveRecursive,
                     enableUserData = true,
                     isPlayed = if (excludeWatched) false else null,
                     sortBy = listOf(sortBy),
@@ -640,13 +923,15 @@ class HomeScreenSectionsService
             userId: UUID,
             includeItemTypes: List<BaseItemKind>,
             limit: Int,
+            parentId: UUID? = null,
         ): List<BaseItem> {
             val request =
                 GetItemsRequest(
                     userId = userId,
+                    parentId = parentId,
                     includeItemTypes = includeItemTypes,
                     fields = SlimItemFields,
-                    recursive = true,
+                    recursive = parentId == null,
                     enableUserData = true,
                     isPlayed = true,
                     sortBy = listOf(ItemSortBy.DATE_PLAYED),
@@ -727,10 +1012,15 @@ class HomeScreenSectionsService
                 "NextUp" -> context.getString(R.string.next_up)
                 "RecentlyAddedMovies",
                 "RecentlyAddedShows",
+                "RecentlyAddedEpisodes",
+                -> context.getString(R.string.recently_added)
                 "LatestMovies",
                 "LatestShows",
-                -> context.getString(R.string.recently_added)
+                "LatestEpisodes",
+                -> context.getString(R.string.recently_released)
                 "BecauseYouWatched" -> context.getString(R.string.suggestions)
+                "Suggestions" -> context.getString(R.string.suggestions)
+                "TopRatedUnwatched" -> context.getString(R.string.top_unwatched)
                 else -> nativeRow
             }
         }

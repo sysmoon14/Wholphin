@@ -54,6 +54,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -71,6 +72,7 @@ import com.github.sysmoon.wholphin.ui.components.ErrorMessage
 import com.github.sysmoon.wholphin.ui.components.LoadingPage
 import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.ImageType
 
@@ -170,6 +172,7 @@ fun SeriesOverviewContent(
                     .bringIntoViewRequester(bringIntoViewRequester),
             horizontalArrangement = Arrangement.spacedBy(SeasonEpisodeGap),
         ) {
+            val seasonListState = rememberLazyListState()
             Column(
                 modifier =
                     Modifier
@@ -188,7 +191,12 @@ fun SeriesOverviewContent(
                     seasons = seasons,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                val seasonListState = rememberLazyListState()
+                LaunchedEffect(position.seasonTabIndex, seasons.size) {
+                    if (seasons.isNotEmpty()) {
+                        val index = position.seasonTabIndex.coerceIn(0, seasons.size - 1)
+                        seasonListState.animateScrollToItem(index)
+                    }
+                }
                 val seasonLayoutInfo = seasonListState.layoutInfo
                 val lastVisibleSeasonIndex = seasonLayoutInfo.visibleItemsInfo.maxOfOrNull { it.index }
                 val moreSeasonsBelow =
@@ -206,11 +214,20 @@ fun SeriesOverviewContent(
                     ) { index, season ->
                         val isSelected = index == position.seasonTabIndex
                         val seasonInteractionSource = remember(index) { MutableInteractionSource() }
+                        val isSeasonFocused by seasonInteractionSource.collectIsFocusedAsState()
                         val isDimmed = moreSeasonsBelow && index == lastVisibleSeasonIndex
                         var ignoreNextSelectKeyUp by remember(index) { mutableStateOf(false) }
                         val onSeasonClick = {
                             onChangeSeason(index)
                             requestFocusAfterSeason = true
+                        }
+                        LaunchedEffect(isSeasonFocused) {
+                            if (isSeasonFocused && index != position.seasonTabIndex) {
+                                delay(450)
+                                if (index != position.seasonTabIndex) {
+                                    onChangeSeason(index)
+                                }
+                            }
                         }
                         val isSelectKey: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = {
                             it.nativeKeyEvent.keyCode in
@@ -278,11 +295,24 @@ fun SeriesOverviewContent(
                                         ?: "$seasonStr ${index + 1}",
                                     style = MaterialTheme.typography.labelLarge,
                                 )
-                                val episodeCount = season?.data?.childCount ?: 0
+                                val (episodeCountText, episodeCountStyle, episodeCountColor) =
+                                    if (season == null) {
+                                        Triple(
+                                            context.getString(R.string.loading),
+                                            MaterialTheme.typography.labelSmall.copy(fontStyle = FontStyle.Italic),
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        )
+                                    } else {
+                                        Triple(
+                                            context.getString(R.string.episode_count_format, season.data?.childCount ?: 0),
+                                            MaterialTheme.typography.labelSmall,
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                 Text(
-                                    text = context.getString(R.string.episode_count_format, episodeCount),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    text = episodeCountText,
+                                    style = episodeCountStyle,
+                                    color = episodeCountColor,
                                 )
                             }
                         }
@@ -299,6 +329,15 @@ fun SeriesOverviewContent(
                 seasonFocusRequesters = seasonFocusRequesters,
                 scope = scope,
                 bringIntoViewRequester = bringIntoViewRequester,
+                onFocusLeftToSeasonList = {
+                    scope.launch {
+                        val index = position.seasonTabIndex.coerceIn(0, seasons.size - 1)
+                        if (seasons.isNotEmpty()) {
+                            seasonListState.animateScrollToItem(index)
+                            seasonFocusRequesters.getOrNull(index)?.requestFocus()
+                        }
+                    }
+                },
                 chosenStreams = chosenStreams,
                 onFocusEpisode = onFocusEpisode,
                 onSelectNextEpisode = onSelectNextEpisode,
@@ -321,6 +360,7 @@ private fun RowScope.EpisodeAreaInRow(
     seasonFocusRequesters: List<FocusRequester>,
     scope: kotlinx.coroutines.CoroutineScope,
     bringIntoViewRequester: BringIntoViewRequester,
+    onFocusLeftToSeasonList: () -> Unit,
     chosenStreams: ChosenStreams?,
     onFocusEpisode: (Int) -> Unit,
     onSelectNextEpisode: () -> Unit,
@@ -429,6 +469,12 @@ private fun RowScope.EpisodeAreaInRow(
                                 }
                                 .onPreviewKeyEvent { event ->
                                     when (event.key) {
+                                        Key.DirectionLeft -> {
+                                            if (event.type == KeyEventType.KeyDown) {
+                                                onFocusLeftToSeasonList()
+                                            }
+                                            true
+                                        }
                                         Key.DirectionDown -> {
                                             if (event.type == KeyEventType.KeyDown) {
                                                 val isRepeat = event.nativeKeyEvent.repeatCount > 0

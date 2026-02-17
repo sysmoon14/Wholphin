@@ -98,11 +98,10 @@ fun SeriesOverview(
     val episodeList = (episodes as? EpisodeList.Success)?.episodes
 
     val position by viewModel.position.collectAsState(SeriesOverviewPosition(0, 0))
-    LaunchedEffect(Unit) {
-        if (seasons.isNotEmpty()) {
-            seasons.getOrNull(position.seasonTabIndex)?.let {
-                viewModel.loadEpisodes(it.id)
-            }
+    val seasonAtPosition = seasons.getOrNull(position.seasonTabIndex)
+    LaunchedEffect(position.seasonTabIndex, seasonAtPosition) {
+        if (seasons.isNotEmpty() && seasonAtPosition != null) {
+            viewModel.loadEpisodes(seasonAtPosition.id)
         }
     }
 
@@ -269,11 +268,11 @@ fun SeriesOverview(
                     firstItemFocusRequester = firstItemFocusRequester,
                     onChangeSeason = { index ->
                         if (index != position.seasonTabIndex) {
+                            viewModel.position.update {
+                                SeriesOverviewPosition(index, 0)
+                            }
                             seasons.getOrNull(index)?.let { season ->
                                 viewModel.loadEpisodes(season.id)
-                                viewModel.position.update {
-                                    SeriesOverviewPosition(index, 0)
-                                }
                             }
                         }
                     },

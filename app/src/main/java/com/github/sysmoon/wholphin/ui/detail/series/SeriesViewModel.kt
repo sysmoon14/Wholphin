@@ -161,27 +161,26 @@ class SeriesViewModel
                 val episodes = episodeListDeferred.await()
                 Timber.v("Done")
 
-                if (seriesPageType == SeriesPageType.OVERVIEW && seasonEpisodeIds != null) {
-                    viewModelScope.launchIO {
-                        val index =
-                            (seasons as? ApiRequestPager<*>)?.let {
-                                findIndexOf(
-                                    seasonEpisodeIds.seasonNumber,
-                                    seasonEpisodeIds.seasonId,
-                                    it,
-                                )
-                            } ?: 0
-                        Timber.v("Got initial season index: $index")
-                        position.update {
-                            it.copy(seasonTabIndex = index.coerceAtLeast(0))
-                        }
+                val initialSeasonIndex =
+                    if (seriesPageType == SeriesPageType.OVERVIEW && seasonEpisodeIds != null) {
+                        (seasons as? ApiRequestPager<*>)?.let {
+                            findIndexOf(
+                                seasonEpisodeIds.seasonNumber,
+                                seasonEpisodeIds.seasonId,
+                                it,
+                            )
+                        }?.coerceAtLeast(0) ?: 0
+                    } else {
+                        0
                     }
-                }
+                Timber.v("Got initial season index: $initialSeasonIndex")
+
                 val remoteTrailers = trailerService.getRemoteTrailers(item)
                 withContext(Dispatchers.Main) {
                     this@SeriesViewModel.trailers.value = remoteTrailers
                     this@SeriesViewModel.position.update {
                         it.copy(
+                            seasonTabIndex = initialSeasonIndex,
                             episodeRowIndex =
                                 (episodes as? EpisodeList.Success)?.initialEpisodeIndex ?: 0,
                         )
@@ -675,6 +674,17 @@ private suspend fun findIndexOf(
     targetId: UUID?,
     pager: ApiRequestPager<*>,
 ): Int {
+    // Fast path: seasons are typically 1-based (Season 1 at index 0), so try index = targetNum - 1 first.
+    // This avoids loading every page when opening e.g. Season 37.
+    if (targetNum != null && targetNum >= 1) {
+        val candidateIndex = (targetNum - 1).coerceIn(0, pager.size - 1)
+        if (candidateIndex in pager.indices) {
+            val item = pager.getBlocking(candidateIndex)
+            if (item != null && (equalsNotNull(item.indexNumber, targetNum) || equalsNotNull(item.id, targetId))) {
+                return candidateIndex
+            }
+        }
+    }
     val index =
         if (targetId != null && (targetNum == null || targetNum !in pager.indices)) {
             // No hint info, so have to check everything

@@ -26,7 +26,7 @@ fun CollectionFolderMovie(
         preferences = preferences,
         parentId = destination.itemId,
         onFocusPosition = {},
-        resetPositionOnEnter = true,
+        resetPositionOnEnter = false,
         topRowFocusRequester = recommendedTopRowFocusRequester,
         consumeDownToTopRow = true,
         dropEmptyRows = true,

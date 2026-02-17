@@ -105,6 +105,7 @@ import coil3.SingletonImageLoader
 import coil3.imageLoader
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.preferences.AppChoicePreference
+import com.github.sysmoon.wholphin.preferences.AppDestinationPreference
 import com.github.sysmoon.wholphin.preferences.AppPreference
 import com.github.sysmoon.wholphin.preferences.AppPreferences
 import com.github.sysmoon.wholphin.preferences.AppSliderPreference
@@ -147,6 +148,7 @@ import com.github.sysmoon.wholphin.util.LoadingState
 import com.github.sysmoon.wholphin.util.Version
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.File
 
 private fun preferenceTileIcon(pref: AppPreference<AppPreferences, *>): ImageVector? =
     when (pref) {
@@ -591,6 +593,10 @@ fun PreferencesContent(
                                         null to { viewModel.resetSubtitleSettings() }
                                     AppPreference.UserPinnedNavDrawerItems ->
                                         null to { popupPreference = pref }
+                                    is AppDestinationPreference -> null to {
+                                        if (movementSounds) playOnClickSound(context)
+                                        viewModel.navigationManager.navigateTo(pref.destination)
+                                    }
                                     else ->
                                         null to { popupPreference = pref }
                                 }
@@ -923,6 +929,34 @@ private fun PreferencePopupContent(
                 onDismissRequest = onDismiss,
                 waitToLoad = false,
                 dismissOnClick = false,
+            )
+        }
+
+        AppPreference.MpvConfFile -> {
+            val confFile = File(context.filesDir, "mpv.conf")
+            val contents = if (confFile.exists()) confFile.readText() else ""
+            val stringInput =
+                StringInput(
+                    title = title,
+                    value = contents,
+                    keyboardOptions =
+                        androidx.compose.foundation.text.KeyboardOptions(
+                            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
+                            autoCorrectEnabled = false,
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.None,
+                        ),
+                    onSubmit = {
+                        confFile.writeText(it)
+                        onDismiss()
+                    },
+                    maxLines = 10,
+                    confirmDiscard = true,
+                )
+            StringInputDialog(
+                input = stringInput,
+                onSave = { stringInput.onSubmit.invoke(it) },
+                onDismissRequest = onDismiss,
             )
         }
 

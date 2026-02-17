@@ -363,11 +363,14 @@ fun HomePageContent(
         rowColumnPositions[saved.row] = saved.column.coerceIn(0, Int.MAX_VALUE)
         onConsumeRestoredPosition?.invoke()
         firstFocused = true
+        hasResetPosition = true  // Prevent reset LaunchedEffect from overwriting restored position
         previousRow = saved.row
         val index = saved.row.coerceIn(0, rowFocusRequesters.lastIndex)
-        rowFocusRequesters.getOrNull(index)?.tryRequestFocus()
+        // Delay so recomposition runs first: non-hero rows use rowColumnPositions[row] for
+        // focusedIndex; without this, focus would land on the row before it shows the right column.
         delay(50)
         listState.scrollToItem(index)
+        rowFocusRequesters.getOrNull(index)?.tryRequestFocus()
     }
     LaunchedEffect(homeRows, resetPositionOnEnter, navHasFocus) {
         if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
@@ -436,23 +439,32 @@ fun HomePageContent(
                     Modifier
                         .focusGroup()
                         .focusProperties {
-                            // When focus enters from the top nav, always land on the top row.
+                            // When focus enters (e.g. returning from details), use saved position if present so we don't overwrite with (firstRowIndex, 0).
                             onEnter = {
                                 if (homeRows.isEmpty()) {
                                     FocusRequester.Default
                                 } else {
-                                    val targetRow =
-                                        firstRowIndex.coerceIn(0, rowFocusRequesters.lastIndex.coerceAtLeast(0))
-                                    val savedColumn = rowColumnPositions[targetRow] ?: 0
-                                    position =
-                                        RowColumn(
-                                            targetRow,
-                                            savedColumn.coerceAtLeast(0),
-                                        )
-                                    if (targetRow == firstRowIndex) {
-                                        topRowHeroFocusRequester
+                                    val toRestore = savedPositionToRestore
+                                    if (toRestore != null && toRestore.row in 0 until homeRows.size) {
+                                        position = toRestore
+                                        rowColumnPositions[toRestore.row] = toRestore.column.coerceIn(0, Int.MAX_VALUE)
+                                        rowFocusRequesters.getOrNull(toRestore.row.coerceIn(0, rowFocusRequesters.lastIndex))
+                                            ?: rowFocusRequesters.getOrNull(firstRowIndex)
+                                            ?: FocusRequester.Default
                                     } else {
-                                        rowFocusRequesters.getOrNull(targetRow) ?: FocusRequester.Default
+                                        val targetRow =
+                                            firstRowIndex.coerceIn(0, rowFocusRequesters.lastIndex.coerceAtLeast(0))
+                                        val savedColumn = rowColumnPositions[targetRow] ?: 0
+                                        position =
+                                            RowColumn(
+                                                targetRow,
+                                                savedColumn.coerceAtLeast(0),
+                                            )
+                                        if (targetRow == firstRowIndex) {
+                                            topRowHeroFocusRequester
+                                        } else {
+                                            rowFocusRequesters.getOrNull(targetRow) ?: FocusRequester.Default
+                                        }
                                     }
                                 }
                             }

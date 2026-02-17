@@ -43,6 +43,7 @@ class DeviceProfileService
                             assDirectPlay = prefs.overrides.directPlayAss,
                             pgsDirectPlay = prefs.overrides.directPlayPgs,
                             dolbyVisionELDirectPlay = prefs.overrides.directPlayDolbyVisionEL,
+                            ignoreDoviValidation = prefs.overrides.ignoreDoviValidation,
                             decodeAv1 = prefs.overrides.decodeAv1,
                             jellyfinTenEleven =
                                 serverVersion != null && serverVersion >= ServerVersion(10, 11, 0),
@@ -58,6 +59,7 @@ class DeviceProfileService
                                 assDirectPlay = newConfig.assDirectPlay,
                                 pgsDirectPlay = newConfig.pgsDirectPlay,
                                 dolbyVisionELDirectPlay = newConfig.dolbyVisionELDirectPlay,
+                                ignoreDoviValidation = newConfig.ignoreDoviValidation,
                                 decodeAv1 = prefs.overrides.decodeAv1,
                                 jellyfinTenEleven = newConfig.jellyfinTenEleven,
                             )
@@ -77,6 +79,7 @@ data class DeviceProfileConfiguration(
     val assDirectPlay: Boolean,
     val pgsDirectPlay: Boolean,
     val dolbyVisionELDirectPlay: Boolean,
+    val ignoreDoviValidation: Boolean,
     val decodeAv1: Boolean,
     val jellyfinTenEleven: Boolean,
 )

@@ -425,6 +425,18 @@ sealed interface AppPreference<Pref, T> {
                 summary = R.string.force_dovi_profile_7_summary,
             )
 
+        val IgnoreDoviValidation =
+            AppSwitchPreference<AppPreferences>(
+                title = R.string.ignore_dovi_validation,
+                defaultValue = false,
+                getter = { it.playbackPreferences.overrides.ignoreDoviValidation },
+                setter = { prefs, value ->
+                    prefs.updatePlaybackOverrides { ignoreDoviValidation = value }
+                },
+                summaryOn = R.string.enabled,
+                summaryOff = R.string.disabled,
+            )
+
         val DecodeAv1 =
             AppSwitchPreference<AppPreferences>(
                 title = R.string.software_decoding_av1,
@@ -939,6 +951,7 @@ sealed interface AppPreference<Pref, T> {
                 DirectPlayAss,
                 DirectPlayPgs,
                 DirectPlayDoviProfile7,
+                IgnoreDoviValidation,
                 DecodeAv1,
                 MaxBitrate,
                 RefreshRateSwitching,
@@ -1051,6 +1064,7 @@ private val ExoPlayerSettings =
         AppPreference.DirectPlayAss,
         AppPreference.DirectPlayPgs,
         AppPreference.DirectPlayDoviProfile7,
+        AppPreference.IgnoreDoviValidation,
         AppPreference.DecodeAv1,
     )
 

@@ -2,12 +2,14 @@ package com.github.sysmoon.wholphin.services
 
 import android.os.SystemClock
 import androidx.navigation3.runtime.NavKey
+import com.github.sysmoon.wholphin.ui.data.RowColumn
 import com.github.sysmoon.wholphin.ui.nav.Destination
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.acra.ACRA
 import timber.log.Timber
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -77,6 +79,25 @@ class NavigationManager
          * instead of flickering into content.
          */
         var onRequestTopNavFocus: (() -> Unit)? = null
+
+        /**
+         * Saved (row, column) for the library recommended view when user navigates to item details.
+         * Keyed by library folder UUID so we restore focus when returning via Back.
+         */
+        private var _savedRecommendedPosition: Pair<UUID, RowColumn>? = null
+
+        fun setSavedRecommendedPositionForLibrary(libraryId: UUID, position: RowColumn) {
+            _savedRecommendedPosition = libraryId to position
+        }
+
+        fun getAndClearSavedPositionForLibrary(libraryId: UUID): RowColumn? {
+            val v = _savedRecommendedPosition
+            if (v != null && v.first == libraryId) {
+                _savedRecommendedPosition = null
+                return v.second
+            }
+            return null
+        }
 
         /**
          * Go to the specified [com.github.sysmoon.wholphin.ui.nav.Destination]

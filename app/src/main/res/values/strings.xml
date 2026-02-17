@@ -477,6 +477,7 @@
     <string name="dts">DTS</string>
     <string name="force_dovi_profile_7">Direct play Dolby Vision Profile 7</string>
     <string name="force_dovi_profile_7_summary">Ignores device compatibility checks</string>
+    <string name="ignore_dovi_validation">Ignore Dolby Vision Validation Errors</string>
 
     <string name="discover">Discover</string>
     <string name="request">Request</string>

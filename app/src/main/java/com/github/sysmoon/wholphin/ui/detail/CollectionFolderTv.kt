@@ -27,7 +27,7 @@ fun CollectionFolderTv(
         parentId = destination.itemId,
         onFocusPosition = {},
         topRowFocusRequester = recommendedTopRowFocusRequester,
-        resetPositionOnEnter = true,
+        resetPositionOnEnter = false,
         consumeDownToTopRow = true,
         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,

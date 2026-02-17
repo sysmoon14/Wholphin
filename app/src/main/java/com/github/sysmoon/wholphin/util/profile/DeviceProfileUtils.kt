@@ -67,6 +67,7 @@ fun createDeviceProfile(
     assDirectPlay: Boolean,
     pgsDirectPlay: Boolean,
     dolbyVisionELDirectPlay: Boolean,
+    ignoreDoviValidation: Boolean,
     decodeAv1: Boolean,
     jellyfinTenEleven: Boolean,
 ) = buildDeviceProfile {
@@ -412,8 +413,7 @@ fun createDeviceProfile(
     // TODO Use VideoRangeType enum with Jellyfin 10.11 based SDK
     val unsupportedRangeTypesAv1 =
         buildSet {
-            // Commented out to prevent transcode of DOVI Profile 8.6 or unrecognised DV metadata
-            // if (jellyfinTenEleven) add("DOVIInvalid")
+            if (jellyfinTenEleven && !ignoreDoviValidation) add("DOVIInvalid")
 
             if (!decodeAv1) {
                 if (!supportsAV1DolbyVision) {
@@ -433,8 +433,7 @@ fun createDeviceProfile(
     // TODO Use VideoRangeType enum with Jellyfin 10.11 based SDK
     val unsupportedRangeTypesHevc =
         buildSet {
-            // Commented out to prevent transcode of DOVI Profile 8.6 or unrecognised DV metadata
-            // if (jellyfinTenEleven) add("DOVIInvalid")
+            if (jellyfinTenEleven && !ignoreDoviValidation) add("DOVIInvalid")
 
             if (!supportsHevcDolbyVisionEL) {
                 if (!dolbyVisionELDirectPlay) {

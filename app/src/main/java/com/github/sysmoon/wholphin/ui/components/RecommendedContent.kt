@@ -30,6 +30,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.sysmoon.wholphin.ui.data.RowColumn
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.data.model.BaseItem
 import com.github.sysmoon.wholphin.preferences.UserPreferences
@@ -38,7 +39,6 @@ import com.github.sysmoon.wholphin.services.FavoriteWatchManager
 import com.github.sysmoon.wholphin.services.NavigationManager
 import com.github.sysmoon.wholphin.ui.OneTimeLaunchedEffect
 import com.github.sysmoon.wholphin.ui.data.AddPlaylistViewModel
-import com.github.sysmoon.wholphin.ui.data.RowColumn
 import com.github.sysmoon.wholphin.ui.detail.MoreDialogActions
 import com.github.sysmoon.wholphin.ui.detail.PlaylistDialog
 import com.github.sysmoon.wholphin.ui.detail.PlaylistLoadingState
@@ -68,6 +68,23 @@ abstract class RecommendedViewModel(
     abstract val rows: MutableStateFlow<List<HomeRowLoadingState>>
 
     val loading = MutableLiveData<LoadingState>(LoadingState.Loading)
+
+    /** When non-null, recommended content should restore focus to this position (e.g. after back from details). Consumed once applied. */
+    val savedPositionToRestore = MutableLiveData<RowColumn?>(null)
+
+    /** Call before navigating to a details screen so we can restore this position when the user presses back. */
+    fun savePositionForRestore(position: RowColumn) {
+        savedPositionToRestore.value = position
+    }
+
+    fun clearSavedPositionToRestore() {
+        savedPositionToRestore.value = null
+    }
+
+    /** Called when returning to this screen and we have a position persisted in NavigationManager. */
+    fun restorePositionFromNavigation(position: RowColumn) {
+        savedPositionToRestore.value = position
+    }
 
     fun refreshItem(
         position: RowColumn,
@@ -145,6 +162,7 @@ fun RecommendedContent(
     skipContentFocusUntilMillis: StateFlow<Long>? = null,
     wasOpenedViaTopNavSwitch: Boolean = false,
     navHasFocus: Boolean = false,
+    libraryId: UUID? = null,
 ) {
     val context = LocalContext.current
     var moreDialog by remember { mutableStateOf<Optional<RowColumnItem>>(Optional.absent()) }
@@ -155,6 +173,7 @@ fun RecommendedContent(
         viewModel.init()
     }
     val loading by viewModel.loading.observeAsState(LoadingState.Loading)
+    val savedPositionToRestore by viewModel.savedPositionToRestore.observeAsState()
     val rows by viewModel.rows.collectAsState()
     // Only show Success and Error rows so we never flash "row header + Loading..." placeholders.
     // Rows appear as they load instead of showing all headers with Loading at once.
@@ -236,7 +255,12 @@ fun RecommendedContent(
                     skipContentFocusUntilMillis = skipContentFocusUntilMillis,
                     wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
                     navHasFocus = navHasFocus,
-                    onClickItem = { _, item ->
+                    savedPositionToRestore = savedPositionToRestore,
+                    onConsumeRestoredPosition = viewModel::clearSavedPositionToRestore,
+                    onClickItem = { position, item ->
+                        viewModel.savePositionForRestore(position)
+                        libraryId?.let { viewModel.navigationManager.setSavedRecommendedPositionForLibrary(it, position) }
+                        viewModel.updateBackdrop(item)
                         viewModel.navigationManager.navigateTo(item.destination())
                     },
                     onLongClickItem = { position, item ->

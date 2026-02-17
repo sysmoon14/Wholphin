@@ -67,6 +67,13 @@ class RecommendedMovieViewModel
             fun create(parentId: UUID): RecommendedMovieViewModel
         }
 
+        init {
+            // Restore focus position when returning from details (before first composition so reset doesn't overwrite)
+            navigationManager.getAndClearSavedPositionForLibrary(parentId)?.let {
+                savedPositionToRestore.value = it
+            }
+        }
+
         override val rows =
             MutableStateFlow<List<HomeRowLoadingState>>(
                 rowTitles.keys.map {
@@ -278,5 +285,6 @@ fun RecommendedMovie(
         skipContentFocusUntilMillis = skipContentFocusUntilMillis,
         wasOpenedViaTopNavSwitch = wasOpenedViaTopNavSwitch,
         navHasFocus = navHasFocus,
+        libraryId = parentId,
     )
 }

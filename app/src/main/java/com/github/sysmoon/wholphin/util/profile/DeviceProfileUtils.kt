@@ -412,7 +412,8 @@ fun createDeviceProfile(
     // TODO Use VideoRangeType enum with Jellyfin 10.11 based SDK
     val unsupportedRangeTypesAv1 =
         buildSet {
-            if (jellyfinTenEleven) add("DOVIInvalid")
+            // Commented out to prevent transcode of DOVI Profile 8.6 or unrecognised DV metadata
+            // if (jellyfinTenEleven) add("DOVIInvalid")
 
             if (!decodeAv1) {
                 if (!supportsAV1DolbyVision) {
@@ -432,7 +433,8 @@ fun createDeviceProfile(
     // TODO Use VideoRangeType enum with Jellyfin 10.11 based SDK
     val unsupportedRangeTypesHevc =
         buildSet {
-            if (jellyfinTenEleven) add("DOVIInvalid")
+            // Commented out to prevent transcode of DOVI Profile 8.6 or unrecognised DV metadata
+            // if (jellyfinTenEleven) add("DOVIInvalid")
 
             if (!supportsHevcDolbyVisionEL) {
                 if (!dolbyVisionELDirectPlay) {
@@ -509,25 +511,12 @@ fun createDeviceProfile(
         }
     }
 
-    // Audio channel profile (Global)
+    // Audio channel profile
     codecProfile {
         type = CodecType.VIDEO_AUDIO
 
         conditions {
             ProfileConditionValue.AUDIO_CHANNELS lowerThanOrEquals if (downMixAudio) 2 else 8
-        }
-    }
-
-    // Unrestricted TrueHD Passthrough Profile
-    // This prevents Jellyfin from transcoding high-bitrate, high-sample-rate, or misreported TrueHD tracks.
-    codecProfile {
-        type = CodecType.VIDEO_AUDIO
-        codec = Codec.Audio.TRUEHD
-
-        conditions {
-            // If the user explicitly requested a downmix, honor it.
-            // Otherwise, set the channel ceiling artificially high (32) so Atmos metadata never triggers a transcode.
-            ProfileConditionValue.AUDIO_CHANNELS lowerThanOrEquals if (downMixAudio) 2 else 32
         }
     }
 

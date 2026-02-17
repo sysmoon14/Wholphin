@@ -74,6 +74,8 @@ class MpvPlayer(
     SurfaceHolder.Callback {
     companion object {
         private const val DEBUG = false
+
+        private val initLock = Any()
     }
 
     private var surface: Surface? = null
@@ -1093,11 +1095,11 @@ class MpvPlayer(
             MpvCommand.ATTACH_SURFACE -> {
                 val surface = obj as Surface?
                 if (surface == null || (this.surface != null && this.surface != surface)) {
-                    // If clearing or changing the surface. Set vo to null first so
-                    // Android vo isn't active when we clear wid (avoids "Missing surface pointer").
+                    // If clearing or changing the surface: detach first, then switch to null vo
+                    // (upstream order; DESTROY still uses vo-null first to avoid "Missing surface pointer").
+                    MPVLib.detachSurface()
                     MPVLib.setPropertyString("vo", "null")
                     MPVLib.setPropertyString("force-window", "no")
-                    MPVLib.detachSurface()
                     this.surface = null
                     Timber.d("Detached surface")
                 }
@@ -1117,7 +1119,9 @@ class MpvPlayer(
             }
 
             MpvCommand.INITIALIZE -> {
-                init()
+                synchronized(initLock) {
+                    init()
+                }
             }
 
             MpvCommand.DESTROY -> {
@@ -1125,17 +1129,19 @@ class MpvPlayer(
                 // ATTACH_SURFACE null, which would run after tearDown and crash).
                 // Switch to null vo first so Android vo isn't active when we clear wid
                 // (avoids "Missing surface pointer" from vo/gpu/android).
-                if (surface != null) {
-                    MPVLib.setPropertyString("vo", "null")
-                    MPVLib.setPropertyString("force-window", "no")
-                    MPVLib.detachSurface()
-                    surface = null
-                    Timber.d("Detached surface")
+                synchronized(initLock) {
+                    if (surface != null) {
+                        MPVLib.setPropertyString("vo", "null")
+                        MPVLib.setPropertyString("force-window", "no")
+                        MPVLib.detachSurface()
+                        surface = null
+                        Timber.d("Detached surface")
+                    }
+                    MPVLib.removeLogObserver(mpvLogger)
+                    MPVLib.tearDown()
+                    Timber.d("MPVLib destroyed")
+                    destroyLatch.countDown()
                 }
-                MPVLib.removeLogObserver(mpvLogger)
-                MPVLib.tearDown()
-                Timber.d("MPVLib destroyed")
-                destroyLatch.countDown()
             }
         }
     }

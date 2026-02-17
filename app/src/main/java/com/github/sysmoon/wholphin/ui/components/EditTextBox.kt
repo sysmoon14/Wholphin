@@ -48,6 +48,7 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.ui.PreviewTvSpec
+import com.github.sysmoon.wholphin.ui.theme.LocalFocusOverrideColors
 import com.github.sysmoon.wholphin.ui.theme.WholphinTheme
 import com.google.protobuf.value
 
@@ -67,12 +68,13 @@ fun EditTextBox(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val focused by interactionSource.collectIsFocusedAsState()
+    val focusOverride = LocalFocusOverrideColors.current
     val colors =
         TextFieldDefaults.colors(
             unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-            focusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+            focusedTextColor = focusOverride?.content ?: MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedContainerColor = focusOverride?.container?.copy(alpha = 0.95f) ?: MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
             disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
             errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.75f),
@@ -222,12 +224,13 @@ fun EditTextBox(
     placeholder: @Composable (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
+    val focusOverride = LocalFocusOverrideColors.current
     val colors =
         TextFieldDefaults.colors(
             unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-            focusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+            focusedTextColor = focusOverride?.content ?: MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedContainerColor = focusOverride?.container?.copy(alpha = 0.95f) ?: MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
             disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
             errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.75f),

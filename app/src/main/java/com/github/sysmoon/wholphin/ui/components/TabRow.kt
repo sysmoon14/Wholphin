@@ -45,6 +45,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.github.sysmoon.wholphin.ui.PreviewTvSpec
 import com.github.sysmoon.wholphin.ui.ifElse
+import com.github.sysmoon.wholphin.ui.theme.LocalFocusOverrideColors
 import com.github.sysmoon.wholphin.ui.theme.WholphinTheme
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import timber.log.Timber
@@ -126,6 +127,24 @@ fun TabRow(
             targetValue = targetHeight,
             label = "tab_focus_height",
         )
+        val focusOverride = LocalFocusOverrideColors.current
+        // Draw focus indicator behind tabs so tab content stays on top
+        if (rowHasFocus && focusMetrics != null) {
+            Box(
+                modifier =
+                    Modifier
+                        .offset(x = indicatorOffsetX, y = indicatorOffsetY)
+                        .width(indicatorWidth)
+                        .height(indicatorHeight)
+                        .then(
+                            if (focusOverride != null) {
+                                Modifier.background(color = focusOverride.container, shape = shape)
+                            } else {
+                                Modifier.border(2.dp, Color.White, shape)
+                            },
+                        ),
+            )
+        }
         LazyRow(
             state = state,
             modifier = Modifier.fillMaxWidth(),
@@ -135,6 +154,7 @@ fun TabRow(
                 Tab(
                     title = tabTitle,
                     selected = index == selectedTabIndex,
+                    focused = index == focusedIndex,
                     rowActive = rowHasFocus,
                     interactionSource = interactionSource,
                     onClick = {
@@ -161,16 +181,6 @@ fun TabRow(
                 )
             }
         }
-        if (rowHasFocus && focusMetrics != null) {
-            Box(
-                modifier =
-                    Modifier
-                        .offset(x = indicatorOffsetX, y = indicatorOffsetY)
-                        .width(indicatorWidth)
-                        .height(indicatorHeight)
-                        .border(2.dp, Color.White, shape),
-            )
-        }
     }
 }
 
@@ -178,18 +188,25 @@ fun TabRow(
 fun Tab(
     title: String,
     selected: Boolean,
+    focused: Boolean = false,
     rowActive: Boolean,
     onClick: () -> Unit,
     interactionSource: MutableInteractionSource,
     modifier: Modifier = Modifier,
 ) {
+    val focusOverride = LocalFocusOverrideColors.current
     val contentColor =
-        if (rowActive || selected) {
-            MaterialTheme.colorScheme.onSurface
-        } else {
-            MaterialTheme.colorScheme.onSurface.copy(alpha = .5f)
+        when {
+            focused && focusOverride != null -> focusOverride.content
+            rowActive || selected -> MaterialTheme.colorScheme.onSurface
+            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = .5f)
         }
     val shape = RoundedCornerShape(18.dp)
+    // When focused with override (e.g. OLED), use transparent so the white focus indicator behind shows through
+    val backgroundColor =
+        if (focused && focusOverride != null) Color.Transparent
+        else if (selected) Color(0xFF505050)
+        else Color.Transparent
     Box(
         modifier =
             modifier
@@ -199,7 +216,7 @@ fun Tab(
                     onClick = onClick,
                     indication = null,
                 ).background(
-                    color = if (selected) Color(0xFF505050) else Color.Transparent,
+                    color = backgroundColor,
                     shape = shape,
                 ),
     ) {

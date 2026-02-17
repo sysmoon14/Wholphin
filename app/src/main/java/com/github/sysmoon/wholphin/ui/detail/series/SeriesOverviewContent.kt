@@ -71,6 +71,7 @@ import com.github.sysmoon.wholphin.ui.LocalImageUrlService
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
 import com.github.sysmoon.wholphin.ui.components.LoadingPage
 import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
+import com.github.sysmoon.wholphin.ui.theme.LocalFocusOverrideColors
 import com.github.sysmoon.wholphin.ui.tryRequestFocus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -273,16 +274,19 @@ fun SeriesOverviewContent(
                                     },
                             interactionSource = seasonInteractionSource,
                             colors =
-                                ButtonDefaults.colors(
-                                    containerColor =
-                                        if (isSelected) {
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                        } else {
-                                            Color.Transparent
-                                        },
-                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    focusedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                ),
+                                run {
+                                    val focusOverride = LocalFocusOverrideColors.current
+                                    ButtonDefaults.colors(
+                                        containerColor =
+                                            if (isSelected) {
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                            } else {
+                                                Color.Transparent
+                                            },
+                                        focusedContainerColor = focusOverride?.container ?: MaterialTheme.colorScheme.surfaceVariant,
+                                        focusedContentColor = focusOverride?.content ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),

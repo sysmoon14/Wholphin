@@ -56,6 +56,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.github.sysmoon.wholphin.R
+import com.github.sysmoon.wholphin.ui.theme.LocalFocusOverrideColors
 import com.github.sysmoon.wholphin.data.model.JellyfinServer
 import com.github.sysmoon.wholphin.ui.Cards
 import com.github.sysmoon.wholphin.ui.components.CircularProgress
@@ -380,6 +381,7 @@ private fun AddServerRow(
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
     val addServerColor = MaterialTheme.colorScheme.surfaceVariant
+    val focusOverride = LocalFocusOverrideColors.current
     val avatarSize by animateDpAsState(
         targetValue = if (focused) ServerSelectAvatarSizeFocused else ServerSelectAvatarSize,
         animationSpec = tween(durationMillis = 200),
@@ -410,7 +412,7 @@ private fun AddServerRow(
                 shape = ClickableSurfaceDefaults.shape(shape = ServerSelectAvatarShape),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = addServerColor.copy(alpha = 0.4f),
-                    focusedContainerColor = addServerColor.copy(alpha = 0.6f),
+                    focusedContainerColor = focusOverride?.container ?: addServerColor.copy(alpha = 0.6f),
                 ),
                 border = ClickableSurfaceDefaults.border(border = Border.None, focusedBorder = Border.None),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
@@ -627,6 +629,7 @@ fun AddServerCard(
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val focusOverride = LocalFocusOverrideColors.current
 
     // Use a neutral gray color for the add server card
     val addServerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -648,7 +651,7 @@ fun AddServerCard(
             colors =
                 ClickableSurfaceDefaults.colors(
                     containerColor = addServerColor.copy(alpha = 0.4f),
-                    focusedContainerColor = addServerColor.copy(alpha = 0.6f),
+                    focusedContainerColor = focusOverride?.container ?: addServerColor.copy(alpha = 0.6f),
                 ),
             border =
                 ClickableSurfaceDefaults.border(

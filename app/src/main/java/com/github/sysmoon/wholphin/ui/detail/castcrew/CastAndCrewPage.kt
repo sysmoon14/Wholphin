@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +35,7 @@ import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.data.model.BaseItem
 import com.github.sysmoon.wholphin.data.model.Person
 import com.github.sysmoon.wholphin.ui.ItemLogoHeight
+import com.github.sysmoon.wholphin.ui.theme.LocalFocusOverrideColors
 import com.github.sysmoon.wholphin.ui.ItemLogoWidth
 import com.github.sysmoon.wholphin.ui.LocalImageUrlService
 import com.github.sysmoon.wholphin.ui.isNotNullOrBlank
@@ -150,13 +153,19 @@ private fun CastAndCrewRow(
     val name = person.name.orEmpty().ifBlank { person.id.toString() }
     val role = person.role?.takeIf { it.isNotBlank() } ?: person.type.name
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val focusOverride = LocalFocusOverrideColors.current
+    val textColor = if (isFocused && focusOverride != null) focusOverride.content else MaterialTheme.colorScheme.onSurface
+    val roleColor = if (isFocused && focusOverride != null) focusOverride.content else MaterialTheme.colorScheme.onSurfaceVariant
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
+        interactionSource = interactionSource,
         colors =
             CardDefaults.colors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedContainerColor = focusOverride?.container ?: MaterialTheme.colorScheme.surfaceVariant,
             ),
         shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
         scale = CardDefaults.scale(focusedScale = 1.02f, pressedScale = 1f),
@@ -182,14 +191,14 @@ private fun CastAndCrewRow(
                 Text(
                     text = name,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = textColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = role,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = roleColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

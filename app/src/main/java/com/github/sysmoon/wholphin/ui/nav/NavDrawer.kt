@@ -203,6 +203,13 @@ class NavDrawerViewModel
                             when {
                                 key is Destination.Home -> -1
                                 key is Destination.Search -> -2
+                                key is Destination.FilteredCollection -> {
+                                    val idx = asDestinations.indexOf(key)
+                                    if (idx >= 0) idx else {
+                                        // TopNavBar pushes a new FilteredCollection for Movies/TV; match by itemId
+                                        libraries.indexOfFirst { it is ServerNavDrawerItem && it.itemId == key.itemId }.takeIf { it >= 0 }
+                                    }
+                                }
                                 else -> {
                                     val idx = asDestinations.indexOf(key)
                                     if (idx >= 0) idx else null

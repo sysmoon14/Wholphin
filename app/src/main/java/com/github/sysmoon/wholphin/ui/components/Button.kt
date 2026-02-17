@@ -34,6 +34,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.ProvideTextStyle
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.github.sysmoon.wholphin.ui.theme.LocalFocusOverrideColors
 
 @Composable
 fun Button(
@@ -48,16 +49,19 @@ fun Button(
             shape = CircleShape,
         ),
     colors: ClickableSurfaceColors =
-        ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-            focusedContainerColor = MaterialTheme.colorScheme.onSurface,
-            focusedContentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            pressedContainerColor = MaterialTheme.colorScheme.onSurface,
-            pressedContentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-        ),
+        run {
+            val focusOverride = LocalFocusOverrideColors.current
+            ClickableSurfaceDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                focusedContainerColor = focusOverride?.container ?: MaterialTheme.colorScheme.onSurface,
+                focusedContentColor = focusOverride?.content ?: MaterialTheme.colorScheme.inverseOnSurface,
+                pressedContainerColor = focusOverride?.container ?: MaterialTheme.colorScheme.onSurface,
+                pressedContentColor = focusOverride?.content ?: MaterialTheme.colorScheme.inverseOnSurface,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            )
+        },
     tonalElevation: Dp = 0.dp,
     border: ClickableSurfaceBorder =
         ClickableSurfaceDefaults.border(

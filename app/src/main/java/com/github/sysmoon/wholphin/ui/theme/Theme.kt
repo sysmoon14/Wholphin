@@ -3,6 +3,7 @@ package com.github.sysmoon.wholphin.ui.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.tv.material3.MaterialTheme
 import com.github.sysmoon.wholphin.preferences.AppThemeColors
 import com.github.sysmoon.wholphin.ui.theme.colors.BlueThemeColors
@@ -14,6 +15,19 @@ import com.github.sysmoon.wholphin.ui.theme.colors.PurpleThemeColors
 
 val LocalTheme =
     compositionLocalOf<AppThemeColors> { AppThemeColors.PURPLE }
+
+/**
+ * Optional focus colors (container + content). When set (e.g. OLED black theme),
+ * use these for focused state instead of surfaceVariant/onSurfaceVariant
+ * so focus is more obvious (e.g. white with dark text).
+ */
+data class FocusOverrideColors(
+    val container: Color,
+    val content: Color,
+)
+
+val LocalFocusOverrideColors =
+    compositionLocalOf<FocusOverrideColors?> { null }
 
 fun getThemeColors(appThemeColors: AppThemeColors): ThemeColors =
     when (appThemeColors) {
@@ -39,7 +53,19 @@ fun WholphinTheme(
             darkTheme -> themeColors.darkScheme
             else -> themeColors.lightScheme
         }
-    CompositionLocalProvider(LocalTheme provides appThemeColors) {
+    val focusOverride =
+        if (appThemeColors == AppThemeColors.OLED_BLACK && darkTheme) {
+            FocusOverrideColors(
+                container = Color.White,
+                content = Color(0xFF1A1B21),
+            )
+        } else {
+            null
+        }
+    CompositionLocalProvider(
+        LocalTheme provides appThemeColors,
+        LocalFocusOverrideColors provides focusOverride,
+    ) {
         androidx.compose.material3.MaterialTheme(
             colorScheme = if (darkTheme) themeColors.darkSchemeMaterial else themeColors.lightSchemeMaterial,
             typography = androidx.compose.material3.Typography(),

@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -48,11 +49,11 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.github.sysmoon.wholphin.ui.theme.LocalFocusOverrideColors
 import com.github.sysmoon.wholphin.R
 import com.github.sysmoon.wholphin.data.model.CollectionFolderFilter
 import com.github.sysmoon.wholphin.data.model.JellyfinServer
 import com.github.sysmoon.wholphin.data.model.JellyfinUser
-import org.jellyfin.sdk.model.api.CollectionType
 import com.github.sysmoon.wholphin.preferences.UserPreferences
 import com.github.sysmoon.wholphin.services.NavigationManager
 import com.github.sysmoon.wholphin.services.SetupDestination
@@ -72,6 +73,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.delay
+import org.jellyfin.sdk.model.api.CollectionType
 
 /**
  * Top navigation bar (Netflix-style): profile left, word nav items in center, settings right.
@@ -265,6 +267,8 @@ fun TopNavBar(
         val focusIndicatorOffsetY by animateDpAsState(targetValue = focusOffsetY, label = "nav_focus_y")
         val focusIndicatorWidth by animateDpAsState(targetValue = focusWidth, label = "nav_focus_w")
         val focusIndicatorHeight by animateDpAsState(targetValue = focusHeight, label = "nav_focus_h")
+        val focusOverride = LocalFocusOverrideColors.current
+        val focusIndicatorColor = focusOverride?.container ?: NavBarFocusedBackground
         if (selectedMetrics != null) {
             Box(
                 modifier =
@@ -284,7 +288,7 @@ fun TopNavBar(
                         .offset(x = focusIndicatorOffsetX, y = focusIndicatorOffsetY)
                         .size(focusIndicatorWidth, focusIndicatorHeight)
                         .background(
-                            color = NavBarFocusedBackground,
+                            color = focusIndicatorColor,
                             shape = focusMetrics.shape,
                         ),
             )
@@ -505,6 +509,7 @@ private fun RowScope.TopNavProfileButton(
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val focusOverride = LocalFocusOverrideColors.current
     Surface(
         onClick = onClick,
         modifier = modifier.size(36.dp),
@@ -512,6 +517,7 @@ private fun RowScope.TopNavProfileButton(
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.Transparent,
+            focusedContentColor = focusOverride?.content ?: MaterialTheme.colorScheme.onSurface,
         ),
         border = ClickableSurfaceDefaults.border(
             border = Border(
@@ -541,6 +547,9 @@ private fun TopNavSearchIconButton(
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val focusOverride = LocalFocusOverrideColors.current
+    val iconTint = if (isFocused && focusOverride != null) focusOverride.content else MaterialTheme.colorScheme.onSurface
     Surface(
         onClick = onClick,
         modifier = modifier.size(36.dp),
@@ -548,6 +557,7 @@ private fun TopNavSearchIconButton(
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.Transparent,
+            focusedContentColor = focusOverride?.content ?: MaterialTheme.colorScheme.onSurface,
         ),
         border = ClickableSurfaceDefaults.border(
             border = Border.None,
@@ -558,7 +568,7 @@ private fun TopNavSearchIconButton(
         Icon(
             imageVector = Icons.Default.Search,
             contentDescription = stringResource(R.string.search),
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = iconTint,
             modifier = Modifier.padding(8.dp),
         )
     }
@@ -572,7 +582,13 @@ private fun TopNavWordItem(
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val contentColor = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val focusOverride = LocalFocusOverrideColors.current
+    val contentColor = when {
+        isFocused && focusOverride != null -> focusOverride.content
+        selected -> MaterialTheme.colorScheme.onSurface
+        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+    }
     Surface(
         onClick = onClick,
         modifier = modifier
@@ -582,6 +598,7 @@ private fun TopNavWordItem(
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.Transparent,
+            focusedContentColor = focusOverride?.content ?: MaterialTheme.colorScheme.onSurface,
         ),
         border = ClickableSurfaceDefaults.border(
             border = Border.None,
@@ -604,6 +621,9 @@ private fun RowScope.TopNavSettingsButton(
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val focusOverride = LocalFocusOverrideColors.current
+    val iconTint = if (isFocused && focusOverride != null) focusOverride.content else MaterialTheme.colorScheme.onSurface
     Surface(
         onClick = onClick,
         modifier = modifier.size(40.dp),
@@ -611,6 +631,7 @@ private fun RowScope.TopNavSettingsButton(
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.Transparent,
+            focusedContentColor = focusOverride?.content ?: MaterialTheme.colorScheme.onSurface,
         ),
         border = ClickableSurfaceDefaults.border(
             border = Border.None,
@@ -621,7 +642,7 @@ private fun RowScope.TopNavSettingsButton(
         Icon(
             imageVector = Icons.Default.Settings,
             contentDescription = stringResource(R.string.settings),
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = iconTint,
             modifier = Modifier.padding(8.dp),
         )
     }

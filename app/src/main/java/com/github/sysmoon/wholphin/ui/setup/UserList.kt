@@ -58,6 +58,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.github.sysmoon.wholphin.R
+import com.github.sysmoon.wholphin.ui.theme.LocalFocusOverrideColors
 import com.github.sysmoon.wholphin.data.model.JellyfinUser
 import com.github.sysmoon.wholphin.ui.Cards
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -426,6 +427,7 @@ private fun AddUserRow(
         onAddUserFocused(focused)
     }
     val addUserColor = MaterialTheme.colorScheme.surfaceVariant
+    val focusOverride = LocalFocusOverrideColors.current
     val avatarSize by animateDpAsState(
         targetValue = if (focused) UserSelectAvatarSizeFocused else UserSelectAvatarSize,
         animationSpec = tween(durationMillis = 200),
@@ -460,7 +462,7 @@ private fun AddUserRow(
             colors =
                 ClickableSurfaceDefaults.colors(
                     containerColor = addUserColor.copy(alpha = 0.4f),
-                    focusedContainerColor = addUserColor.copy(alpha = 0.6f),
+                    focusedContainerColor = focusOverride?.container ?: addUserColor.copy(alpha = 0.6f),
                 ),
             border = ClickableSurfaceDefaults.border(
                 border = Border.None,
@@ -499,6 +501,7 @@ private fun AddUserCard(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val addUserColor = MaterialTheme.colorScheme.surfaceVariant
+    val focusOverride = LocalFocusOverrideColors.current
     val cardSize = Cards.serverUserCircle
 
     Column(
@@ -514,7 +517,7 @@ private fun AddUserCard(
             colors =
                 ClickableSurfaceDefaults.colors(
                     containerColor = addUserColor.copy(alpha = 0.4f),
-                    focusedContainerColor = addUserColor.copy(alpha = 0.6f),
+                    focusedContainerColor = focusOverride?.container ?: addUserColor.copy(alpha = 0.6f),
                 ),
             border =
                 ClickableSurfaceDefaults.border(

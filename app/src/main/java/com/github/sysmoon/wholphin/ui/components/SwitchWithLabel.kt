@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
+import com.github.sysmoon.wholphin.ui.theme.LocalFocusOverrideColors
 
 /**
  * A labeled [Switch], but the entire composable is focusable & clickable
@@ -36,13 +37,14 @@ fun SwitchWithLabel(
 ) {
     val context = LocalContext.current
     val isFocused by interactionSource.collectIsFocusedAsState()
+    val focusOverride = LocalFocusOverrideColors.current
     Row(
         modifier =
             modifier
                 .clip(shape = RoundedCornerShape(20.dp))
                 .background(
                     if (isFocused) {
-                        MaterialTheme.colorScheme.onSurface
+                        focusOverride?.container ?: MaterialTheme.colorScheme.onSurface
                     } else {
                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
                     },
@@ -60,7 +62,7 @@ fun SwitchWithLabel(
     ) {
         Text(
             text = label,
-            color = if (isFocused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isFocused) focusOverride?.content ?: MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelLarge,
         )
 

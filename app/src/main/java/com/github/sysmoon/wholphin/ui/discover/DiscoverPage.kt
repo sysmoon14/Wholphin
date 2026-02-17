@@ -58,6 +58,7 @@ fun DiscoverPage(
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(rememberedTabIndex) }
     val tabFocusRequesters = remember(tabs) { List(tabs.size) { FocusRequester() } }
     var focusedTabIndex by remember { mutableIntStateOf(-1) }
+    var focusDrivenTabChange by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedTabIndex) {
         logTab("discover", selectedTabIndex)
@@ -69,15 +70,21 @@ fun DiscoverPage(
     LaunchedEffect(focusedTabIndex, selectedTabIndex) {
         if (focusedTabIndex !in tabs.indices || focusedTabIndex == selectedTabIndex) return@LaunchedEffect
         delay(250)
+        focusDrivenTabChange = true
         selectedTabIndex = focusedTabIndex
-        // Reclaim focus on the tab we switched to immediately so it doesn't flicker up to the top nav
-        delay(16)
         tabFocusRequesters.getOrNull(focusedTabIndex)?.tryRequestFocus()
     }
 
-    // Keep focus on the sub-tab row: when the page is first shown and whenever the selected tab changes.
-    // Skip when opened via top nav switch so focus stays in the top nav (same as other tabbed pages).
-    LaunchedEffect(selectedTabIndex, navHasFocus, wasOpenedViaTopNavSwitch) {
+    // Reclaim focus on the selected tab after a tab switch by focus; AnimatedContent recomposition can move focus to top nav, so we reclaim after layout.
+    LaunchedEffect(selectedTabIndex) {
+        if (!focusDrivenTabChange) return@LaunchedEffect
+        focusDrivenTabChange = false
+        delay(100)
+        tabFocusRequesters.getOrNull(selectedTabIndex)?.tryRequestFocus()
+    }
+
+    // Keep focus on the sub-tab row when the page is first shown or when focus returns from the top nav (e.g. user pressed Down).
+    LaunchedEffect(navHasFocus, wasOpenedViaTopNavSwitch) {
         if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
         delay(16)
         tabFocusRequesters.getOrNull(selectedTabIndex)?.tryRequestFocus()

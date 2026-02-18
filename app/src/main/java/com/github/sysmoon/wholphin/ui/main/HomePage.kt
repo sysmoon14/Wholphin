@@ -332,24 +332,28 @@ fun HomePageContent(
         if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (savedPositionToRestore != null) return@LaunchedEffect // Restore LaunchedEffect handles focus when returning from details
         if (!firstFocused && homeRows.isNotEmpty()) {
-            if (position.row >= 0) {
-                val index = position.row.coerceIn(0, rowFocusRequesters.lastIndex)
-                // Restore column for this row (from ViewModel when returning from details, or from rememberSaveable)
-                rowColumnPositions[index] = position.column.coerceIn(0, Int.MAX_VALUE)
-                rowFocusRequesters.getOrNull(index)?.tryRequestFocus()
-                firstFocused = true
-                delay(50)
-                listState.scrollToItem(index)
-            } else {
-                // Waiting for the first home row to load, then focus on it
-                homeRows
-                    .indexOfFirstOrNull { it is HomeRowLoadingState.Success && it.items.isNotEmpty() }
-                    ?.let {
-                        rowFocusRequesters[it].tryRequestFocus()
-                        firstFocused = true
-                        delay(50)
-                        listState.scrollToItem(it)
-                    }
+            // Defer to next frame to avoid Compose AssertionError when entering from user select.
+            delay(16)
+            if (!firstFocused && homeRows.isNotEmpty()) {
+                if (position.row >= 0) {
+                    val index = position.row.coerceIn(0, rowFocusRequesters.lastIndex)
+                    // Restore column for this row (from ViewModel when returning from details, or from rememberSaveable)
+                    rowColumnPositions[index] = position.column.coerceIn(0, Int.MAX_VALUE)
+                    rowFocusRequesters.getOrNull(index)?.tryRequestFocus()
+                    firstFocused = true
+                    delay(50)
+                    listState.scrollToItem(index)
+                } else {
+                    // Waiting for the first home row to load, then focus on it
+                    homeRows
+                        .indexOfFirstOrNull { it is HomeRowLoadingState.Success && it.items.isNotEmpty() }
+                        ?.let {
+                            rowFocusRequesters[it].tryRequestFocus()
+                            firstFocused = true
+                            delay(50)
+                            listState.scrollToItem(it)
+                        }
+                }
             }
         }
     }
@@ -375,19 +379,25 @@ fun HomePageContent(
     LaunchedEffect(homeRows, resetPositionOnEnter, navHasFocus) {
         if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (resetPositionOnEnter && !hasResetPosition && homeRows.isNotEmpty()) {
-            val firstRowIndex =
-                homeRows.indexOfFirst {
-                    it is HomeRowLoadingState.Success && it.items.isNotEmpty()
-                }.takeIf { it >= 0 } ?: 0
-            rowColumnPositions.clear()
-            rowColumnPositions[firstRowIndex] = 0
-            position = RowColumn(firstRowIndex, 0)
-            previousRow = firstRowIndex
-            rowFocusRequesters.getOrNull(firstRowIndex)?.tryRequestFocus()
-            delay(50)
-            listState.scrollToItem(firstRowIndex)
-            firstFocused = true
-            hasResetPosition = true
+            // Defer to next frame so we don't mutate state (clear/scroll) in the same frame as
+            // the new destination's composition (e.g. after user select → AppContent). Avoids
+            // Compose AssertionError: slot table / recompose scope cleared while in use.
+            delay(16)
+            if (!hasResetPosition && homeRows.isNotEmpty()) {
+                val firstRowIndex =
+                    homeRows.indexOfFirst {
+                        it is HomeRowLoadingState.Success && it.items.isNotEmpty()
+                    }.takeIf { it >= 0 } ?: 0
+                rowColumnPositions.clear()
+                rowColumnPositions[firstRowIndex] = 0
+                position = RowColumn(firstRowIndex, 0)
+                previousRow = firstRowIndex
+                rowFocusRequesters.getOrNull(firstRowIndex)?.tryRequestFocus()
+                delay(50)
+                listState.scrollToItem(firstRowIndex)
+                firstFocused = true
+                hasResetPosition = true
+            }
         }
     }
     

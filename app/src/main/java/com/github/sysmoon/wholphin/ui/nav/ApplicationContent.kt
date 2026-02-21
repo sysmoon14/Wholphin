@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSerializable
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -130,6 +132,7 @@ fun ApplicationContent(
     }
     val homeTopRowFocusRequester = remember { FocusRequester() }
     val topNavFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
     val navDrawerViewModel: NavDrawerViewModel = hiltViewModel(key = "${server.id}_${user.id}")
     LaunchedEffect(currentDestination) {
         navDrawerViewModel.syncSelectedIndexFromBackStack()
@@ -137,6 +140,10 @@ fun ApplicationContent(
     val showMore by navDrawerViewModel.showMore.observeAsState(initial = false)
     val navHasFocus by navDrawerViewModel.navHasFocus.observeAsState(initial = false)
     BackHandler(enabled = showMore) { navDrawerViewModel.setShowMore(false) }
+    // When at root (e.g. Home tab) with focus in content: first Back moves focus to top nav; second Back closes app
+    BackHandler(enabled = showTopNavBar && !navHasFocus && backStack.size == 1) {
+        topNavFocusRequester.tryRequestFocus("back_to_top_nav")
+    }
     val backdrop by viewModel.backdropService.backdropFlow.collectAsStateWithLifecycle()
     val backdropStyle = preferences.appPreferences.interfacePreferences.backdropStyle
     val dest = currentDestination
@@ -324,12 +331,7 @@ fun ApplicationContent(
                     user = user,
                     server = server,
                     viewModel = navDrawerViewModel,
-                    onNavigateDown =
-                        if (currentDestination is Destination.Home) {
-                            { homeTopRowFocusRequester.tryRequestFocus("top_nav_to_home") }
-                        } else {
-                            null
-                        },
+                    onNavigateDown = { focusManager.moveFocus(FocusDirection.Down) },
                     contentAreaUpFocusRequester = topNavFocusRequester,
                 )
             }

@@ -1,5 +1,7 @@
 package com.github.sysmoon.wholphin.ui.main
 
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.widget.Toast
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,6 +45,7 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -320,6 +323,7 @@ fun HomePageContent(
     }
 
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val rowFocusRequesters = remember(homeRows) { List(homeRows.size) { FocusRequester() } }
     val topRowHeroFocusRequester = topRowFocusRequester ?: remember { FocusRequester() }
     val firstRowIndex =
@@ -332,27 +336,31 @@ fun HomePageContent(
         if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (savedPositionToRestore != null) return@LaunchedEffect // Restore LaunchedEffect handles focus when returning from details
         if (!firstFocused && homeRows.isNotEmpty()) {
-            // Defer to next frame to avoid Compose AssertionError when entering from user select.
-            delay(16)
-            if (!firstFocused && homeRows.isNotEmpty()) {
-                if (position.row >= 0) {
-                    val index = position.row.coerceIn(0, rowFocusRequesters.lastIndex)
-                    // Restore column for this row (from ViewModel when returning from details, or from rememberSaveable)
-                    rowColumnPositions[index] = position.column.coerceIn(0, Int.MAX_VALUE)
-                    rowFocusRequesters.getOrNull(index)?.tryRequestFocus()
-                    firstFocused = true
-                    delay(50)
-                    listState.scrollToItem(index)
-                } else {
-                    // Waiting for the first home row to load, then focus on it
-                    homeRows
-                        .indexOfFirstOrNull { it is HomeRowLoadingState.Success && it.items.isNotEmpty() }
-                        ?.let {
-                            rowFocusRequesters[it].tryRequestFocus()
-                            firstFocused = true
+            // Defer to next frame to avoid Compose AssertionError when entering from user select
+            // (slot table / recompose scope cleared while in use), especially after resume from background.
+            Handler(Looper.getMainLooper()).post {
+                if (!firstFocused && homeRows.isNotEmpty()) {
+                    if (position.row >= 0) {
+                        val index = position.row.coerceIn(0, rowFocusRequesters.lastIndex)
+                        rowColumnPositions[index] = position.column.coerceIn(0, Int.MAX_VALUE)
+                        rowFocusRequesters.getOrNull(index)?.tryRequestFocus()
+                        firstFocused = true
+                        scope.launch {
                             delay(50)
-                            listState.scrollToItem(it)
+                            listState.scrollToItem(index)
                         }
+                    } else {
+                        homeRows
+                            .indexOfFirstOrNull { it is HomeRowLoadingState.Success && it.items.isNotEmpty() }
+                            ?.let { idx ->
+                                rowFocusRequesters.getOrNull(idx)?.tryRequestFocus()
+                                firstFocused = true
+                                scope.launch {
+                                    delay(50)
+                                    listState.scrollToItem(idx)
+                                }
+                            }
+                    }
                 }
             }
         }
@@ -379,24 +387,28 @@ fun HomePageContent(
     LaunchedEffect(homeRows, resetPositionOnEnter, navHasFocus) {
         if (navHasFocus || wasOpenedViaTopNavSwitch) return@LaunchedEffect
         if (resetPositionOnEnter && !hasResetPosition && homeRows.isNotEmpty()) {
-            // Defer to next frame so we don't mutate state (clear/scroll) in the same frame as
-            // the new destination's composition (e.g. after user select → AppContent). Avoids
-            // Compose AssertionError: slot table / recompose scope cleared while in use.
-            delay(16)
-            if (!hasResetPosition && homeRows.isNotEmpty()) {
-                val firstRowIndex =
-                    homeRows.indexOfFirst {
-                        it is HomeRowLoadingState.Success && it.items.isNotEmpty()
-                    }.takeIf { it >= 0 } ?: 0
-                rowColumnPositions.clear()
-                rowColumnPositions[firstRowIndex] = 0
-                position = RowColumn(firstRowIndex, 0)
-                previousRow = firstRowIndex
-                rowFocusRequesters.getOrNull(firstRowIndex)?.tryRequestFocus()
-                delay(50)
-                listState.scrollToItem(firstRowIndex)
-                firstFocused = true
-                hasResetPosition = true
+            val firstRowIndex =
+                homeRows.indexOfFirst {
+                    it is HomeRowLoadingState.Success && it.items.isNotEmpty()
+                }.takeIf { it >= 0 } ?: 0
+            // Defer mutations to the next frame so we don't mutate state (clear/scroll) in the
+            // same frame as the new destination's composition (e.g. after user select → AppContent).
+            // Avoids Compose AssertionError: slot table / recompose scope cleared while in use,
+            // especially after app was backgrounded and user returns then selects a user.
+            Handler(Looper.getMainLooper()).post {
+                if (!hasResetPosition && homeRows.isNotEmpty()) {
+                    rowColumnPositions.clear()
+                    rowColumnPositions[firstRowIndex] = 0
+                    position = RowColumn(firstRowIndex, 0)
+                    previousRow = firstRowIndex
+                    rowFocusRequesters.getOrNull(firstRowIndex)?.tryRequestFocus()
+                    firstFocused = true
+                    hasResetPosition = true
+                    scope.launch {
+                        delay(50)
+                        listState.scrollToItem(firstRowIndex)
+                    }
+                }
             }
         }
     }
@@ -462,9 +474,14 @@ fun HomePageContent(
                                             ?: rowFocusRequesters.getOrNull(firstRowIndex)
                                             ?: FocusRequester.Default
                                     } else {
+                                        // Preserve already-restored position (e.g. restore LaunchedEffect ran then
+                                        // savedPositionToRestore was consumed; a later onEnter would overwrite column with 0)
                                         val targetRow =
-                                            firstRowIndex.coerceIn(0, rowFocusRequesters.lastIndex.coerceAtLeast(0))
-                                        val savedColumn = rowColumnPositions[targetRow] ?: 0
+                                            if (position.row >= 0) position.row
+                                            else firstRowIndex.coerceIn(0, rowFocusRequesters.lastIndex.coerceAtLeast(0))
+                                        val savedColumn =
+                                            rowColumnPositions[targetRow]
+                                                ?: if (position.row == targetRow) position.column.coerceAtLeast(0) else 0
                                         position =
                                             RowColumn(
                                                 targetRow,

@@ -1,5 +1,7 @@
 package com.github.sysmoon.wholphin.services
 
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.runtime.mutableStateListOf
 import androidx.navigation3.runtime.NavKey
 import com.github.sysmoon.wholphin.data.CurrentUser
@@ -18,13 +20,19 @@ class SetupNavigationManager
     @Inject
     constructor() {
         var backStack: MutableList<NavKey> = mutableStateListOf(SetupDestination.Loading)
+        private val mainHandler = Handler(Looper.getMainLooper())
 
         /**
-         * Go to the specified [SetupDestination]
+         * Go to the specified [SetupDestination].
+         * Defers the backStack update to the next frame to avoid Compose AssertionError
+         * (slot table / recompose scope cleared while in use) when navigating from UserList
+         * to AppContent after the app has been backgrounded.
          */
         fun navigateTo(destination: SetupDestination) {
-            backStack[0] = destination
-            log()
+            mainHandler.post {
+                backStack[0] = destination
+                log()
+            }
         }
 
         private fun log() {

@@ -29,6 +29,9 @@ class StreamChoiceService
     ) {
         private val userConfig: UserConfiguration? get() = serverRepository.currentUserDto.value?.configuration
 
+        private fun currentUserRowId(): Int =
+            requireNotNull(serverRepository.currentUser.value) { "No current user" }.rowId
+
         suspend fun updateAudio(
             dto: BaseItemDto,
             audioLang: String,
@@ -55,7 +58,7 @@ class StreamChoiceService
         ) {
             val seriesId = dto.seriesId
             if (seriesId != null) {
-                val userId = serverRepository.currentUser.value!!.rowId
+                val userId = currentUserRowId()
                 val currentPlc =
                     playbackLanguageChoiceDao.get(userId, seriesId)
                         ?: PlaybackLanguageChoice(userId, seriesId, dto.id)
@@ -67,7 +70,7 @@ class StreamChoiceService
 
         suspend fun getPlaybackLanguageChoice(dto: BaseItemDto) =
             dto.seriesId?.let {
-                playbackLanguageChoiceDao.get(serverRepository.currentUser.value!!.rowId, it)
+                playbackLanguageChoiceDao.get(currentUserRowId(), it)
             }
 
         /**
@@ -101,7 +104,7 @@ class StreamChoiceService
             plc: PlaybackLanguageChoice?,
             prefs: UserPreferences,
         ): MediaStream? {
-            val plc = plc ?: seriesId?.let { playbackLanguageChoiceDao.get(serverRepository.currentUser.value!!.rowId, it) }
+            val plc = plc ?: seriesId?.let { playbackLanguageChoiceDao.get(currentUserRowId(), it) }
             return source.mediaStreams?.letNotEmpty { streams ->
                 val candidates = streams.filter { it.type == MediaStreamType.AUDIO }
                 chooseAudioStream(candidates, itemPlayback, plc, prefs)
@@ -146,7 +149,7 @@ class StreamChoiceService
             val plc =
                 plc ?: seriesId?.let {
                     playbackLanguageChoiceDao.get(
-                        serverRepository.currentUser.value!!.rowId,
+                        currentUserRowId(),
                         it,
                     )
                 }
@@ -182,7 +185,7 @@ class StreamChoiceService
                     }
                 val itemPlayback =
                     ItemPlayback(
-                        userId = serverRepository.currentUser.value!!.rowId,
+                        userId = currentUserRowId(),
                         itemId = UUID.randomUUID(), // Not used for ONLY_FORCED resolution
                         subtitleIndex = TrackIndex.ONLY_FORCED,
                     )

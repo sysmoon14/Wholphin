@@ -426,7 +426,9 @@ class LiveTvViewModel
                     } else {
                         api.liveTvApi.cancelTimer(timerId)
                     }
-                    fetchProgramsWithLoading(channels.value.orEmpty(), programs.value!!.range)
+                    programs.value?.range?.let { r ->
+                        fetchProgramsWithLoading(channels.value.orEmpty(), r)
+                    }
                 }
             }
         }
@@ -465,15 +467,18 @@ class LiveTvViewModel
                         )
                     api.liveTvApi.createTimer(payload)
                 }
-                fetchProgramsWithLoading(channels.value.orEmpty(), programs.value!!.range)
+                programs.value?.range?.let { r ->
+                    fetchProgramsWithLoading(channels.value.orEmpty(), r)
+                }
             }
         }
 
         private var focusLoadingJob: Job? = null
 
         fun onFocusChannel(position: RowColumn) {
+            val currentPrograms = programs.value ?: return
             channels.value?.let { channels ->
-                val fetchedRange = programs.value!!.range
+                val fetchedRange = currentPrograms.range
                 val quarter = range / 4
                 var rangeStart = fetchedRange.start + quarter
                 var rangeEnd = fetchedRange.last - quarter

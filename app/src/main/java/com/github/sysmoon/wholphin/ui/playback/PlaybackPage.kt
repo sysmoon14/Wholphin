@@ -127,14 +127,16 @@ fun PlaybackPage(
 
         LoadingState.Success -> {
             val playerState by viewModel.currentPlayer.collectAsState()
-            PlaybackPageContent(
-                player = playerState!!.player,
-                playerBackend = playerState!!.backend,
-                preferences = preferences,
-                destination = destination,
-                viewModel = viewModel,
-                modifier = modifier,
-            )
+            playerState?.let { state ->
+                PlaybackPageContent(
+                    player = state.player,
+                    playerBackend = state.backend,
+                    preferences = preferences,
+                    destination = destination,
+                    viewModel = viewModel,
+                    modifier = modifier,
+                )
+            } ?: LoadingPage(modifier.background(Color.Black))
         }
     }
 }

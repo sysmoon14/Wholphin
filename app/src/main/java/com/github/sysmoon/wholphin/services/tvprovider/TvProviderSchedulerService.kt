@@ -40,7 +40,10 @@ class TvProviderSchedulerService
 
         init {
             serverRepository.current.observe(activity) { user ->
-                workManager.cancelUniqueWork(TvProviderWorker.WORK_NAME)
+                // Do not call cancelUniqueWork() on the main thread—it can trigger AssertionError
+                // in WorkManager when the previous run is still in the processor (e.g. on activity
+                // start after a background run). Use enqueueUniquePeriodicWork(..., UPDATE) to
+                // replace work when user is set; when user is null, cancel off the main thread.
                 if (supportsTvProvider) {
                     if (user != null) {
                         activity.lifecycleScope.launchIO(ExceptionHandler()) {
@@ -62,6 +65,10 @@ class TvProviderSchedulerService
                                             ),
                                         ).build(),
                                 ).await()
+                        }
+                    } else {
+                        activity.lifecycleScope.launchIO(ExceptionHandler()) {
+                            workManager.cancelUniqueWork(TvProviderWorker.WORK_NAME)
                         }
                     }
                 }

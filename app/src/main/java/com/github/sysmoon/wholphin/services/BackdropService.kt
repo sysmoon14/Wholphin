@@ -47,8 +47,7 @@ class BackdropService
 
         suspend fun submit(item: BaseItem) =
             withContext(Dispatchers.IO) {
-                val imageUrl = imageUrlService.getItemImageUrl(item, ImageType.BACKDROP)!!
-                submit(item.id.toString(), imageUrl)
+                submit(item.id.toString(), imageUrlService.getItemImageUrl(item, ImageType.BACKDROP))
             }
 
         suspend fun submit(item: DiscoverItem) = submit("discover_${item.id}", item.backDropUrl)

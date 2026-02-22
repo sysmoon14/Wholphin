@@ -69,7 +69,6 @@ class ServerEventListener
         }
 
         fun setupListeners() {
-            serverRepository.currentUser
             Timber.v("Subscribing to WebSocket")
             listenJob?.cancel()
             listenJob =

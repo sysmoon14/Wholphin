@@ -2,6 +2,7 @@ package com.github.sysmoon.wholphin.services
 
 import android.content.Context
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.github.sysmoon.wholphin.data.ServerRepository
 import com.github.sysmoon.wholphin.data.model.BaseItem
 import com.github.sysmoon.wholphin.preferences.AppPreference
@@ -14,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.exception.InvalidStatusException
@@ -133,7 +135,9 @@ class DatePlayedInvalidationService
 
         init {
             serverRepository.current.observe(activity) {
-                datePlayedService.invalidateAll()
+                activity.lifecycleScope.launch(Dispatchers.Default) {
+                    datePlayedService.invalidateAll()
+                }
             }
         }
     }

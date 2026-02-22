@@ -109,7 +109,7 @@ class ItemPlaybackRepository
             trackIndex: Int,
             type: MediaStreamType,
         ): ItemPlayback =
-            serverRepository.current.value!!.let { current ->
+            requireNotNull(serverRepository.current.value) { "No current session" }.let { current ->
                 val source =
                     itemPlayback?.sourceId?.let { sourceId ->
                         item.data.mediaSources?.firstOrNull { it.id?.toUUIDOrNull() == sourceId }

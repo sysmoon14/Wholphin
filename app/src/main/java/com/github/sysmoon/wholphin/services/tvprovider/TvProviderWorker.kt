@@ -221,7 +221,7 @@ class TvProviderWorker
                             BaseItemKind.EPISODE -> ImageType.THUMB
                             else -> ImageType.PRIMARY
                         }
-                    setPosterArtUri(imageUrlService.getItemImageUrl(item, imageType)!!.toUri())
+                    imageUrlService.getItemImageUrl(item, imageType)?.toUri()?.let(::setPosterArtUri)
 
                     setIntent(
                         Intent(context, MainActivity::class.java)
@@ -357,7 +357,7 @@ class TvProviderWorker
                     }
 
                     setPosterArtAspectRatio(TvContractCompat.PreviewProgramColumns.ASPECT_RATIO_16_9)
-                    setPosterArtUri(imageUrlService.getItemImageUrl(item, ImageType.THUMB)!!.toUri())
+                    imageUrlService.getItemImageUrl(item, ImageType.THUMB)?.toUri()?.let(::setPosterArtUri)
 
                     setIntent(
                         Intent(context, MainActivity::class.java)

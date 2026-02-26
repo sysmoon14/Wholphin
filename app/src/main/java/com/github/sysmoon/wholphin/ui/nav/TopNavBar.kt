@@ -94,6 +94,8 @@ fun TopNavBar(
     val density = LocalDensity.current
     var navHasFocus by remember { mutableStateOf(false) }
     var focusedIndex by remember { mutableStateOf<Int?>(null) }
+    /** True when focus just entered the nav; we show the selected tab's indicator until focus settles to avoid a rectangular blip (profile shape). */
+    var enteringNavFocus by remember { mutableStateOf(false) }
     val focusRequesters = remember { mutableMapOf<Int, FocusRequester>() }
     var navBoxPosition by remember { mutableStateOf(Offset.Zero) }
     val itemMetrics = remember { mutableStateMapOf<Int, NavItemMetrics>() }
@@ -125,7 +127,9 @@ fun TopNavBar(
     val defaultKey = allNavItems.firstOrNull()?.first ?: NavProfileKey
     val allKeys = allNavItems.map { it.first } + listOf(NavProfileKey) + if (hideSettingsCog) emptyList() else listOf(NavSettingsKey)
     allKeys.forEach { focusRequesterFor(it) }
-    LaunchedEffect(navHasFocus, selectedIndex) {
+    // Only run when nav *gains* focus (enter), not when selectedIndex changes. Otherwise we'd
+    // overwrite focusedIndex and steal focus back to the center when the user moves to profile/settings.
+    LaunchedEffect(navHasFocus) {
         if (navHasFocus) {
             val targetKey =
                 if (allNavItems.any { it.first == selectedIndex }) {
@@ -135,6 +139,13 @@ fun TopNavBar(
                 }
             focusedIndex = targetKey
             requesterForFocus(targetKey).tryRequestFocus("top_nav_enter")
+        }
+    }
+    // Clear "entering" so we don't keep forcing selected indicator if focus never lands on the selected item
+    LaunchedEffect(enteringNavFocus) {
+        if (enteringNavFocus) {
+            delay(150)
+            enteringNavFocus = false
         }
     }
     // Don't run delayed reclaim here (450ms/900ms) - it overwrites the user moving to another tab
@@ -193,8 +204,12 @@ fun TopNavBar(
             .onFocusChanged {
                 navHasFocus = it.hasFocus
                 viewModel.navHasFocus.value = it.hasFocus
-                if (!it.hasFocus) {
+                if (it.hasFocus) {
+                    enteringNavFocus = true
+                    focusedIndex = selectedIndex
+                } else {
                     focusedIndex = null
+                    enteringNavFocus = false
                 }
             }
             .focusProperties {
@@ -226,7 +241,14 @@ fun TopNavBar(
             },
     ) {
         val selectedMetrics = itemMetrics[selectedIndex]
-        val focusMetrics = itemMetrics[focusedIndex ?: selectedIndex]
+        // When focus just entered, avoid showing profile/settings shape (looks rectangular); show selected tab until focus settles.
+        val effectiveFocusedIndex =
+            if (enteringNavFocus && (focusedIndex == NavProfileKey || focusedIndex == NavSettingsKey)) {
+                selectedIndex
+            } else {
+                focusedIndex ?: selectedIndex
+            }
+        val focusMetrics = itemMetrics[effectiveFocusedIndex]
         val selectedOffsetX =
             with(density) {
                 (selectedMetrics?.x ?: 0f).toDp()
@@ -243,10 +265,22 @@ fun TopNavBar(
             with(density) {
                 (selectedMetrics?.height ?: 0f).toDp()
             }
-        val focusOffsetX = with(density) { (focusMetrics?.x ?: 0f).toDp() }
-        val focusOffsetY = with(density) { (focusMetrics?.y ?: 0f).toDp() }
-        val focusWidth = with(density) { (focusMetrics?.width ?: 0f).toDp() }
-        val focusHeight = with(density) { (focusMetrics?.height ?: 0f).toDp() }
+        val focusOffsetX: androidx.compose.ui.unit.Dp
+        val focusOffsetY: androidx.compose.ui.unit.Dp
+        val focusWidth: androidx.compose.ui.unit.Dp
+        val focusHeight: androidx.compose.ui.unit.Dp
+        with(density) {
+            val pad =
+                if (effectiveFocusedIndex == NavProfileKey && focusMetrics != null) {
+                    NavBarProfileFocusPadding.toPx()
+                } else {
+                    0f
+                }
+            focusOffsetX = (focusMetrics?.let { it.x - pad } ?: 0f).toDp()
+            focusOffsetY = (focusMetrics?.let { it.y - pad } ?: 0f).toDp()
+            focusWidth = (focusMetrics?.let { it.width + 2 * pad } ?: 0f).toDp()
+            focusHeight = (focusMetrics?.let { it.height + 2 * pad } ?: 0f).toDp()
+        }
         val selectedIndicatorOffsetX by animateDpAsState(
             targetValue = selectedOffsetX,
             label = "nav_selected_offset_x",
@@ -306,11 +340,7 @@ fun TopNavBar(
             val profileModifier =
                 downKeyModifier
                     .focusRequester(focusRequesterFor(NavProfileKey))
-                    .onFocusChanged {
-                        if (it.isFocused) {
-                            focusedIndex = NavProfileKey
-                        }
-                    }.onGloballyPositioned { coords ->
+                    .onGloballyPositioned { coords ->
                         val position = coords.positionInRoot()
                         itemMetrics[NavProfileKey] =
                             NavItemMetrics(
@@ -328,6 +358,10 @@ fun TopNavBar(
                     viewModel.setupNavigationManager.navigateTo(SetupDestination.UserList(server))
                 },
                 modifier = profileModifier,
+                onFocused = {
+                    focusedIndex = NavProfileKey
+                    enteringNavFocus = false
+                },
             )
 
             // Center: nav items (centered in the remaining space)
@@ -361,6 +395,7 @@ fun TopNavBar(
                                     .onFocusChanged {
                                         if (it.isFocused) {
                                             focusedIndex = index
+                                            if (index == selectedIndex) enteringNavFocus = false
                                         }
                                     }.onGloballyPositioned { coords ->
                                         val position = coords.positionInRoot()
@@ -466,11 +501,7 @@ fun TopNavBar(
                     modifier =
                         downKeyModifier
                             .focusRequester(focusRequesterFor(NavSettingsKey))
-                            .onFocusChanged {
-                                if (it.isFocused) {
-                                    focusedIndex = NavSettingsKey
-                                }
-                            }.onGloballyPositioned { coords ->
+                            .onGloballyPositioned { coords ->
                                 val position = coords.positionInRoot()
                                 itemMetrics[NavSettingsKey] =
                                     NavItemMetrics(
@@ -481,6 +512,10 @@ fun TopNavBar(
                                         shape = NavBarPillShape,
                                     )
                             },
+                    onFocused = {
+                        focusedIndex = NavSettingsKey
+                        enteringNavFocus = false
+                    },
                 )
             }
         }
@@ -489,6 +524,8 @@ fun TopNavBar(
 
 private val NavBarPillShape = RoundedCornerShape(20.dp)
 private val NavBarProfileShape = RoundedCornerShape(4.dp)
+/** Extra padding around the profile focus indicator so the white ring isn't hidden behind the avatar. */
+private val NavBarProfileFocusPadding = 4.dp
 private val NavBarFocusedBackground = Color.White.copy(alpha = 0.22f)
 private const val NavProfileKey = -1000
 private const val NavSettingsKey = -1001
@@ -507,8 +544,13 @@ private fun RowScope.TopNavProfileButton(
     imageUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onFocused: () -> Unit = {},
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    LaunchedEffect(isFocused) {
+        if (isFocused) onFocused()
+    }
     val focusOverride = LocalFocusOverrideColors.current
     Surface(
         onClick = onClick,
@@ -619,9 +661,13 @@ private fun TopNavWordItem(
 private fun RowScope.TopNavSettingsButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onFocused: () -> Unit = {},
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
+    LaunchedEffect(isFocused) {
+        if (isFocused) onFocused()
+    }
     val focusOverride = LocalFocusOverrideColors.current
     val iconTint = if (isFocused && focusOverride != null) focusOverride.content else MaterialTheme.colorScheme.onSurface
     Surface(

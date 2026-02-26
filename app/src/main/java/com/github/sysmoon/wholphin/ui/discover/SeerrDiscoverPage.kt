@@ -46,6 +46,7 @@ import com.github.sysmoon.wholphin.ui.Cards
 import com.github.sysmoon.wholphin.ui.cards.DiscoverItemCard
 import com.github.sysmoon.wholphin.ui.cards.ItemRow
 import com.github.sysmoon.wholphin.ui.components.ErrorMessage
+import com.github.sysmoon.wholphin.ui.components.LoadingPage
 import com.github.sysmoon.wholphin.ui.data.RowColumn
 import com.github.sysmoon.wholphin.ui.launchIO
 import com.github.sysmoon.wholphin.ui.listToDotString
@@ -243,6 +244,13 @@ fun SeerrDiscoverPage(
     val rows =
         listOf(state.trending, state.movies, state.tv, state.upcomingMovies, state.upcomingTv)
     val ratingMap by viewModel.rating.collectAsState()
+
+    // Show a single loading spinner until at least one row has content (avoids flashing row headers + "Loading...")
+    val contentReady = rows.any { it.items is DataLoadingState.Success }
+    if (!contentReady) {
+        LoadingPage(modifier = Modifier.fillMaxSize(), focusEnabled = false)
+        return
+    }
 
     val listState = rememberLazyListState()
     val focusRequesters = remember(rows) { List(rows.size) { FocusRequester() } }

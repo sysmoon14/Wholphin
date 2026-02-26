@@ -34,7 +34,6 @@ class TvProviderSchedulerService
         private val serverRepository: ServerRepository,
     ) {
         private val activity = (context as AppCompatActivity)
-        private val workManager = WorkManager.getInstance(context)
 
         private val supportsTvProvider =
             // TODO <=25 has limited support
@@ -50,29 +49,7 @@ class TvProviderSchedulerService
                 val userToSchedule = user
                 val run: () -> Unit = {
                     activity.lifecycleScope.launchIO(ExceptionHandler()) {
-                        delay(150) // Let main-thread WorkManager state settle after user/activity change
-                        if (userToSchedule != null) {
-                            Timber.i("Scheduling TvProviderWorker for ${userToSchedule.user}")
-                            workManager
-                                .enqueueUniquePeriodicWork(
-                                    uniqueWorkName = TvProviderWorker.WORK_NAME,
-                                    existingPeriodicWorkPolicy = ExistingPeriodicWorkPolicy.UPDATE,
-                                    request =
-                                        PeriodicWorkRequestBuilder<TvProviderWorker>(
-                                            repeatInterval = 1.hours.toJavaDuration(),
-                                        ).setBackoffCriteria(
-                                            BackoffPolicy.LINEAR,
-                                            15.minutes.toJavaDuration(),
-                                        ).setInputData(
-                                            workDataOf(
-                                                TvProviderWorker.PARAM_USER_ID to userToSchedule.user.id.toString(),
-                                                TvProviderWorker.PARAM_SERVER_ID to userToSchedule.server.id.toString(),
-                                            ),
-                                        ).build(),
-                                ).await()
-                        } else {
-                            workManager.cancelUniqueWork(TvProviderWorker.WORK_NAME)
-                        }
+                        scheduleTvProviderWork(userToSchedule, retryCount = 0)
                     }
                     Unit
                 }
@@ -84,20 +61,67 @@ class TvProviderSchedulerService
             }
         }
 
+        /**
+         * Schedules or cancels TvProvider work. Catches WorkManager's internal AssertionError
+         * (nc.c0.clear) which can occur during activity start or user switch; retries once after
+         * a longer delay so the crash dialog does not show and work is still scheduled when possible.
+         */
+        private suspend fun scheduleTvProviderWork(
+            userToSchedule: com.github.sysmoon.wholphin.data.CurrentUser?,
+            retryCount: Int,
+        ) {
+            val delayMs = if (retryCount == 0) 400L else 2000L
+            delay(delayMs)
+            try {
+                val wm = WorkManager.getInstance(context)
+                if (userToSchedule != null) {
+                    Timber.i("Scheduling TvProviderWorker for ${userToSchedule.user}")
+                    wm.enqueueUniquePeriodicWork(
+                        uniqueWorkName = TvProviderWorker.WORK_NAME,
+                        existingPeriodicWorkPolicy = ExistingPeriodicWorkPolicy.UPDATE,
+                        request =
+                            PeriodicWorkRequestBuilder<TvProviderWorker>(
+                                repeatInterval = 1.hours.toJavaDuration(),
+                            ).setBackoffCriteria(
+                                BackoffPolicy.LINEAR,
+                                15.minutes.toJavaDuration(),
+                            ).setInputData(
+                                workDataOf(
+                                    TvProviderWorker.PARAM_USER_ID to userToSchedule.user.id.toString(),
+                                    TvProviderWorker.PARAM_SERVER_ID to userToSchedule.server.id.toString(),
+                                ),
+                            ).build(),
+                    ).await()
+                } else {
+                    wm.cancelUniqueWork(TvProviderWorker.WORK_NAME)
+                }
+            } catch (e: AssertionError) {
+                Timber.w(e, "WorkManager AssertionError scheduling TvProviderWorker (retryCount=%d)", retryCount)
+                if (retryCount < 1) {
+                    scheduleTvProviderWork(userToSchedule, retryCount + 1)
+                }
+            }
+        }
+
         fun launchOneTimeRefresh() {
             if (supportsTvProvider) {
                 activity.lifecycleScope.launchIO(ExceptionHandler()) {
-                    serverRepository.current.value?.let { user ->
-                        Timber.i("Scheduling on-time TvProviderWorker for ${user.user}")
-                        workManager.enqueue(
-                            OneTimeWorkRequestBuilder<TvProviderWorker>()
-                                .setInputData(
-                                    workDataOf(
-                                        TvProviderWorker.PARAM_USER_ID to user.user.id.toString(),
-                                        TvProviderWorker.PARAM_SERVER_ID to user.server.id.toString(),
-                                    ),
-                                ).build(),
-                        )
+                    delay(300)
+                    try {
+                        serverRepository.current.value?.let { user ->
+                            Timber.i("Scheduling on-time TvProviderWorker for ${user.user}")
+                            WorkManager.getInstance(context).enqueue(
+                                OneTimeWorkRequestBuilder<TvProviderWorker>()
+                                    .setInputData(
+                                        workDataOf(
+                                            TvProviderWorker.PARAM_USER_ID to user.user.id.toString(),
+                                            TvProviderWorker.PARAM_SERVER_ID to user.server.id.toString(),
+                                        ),
+                                    ).build(),
+                            )
+                        }
+                    } catch (e: AssertionError) {
+                        Timber.w(e, "WorkManager AssertionError in launchOneTimeRefresh")
                     }
                 }
             }

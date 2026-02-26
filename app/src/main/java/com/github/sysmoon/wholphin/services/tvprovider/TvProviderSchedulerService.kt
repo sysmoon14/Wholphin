@@ -48,7 +48,7 @@ class TvProviderSchedulerService
                 // activity start while the main thread is in a sensitive state (e.g. Compose frame).
                 if (!supportsTvProvider) return@observe
                 val userToSchedule = user
-                val run = {
+                val run: () -> Unit = {
                     activity.lifecycleScope.launchIO(ExceptionHandler()) {
                         delay(150) // Let main-thread WorkManager state settle after user/activity change
                         if (userToSchedule != null) {
@@ -74,6 +74,7 @@ class TvProviderSchedulerService
                             workManager.cancelUniqueWork(TvProviderWorker.WORK_NAME)
                         }
                     }
+                    Unit
                 }
                 if (activity.window?.decorView != null) {
                     activity.window!!.decorView.post(run)

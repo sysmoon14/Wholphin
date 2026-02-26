@@ -3,6 +3,8 @@ package com.github.sysmoon.wholphin.services.tvprovider
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.work.BackoffPolicy
@@ -15,6 +17,7 @@ import androidx.work.workDataOf
 import com.github.sysmoon.wholphin.data.ServerRepository
 import com.github.sysmoon.wholphin.ui.launchIO
 import com.github.sysmoon.wholphin.util.ExceptionHandler
+import kotlinx.coroutines.delay
 import dagger.hilt.android.qualifiers.ActivityContext
 import dagger.hilt.android.scopes.ActivityScoped
 import timber.log.Timber
@@ -40,14 +43,16 @@ class TvProviderSchedulerService
 
         init {
             serverRepository.current.observe(activity) { user ->
-                // Do not call cancelUniqueWork() on the main thread—it can trigger AssertionError
-                // in WorkManager when the previous run is still in the processor (e.g. on activity
-                // start after a background run). Use enqueueUniquePeriodicWork(..., UPDATE) to
-                // replace work when user is set; when user is null, cancel off the main thread.
-                if (supportsTvProvider) {
-                    if (user != null) {
-                        activity.lifecycleScope.launchIO(ExceptionHandler()) {
-                            Timber.i("Scheduling TvProviderWorker for ${user.user}")
+                // Defer all WorkManager calls out of the observer and current frame to avoid
+                // AssertionError in WorkManager (nc.c0.clear) when it runs during user switch or
+                // activity start while the main thread is in a sensitive state (e.g. Compose frame).
+                if (!supportsTvProvider) return@observe
+                val userToSchedule = user
+                val run = {
+                    activity.lifecycleScope.launchIO(ExceptionHandler()) {
+                        delay(150) // Let main-thread WorkManager state settle after user/activity change
+                        if (userToSchedule != null) {
+                            Timber.i("Scheduling TvProviderWorker for ${userToSchedule.user}")
                             workManager
                                 .enqueueUniquePeriodicWork(
                                     uniqueWorkName = TvProviderWorker.WORK_NAME,
@@ -60,17 +65,20 @@ class TvProviderSchedulerService
                                             15.minutes.toJavaDuration(),
                                         ).setInputData(
                                             workDataOf(
-                                                TvProviderWorker.PARAM_USER_ID to user.user.id.toString(),
-                                                TvProviderWorker.PARAM_SERVER_ID to user.server.id.toString(),
+                                                TvProviderWorker.PARAM_USER_ID to userToSchedule.user.id.toString(),
+                                                TvProviderWorker.PARAM_SERVER_ID to userToSchedule.server.id.toString(),
                                             ),
                                         ).build(),
                                 ).await()
-                        }
-                    } else {
-                        activity.lifecycleScope.launchIO(ExceptionHandler()) {
+                        } else {
                             workManager.cancelUniqueWork(TvProviderWorker.WORK_NAME)
                         }
                     }
+                }
+                if (activity.window?.decorView != null) {
+                    activity.window!!.decorView.post(run)
+                } else {
+                    Handler(Looper.getMainLooper()).post(run)
                 }
             }
         }

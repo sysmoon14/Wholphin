@@ -88,6 +88,7 @@
     <string name="play_count">Play Count</string>
     <string name="play_from_here">Play from here</string>
     <string name="play">Play</string>
+    <string name="play_from_start">Play from Start</string>
     <string name="play_season_episode">Play Season %1$d Episode %2$d</string>
     <string name="resume_season_episode">Resume Season %1$d Episode %2$d</string>
     <string name="playback_debug_info">Show playback debug info</string>

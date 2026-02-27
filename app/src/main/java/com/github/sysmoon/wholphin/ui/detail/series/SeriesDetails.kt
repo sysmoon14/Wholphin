@@ -239,17 +239,16 @@ fun SeriesDetails(
                                 files = listOf(),
                             )
                     },
-                    playOnClick = { shuffle ->
-                        if (shuffle) {
-                            viewModel.navigateTo(
-                                Destination.PlaybackList(
-                                    itemId = item.id,
-                                    shuffle = true,
-                                ),
-                            )
-                        } else {
-                            viewModel.playNextUp()
-                        }
+                    playOnClick = { startPosition ->
+                        viewModel.playNextUp(startPosition.inWholeMilliseconds)
+                    },
+                    onShuffleClick = {
+                        viewModel.navigateTo(
+                            Destination.PlaybackList(
+                                itemId = item.id,
+                                shuffle = true,
+                            ),
+                        )
                     },
                     watchOnClick = { showWatchConfirmation = true },
                     favoriteOnClick = {
@@ -370,7 +369,8 @@ fun SeriesDetailsContent(
     onClickPerson: (Person) -> Unit,
     onLongClickItem: (Int, BaseItem) -> Unit,
     overviewOnClick: () -> Unit,
-    playOnClick: (Boolean) -> Unit,
+    playOnClick: (kotlin.time.Duration) -> Unit,
+    onShuffleClick: () -> Unit = {},
     watchOnClick: () -> Unit,
     favoriteOnClick: () -> Unit,
     trailerOnClick: (Trailer) -> Unit,
@@ -432,7 +432,7 @@ fun SeriesDetailsContent(
                     resumePosition = nextUpResumePosition,
                     onPlayClick = {
                         position = HEADER_ROW
-                        playOnClick.invoke(false)
+                        playOnClick.invoke(it)
                     },
                     onChooseSubtitlesClick = onChooseSubtitlesClick,
                     favourite = favorite,
@@ -470,7 +470,7 @@ fun SeriesDetailsContent(
                     showMoreEpisodes = true,
                     onMoreEpisodesClick = onMoreEpisodesClick,
                     showShuffle = true,
-                    onShuffleClick = { playOnClick(true) },
+                    onShuffleClick = onShuffleClick,
                     trailers = trailers,
                     onTrailerClick = trailerOnClick,
                     showCastAndCrew = people.isNotEmpty(),

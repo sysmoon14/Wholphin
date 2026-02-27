@@ -3,6 +3,7 @@ package com.github.sysmoon.wholphin.ui.detail.series
 import android.content.Context
 import android.widget.Toast
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.github.sysmoon.wholphin.data.ChosenStreams
 import com.github.sysmoon.wholphin.data.ExtrasItem
@@ -55,6 +56,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
@@ -91,6 +93,7 @@ class SeriesViewModel
         private val userPreferencesService: UserPreferencesService,
         private val backdropService: BackdropService,
         private val seerrService: SeerrService,
+        private val savedStateHandle: SavedStateHandle,
         @Assisted val seriesId: UUID,
         @Assisted val seasonEpisodeIds: SeasonEpisodeIds?,
         @Assisted val seriesPageType: SeriesPageType,
@@ -135,33 +138,8 @@ class SeriesViewModel
 
                 val seasonsDeferred = getSeasons(item, seasonEpisodeIds?.seasonNumber)
 
-                val episodeListDeferred =
-                    if (seriesPageType == SeriesPageType.OVERVIEW) {
-                        viewModelScope.async(Dispatchers.IO) {
-                            if (seasonEpisodeIds != null) {
-                                loadEpisodesInternal(
-                                    seasonEpisodeIds.seasonId,
-                                    seasonEpisodeIds.episodeId,
-                                    seasonEpisodeIds.episodeNumber,
-                                )
-                            } else {
-                                seasonsDeferred.await().firstOrNull()?.let {
-                                    loadEpisodesInternal(
-                                        it.id,
-                                        null,
-                                        null,
-                                    )
-                                } ?: EpisodeList.Error(message = "Could not determine season")
-                            }
-                        }
-                    } else {
-                        CompletableDeferred(value = EpisodeList.Loading)
-                    }
                 val seasons = seasonsDeferred.await()
-                val episodes = episodeListDeferred.await()
-                Timber.v("Done")
-
-                val initialSeasonIndex =
+                var initialSeasonIndex =
                     if (seriesPageType == SeriesPageType.OVERVIEW && seasonEpisodeIds != null) {
                         (seasons as? ApiRequestPager<*>)?.let {
                             findIndexOf(
@@ -173,7 +151,41 @@ class SeriesViewModel
                     } else {
                         0
                     }
-                Timber.v("Got initial season index: $initialSeasonIndex")
+                var initialEpisodeIndex = 0
+                // Restore position from saved state when returning from playback (e.g. overview
+                // opened from "More Episodes" with no specific episode, then user played an episode)
+                if (
+                    seriesPageType == SeriesPageType.OVERVIEW &&
+                    seasonEpisodeIds == null
+                ) {
+                    savedStateHandle.get<Int>("seasonIndex")?.let { savedSeason ->
+                        savedStateHandle.get<Int>("episodeIndex")?.let { savedEpisode ->
+                            initialSeasonIndex = savedSeason.coerceAtLeast(0)
+                            initialEpisodeIndex = savedEpisode.coerceAtLeast(0)
+                        }
+                    }
+                }
+                val episodes =
+                    if (seriesPageType == SeriesPageType.OVERVIEW) {
+                        if (seasonEpisodeIds != null) {
+                            loadEpisodesInternal(
+                                seasonEpisodeIds.seasonId,
+                                seasonEpisodeIds.episodeId,
+                                seasonEpisodeIds.episodeNumber,
+                            )
+                        } else {
+                            val seasonIndex = initialSeasonIndex.coerceIn(0, (seasons.size - 1).coerceAtLeast(0))
+                            seasons.getOrNull(seasonIndex)?.let { season ->
+                                loadEpisodesInternal(season.id, null, null)
+                            } ?: EpisodeList.Error(message = "Could not determine season")
+                        }
+                    } else {
+                        EpisodeList.Loading
+                    }
+                if (episodes is EpisodeList.Success && initialEpisodeIndex == 0) {
+                    initialEpisodeIndex = episodes.initialEpisodeIndex
+                }
+                Timber.v("Done: initial season index: $initialSeasonIndex, episode index: $initialEpisodeIndex")
 
                 val remoteTrailers = trailerService.getRemoteTrailers(item)
                 withContext(Dispatchers.Main) {
@@ -181,13 +193,20 @@ class SeriesViewModel
                     this@SeriesViewModel.position.update {
                         it.copy(
                             seasonTabIndex = initialSeasonIndex,
-                            episodeRowIndex =
-                                (episodes as? EpisodeList.Success)?.initialEpisodeIndex ?: 0,
+                            episodeRowIndex = initialEpisodeIndex,
                         )
                     }
                     this@SeriesViewModel.seasons.value = seasons
                     this@SeriesViewModel.episodes.value = episodes
                     loading.value = LoadingState.Success
+                }
+                if (seriesPageType == SeriesPageType.OVERVIEW) {
+                    viewModelScope.launch {
+                        position.collect { pos ->
+                            savedStateHandle["seasonIndex"] = pos.seasonTabIndex
+                            savedStateHandle["episodeIndex"] = pos.episodeRowIndex
+                        }
+                    }
                 }
                 if (seriesPageType == SeriesPageType.DETAILS) {
                     viewModelScope.launchIO {
@@ -516,9 +535,10 @@ class SeriesViewModel
         }
 
         /**
-         * Play whichever episode is next up for series or else the first episode
+         * Play whichever episode is next up for series or else the first episode.
+         * @param startPositionMs Start position in milliseconds (0 for play from start).
          */
-        fun playNextUp() {
+        fun playNextUp(startPositionMs: Long = 0L) {
             viewModelScope.launch(ExceptionHandler() + Dispatchers.IO) {
                 val result by api.tvShowsApi.getNextUp(seriesId = seriesId)
                 val nextUp =
@@ -530,7 +550,7 @@ class SeriesViewModel
                         .firstOrNull()
                 if (nextUp != null) {
                     withContext(Dispatchers.Main) {
-                        navigateTo(Destination.Playback(nextUp.id, 0L))
+                        navigateTo(Destination.Playback(nextUp.id, startPositionMs))
                     }
                 } else {
                     showToast(

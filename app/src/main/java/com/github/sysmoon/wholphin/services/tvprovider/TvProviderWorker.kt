@@ -1,10 +1,12 @@
 package com.github.sysmoon.wholphin.services.tvprovider
 
+import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
+import android.media.tv.TvContract
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.datastore.core.DataStore
@@ -257,6 +259,8 @@ class TvProviderWorker
         private suspend fun addOtherChannels() {
             val preferences = preferences.data.firstOrNull()
             val channelsPrefs = context.getSharedPreferences("channels", Context.MODE_PRIVATE)
+            val channelInputId =
+                TvContractCompat.buildInputId(ComponentName(context, MainActivity::class.java))
 
             val latest =
                 api.userLibraryApi
@@ -276,13 +280,29 @@ class TvProviderWorker
 
             var channelId = channelsPrefs.getString("latest", null)?.toUri()
             if (channelId == null) {
-                Timber.d("channelId for latest is null")
+                // Reuse existing "Recently Added" channel if one exists (e.g. from another
+                // device user profile or after app data clear), to avoid duplicate channels.
+                channelId = context.contentResolver.query(
+                    TvContract.buildChannelsUriForInput(channelInputId),
+                    arrayOf(Channels._ID),
+                    null,
+                    null,
+                    null,
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        ContentUris.withAppendedId(Channels.CONTENT_URI, cursor.getLong(0))
+                    } else null
+                }
+            }
+            if (channelId == null) {
+                Timber.d("Creating new Recently Added channel")
                 val channel =
                     Channel
                         .Builder()
                         .apply {
                             setDisplayName(context.getString(R.string.recently_added))
                             setType(Channels.TYPE_PREVIEW)
+                            setInputId(channelInputId)
                             setAppLinkIntent(Intent(context, MainActivity::class.java))
                         }.build()
                 channelId =
@@ -301,6 +321,11 @@ class TvProviderWorker
                 } else {
                     Timber.w("channelId was null")
                     throw IllegalStateException("channelId was null")
+                }
+            } else {
+                // Persist so we don't query every time (e.g. when we reused an existing channel)
+                channelsPrefs.edit(true) {
+                    putString("latest", channelId.toString())
                 }
             }
             val programs = latest.map { convert(channelId, it).toContentValues() }.toTypedArray()

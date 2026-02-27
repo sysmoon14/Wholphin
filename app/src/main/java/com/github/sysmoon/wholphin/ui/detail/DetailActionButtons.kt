@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -92,8 +93,9 @@ fun DetailActionButtons(
     val density = LocalDensity.current
     val viewportHeightPx = with(density) { ButtonsVisibleHeight.toPx() }
     val buttonHeightPx = with(density) { (MinButtonHeight + ButtonSpacing).toPx() }
+    val isResumable = resumePosition > Duration.ZERO
     val totalButtons =
-        1 + (if (showMoreEpisodes) 1 else 0) + (if (showShuffle) 1 else 0) + 1 +
+        (if (isResumable) 2 else 1) + (if (showMoreEpisodes) 1 else 0) + (if (showShuffle) 1 else 0) + 1 +
             (if (showCastAndCrew) 1 else 0) + 1 + (if (!trailers.isNullOrEmpty()) 1 else 0) + 1
     // Use a point half a button above the viewport bottom so we don't switch the hint until
     // the next button is substantially visible (avoids the bottom button going bright too early).
@@ -131,16 +133,38 @@ fun DetailActionButtons(
             horizontalAlignment = Alignment.Start,
         ) {
         isLastVisible() // advance index for Play button (no contentColor on that overload)
-        DetailActionButton(
-            title = playButtonLabel,
-            icon = Icons.Default.PlayArrow,
-            onClick = { onPlayClick(resumePosition) },
-            modifier =
-                Modifier
-                    .width(ButtonWidth)
-                    .onFocusChanged { onPlayFocusChanged(it.isFocused) }
-                    .focusRequester(firstFocus),
-        )
+        if (isResumable) {
+            DetailActionButton(
+                title = stringResource(R.string.resume),
+                icon = Icons.Default.PlayArrow,
+                onClick = { onPlayClick(resumePosition) },
+                modifier =
+                    Modifier
+                        .width(ButtonWidth)
+                        .onFocusChanged { onPlayFocusChanged(it.isFocused) }
+                        .focusRequester(firstFocus),
+            )
+            DetailActionButton(
+                title = stringResource(R.string.play_from_start),
+                icon = Icons.Default.Refresh,
+                onClick = { onPlayClick(Duration.ZERO) },
+                modifier =
+                    Modifier
+                        .width(ButtonWidth)
+                        .onFocusChanged { onPlayFocusChanged(it.isFocused) },
+            )
+        } else {
+            DetailActionButton(
+                title = playButtonLabel,
+                icon = Icons.Default.PlayArrow,
+                onClick = { onPlayClick(resumePosition) },
+                modifier =
+                    Modifier
+                        .width(ButtonWidth)
+                        .onFocusChanged { onPlayFocusChanged(it.isFocused) }
+                        .focusRequester(firstFocus),
+            )
+        }
         if (showMoreEpisodes) {
             DetailActionButton(
                 titleRes = R.string.more_episodes,

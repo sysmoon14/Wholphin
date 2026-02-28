@@ -1,7 +1,10 @@
 package com.github.sysmoon.wholphin
 
 import android.app.Application
+import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.StrictMode
 import android.os.StrictMode.ThreadPolicy
 import android.util.Log
@@ -9,6 +12,10 @@ import androidx.compose.runtime.Composer
 import androidx.compose.runtime.tooling.ComposeStackTraceMode
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.github.sysmoon.wholphin.services.tvprovider.TvProviderWorker
 import dagger.hilt.android.HiltAndroidApp
 import org.acra.ACRA
 import org.acra.ReportField
@@ -16,6 +23,8 @@ import org.acra.config.dialog
 import org.acra.data.StringFormat
 import org.acra.ktx.initAcra
 import timber.log.Timber
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.toJavaDuration
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -98,6 +107,31 @@ class WholphinApplication :
             reportSendSuccessToast = "Sent crash report!"
         }
         ACRA.errorReporter.putCustomData("SDK_INT", Build.VERSION.SDK_INT.toString())
+
+        scheduleTvProviderWorkDeferred()
+    }
+
+    /**
+     * Schedules TvProvider periodic work from Application with a long delay so WorkManager is never
+     * touched during activity lifecycle (avoids AssertionError in WorkManager when opening app or
+     * switching user). The worker resolves the current user at run time via ServerRepository.
+     */
+    private fun scheduleTvProviderWorkDeferred() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) return
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                    TvProviderWorker.WORK_NAME,
+                    ExistingPeriodicWorkPolicy.KEEP,
+                    PeriodicWorkRequestBuilder<TvProviderWorker>(
+                        repeatInterval = 1.hours.toJavaDuration(),
+                    ).build(),
+                )
+            } catch (e: Throwable) {
+                Timber.w(e, "Failed to schedule TvProviderWorker from Application (will not retry)")
+            }
+        }, 30_000L)
     }
 
     @Inject

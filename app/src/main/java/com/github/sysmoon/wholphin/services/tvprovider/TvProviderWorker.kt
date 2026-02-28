@@ -59,13 +59,19 @@ class TvProviderWorker
     ) : CoroutineWorker(context, workerParams) {
         override suspend fun doWork(): Result {
             Timber.d("Start")
-            val serverId =
-                inputData.getString(PARAM_SERVER_ID)?.toUUIDOrNull() ?: return Result.failure()
-            val userId =
-                inputData.getString(PARAM_USER_ID)?.toUUIDOrNull() ?: return Result.failure()
+            var serverId = inputData.getString(PARAM_SERVER_ID)?.toUUIDOrNull()
+            var userId = inputData.getString(PARAM_USER_ID)?.toUUIDOrNull()
+            if (serverId == null || userId == null) {
+                val current = serverRepository.current.value
+                if (current == null) {
+                    Timber.d("No current user for TvProviderWorker")
+                    return Result.success()
+                }
+                serverId = current.server.id
+                userId = current.user.id
+            }
 
             if (api.baseUrl.isNullOrBlank() || api.accessToken.isNullOrBlank()) {
-                // Not active
                 var currentUser = serverRepository.current.value
                 if (currentUser == null) {
                     serverRepository.restoreSession(serverId, userId)
